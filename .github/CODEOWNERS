@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2025 SecPal Contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Code Owners for SecPal/contracts Repository
+
+# Default: All files owned by maintainers
+* @SecPal/maintainers
+
+# OpenAPI specifications
+/openapi/ @SecPal/maintainers
+
+# TypeScript types
+/src/ @SecPal/maintainers
+
+# CI/CD workflows
+/.github/ @SecPal/maintainers
+
+# Documentation
+*.md @SecPal/maintainers
+
+# License and compliance files
+/LICENSES/ @SecPal/maintainers
+REUSE.toml @SecPal/maintainers
+LICENSE @SecPal/maintainers

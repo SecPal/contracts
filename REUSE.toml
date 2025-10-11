@@ -1,0 +1,10 @@
+version = 1
+SPDX-PackageName = "SecPal Contracts"
+SPDX-PackageSupplier = "SecPal Contributors"
+SPDX-PackageDownloadLocation = "https://github.com/SecPal/contracts"
+
+[[annotations]]
+path = [".gitignore", "LICENSE", "package.json", "package-lock.json", "tsconfig.json"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 SecPal Contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
