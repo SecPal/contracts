@@ -65,11 +65,11 @@ npm run build
 ### In Frontend
 
 ```typescript
-import { User, LogEntry, Shift } from '@secpal/contracts';
+import { User, LogEntry, Shift } from "@secpal/contracts";
 
 const user: User = {
-  id: '123',
-  email: 'user@example.com',
+  id: "123",
+  email: "user@example.com",
   // ...
 };
 ```
@@ -77,7 +77,7 @@ const user: User = {
 ### In Backend
 
 ```typescript
-import { CreateLogEntryRequest, LogEntryResponse } from '@secpal/contracts';
+import { CreateLogEntryRequest, LogEntryResponse } from "@secpal/contracts";
 
 // Use for request/response typing
 ```

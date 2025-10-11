@@ -3,7 +3,7 @@
 
 /**
  * SecPal Contracts
- * 
+ *
  * Main entry point for SecPal API contracts and TypeScript types.
  */
 
@@ -11,4 +11,4 @@
 // export * from './types/api';
 
 // Placeholder until types are generated
-export const version = '0.0.1';
+export const version = "0.0.1";

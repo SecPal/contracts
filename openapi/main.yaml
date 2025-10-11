@@ -6,7 +6,7 @@ info:
   title: SecPal API
   description: |
     RESTful API for SecPal - Digital logbook for private security services in Germany.
-    
+
     This API provides endpoints for managing security shifts, log entries, users, and reports.
   version: 0.0.1
   contact:
