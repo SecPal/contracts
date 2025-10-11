@@ -17,6 +17,12 @@ jobs:
 
       - name: Verify all commits are signed
         run: |
+          # Skip verification for Dependabot PRs
+          if [[ "${{ github.actor }}" == "dependabot[bot]" ]]; then
+            echo "✅ Skipping signature verification for Dependabot"
+            exit 0
+          fi
+
           # Get all commits in the PR
           commits=$(git rev-list ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
 

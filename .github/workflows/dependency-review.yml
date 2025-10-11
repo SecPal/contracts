@@ -16,7 +16,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/dependency-review-action@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: moderate
           deny-licenses: GPL-2.0, LGPL-2.0, LGPL-2.1, AGPL-1.0, proprietary
+          # Allow GitHub Actions updates from Dependabot
+          allow-ghsas: ""
