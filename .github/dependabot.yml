@@ -32,6 +32,3 @@ updates:
     labels:
       - "dependencies"
       - "contracts"
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
