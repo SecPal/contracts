@@ -11,11 +11,13 @@ jobs:
   verify-commits:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Verify all commits are signed
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           # Skip verification for Dependabot PRs
           if [[ "${{ github.actor }}" == "dependabot[bot]" ]]; then
@@ -23,18 +25,27 @@ jobs:
             exit 0
           fi
 
-          # Get all commits in the PR
-          commits=$(git rev-list ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+          # Get all commits in the PR via GitHub API
+          commits=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/commits --jq '.[].sha')
 
-          # Check each commit
+          # Check each commit via GitHub API
+          all_signed=true
           for commit in $commits; do
-            if ! git verify-commit $commit 2>/dev/null; then
-              echo "❌ Commit $commit is not signed!"
-              echo "Please sign your commits with GPG or SSH."
-              echo "See: https://docs.github.com/en/authentication/managing-commit-signature-verification"
-              exit 1
+            verified=$(gh api repos/${{ github.repository }}/commits/$commit --jq '.commit.verification.verified')
+            if [[ "$verified" != "true" ]]; then
+              echo "❌ Commit $commit is not signed or verification failed!"
+              gh api repos/${{ github.repository }}/commits/$commit --jq '.commit.verification | "Reason: \(.reason)"'
+              all_signed=false
+            else
+              echo "✅ Commit $commit is signed"
             fi
-            echo "✅ Commit $commit is signed"
           done
+
+          if [[ "$all_signed" != "true" ]]; then
+            echo ""
+            echo "Please sign your commits with GPG or SSH."
+            echo "See: https://docs.github.com/en/authentication/managing-commit-signature-verification"
+            exit 1
+          fi
 
           echo "✅ All commits are signed!"

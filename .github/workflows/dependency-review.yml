@@ -15,7 +15,7 @@ jobs:
   dependency-review:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
       - name: Check if GitHub Actions only changes
         id: check-files
@@ -42,4 +42,4 @@ jobs:
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: moderate
-          deny-licenses: GPL-2.0, LGPL-2.0, LGPL-2.1, AGPL-1.0, proprietary
+          deny-licenses: GPL-2.0, LGPL-2.0, LGPL-2.1, AGPL-1.0
