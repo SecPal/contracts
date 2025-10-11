@@ -2,11 +2,11 @@
   "required_status_checks": {
     "strict": true,
     "contexts": [
-      "Tests / contracts-tests",
-      "Code Formatting / prettier",
-      "REUSE Compliance Check / reuse",
-      "License Compatibility Check / check-npm-licenses",
-      "Verify Signed Commits / verify-commits"
+      "contracts-tests",
+      "prettier",
+      "reuse",
+      "check-npm-licenses",
+      "verify-commits"
     ]
   },
   "enforce_admins": false,
