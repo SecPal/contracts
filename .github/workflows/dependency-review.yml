@@ -17,10 +17,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check if GitHub Actions only changes
+        id: check-files
+        run: |
+          # Get changed files
+          files=$(gh pr view ${{ github.event.pull_request.number }} --json files -q '.files[].path')
+
+          # Check if all changes are only in .github/workflows
+          all_workflows=true
+          while IFS= read -r file; do
+            if [[ ! "$file" =~ ^\.github/workflows/ ]]; then
+              all_workflows=false
+              break
+            fi
+          done <<< "$files"
+
+          echo "all_workflows=$all_workflows" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Dependency Review
+        # Skip for GitHub Actions-only updates from Dependabot
+        if: steps.check-files.outputs.all_workflows != 'true' || github.actor != 'dependabot[bot]'
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: moderate
           deny-licenses: GPL-2.0, LGPL-2.0, LGPL-2.1, AGPL-1.0, proprietary
-          # Allow GitHub Actions updates from Dependabot
-          allow-ghsas: ""
