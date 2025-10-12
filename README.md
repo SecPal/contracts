@@ -84,17 +84,58 @@ import { CreateLogEntryRequest, LogEntryResponse } from "@secpal/contracts";
 
 ## 🔧 Development
 
+### Pre-Commit Workflow
+
+**Before EVERY commit**, run these checks locally:
+
+```bash
+# 1. Quick validation
+npm run check
+
+# 2. Check for uncommitted changes
+git status
+
+# 3. Commit with signed commit
+git commit -S -m "type(scope): description"
+```
+
+### Local Validation Commands
+
+```bash
+npm run format:check  # Code formatting
+npm test              # Run all tests
+npm run validate      # OpenAPI validation
+npm run build         # TypeScript compilation
+npm audit             # Security vulnerabilities
+npx reuse lint        # License compliance
+```
+
+**Recommended scripts in `package.json`:**
+
+```json
+{
+  "scripts": {
+    "check": "npm run format:check && npm test && npm run validate && npm run build && npm audit --production && npx reuse lint"
+  }
+}
+```
+
+> 💡 **Tip:** Running `npm run check` catches most CI failures before push!
+
 ### Adding New Endpoints
 
 1. Update OpenAPI specification in `openapi/main.yaml`
 2. Run `npm run generate` to update TypeScript types
 3. Run `npm run validate` to ensure spec is valid
-4. Create a PR with your changes
+4. Run `npm run check` to validate everything
+5. Create a PR with your changes
 
 ### Testing
 
 ```bash
-npm test
+npm test              # Run tests once
+npm run test:watch    # Run tests in watch mode
+npm run check         # Run all validations
 ```
 
 ## 📦 Publishing
