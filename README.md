@@ -108,6 +108,7 @@ npm run validate      # OpenAPI validation
 npm run build         # TypeScript compilation
 npm audit             # Security vulnerabilities
 npx reuse lint        # License compliance
+./scripts/check-licenses.sh  # License compatibility check
 ```
 
 **Recommended scripts in `package.json`:**
@@ -115,7 +116,8 @@ npx reuse lint        # License compliance
 ```json
 {
   "scripts": {
-    "check": "npm run format:check && npm test && npm run validate && npm run build && npm audit --production && npx reuse lint"
+    "check": "npm run format:check && npm test && npm run validate && npm run build && npm audit --production && npx reuse lint",
+    "check:full": "npm run check && ./scripts/check-licenses.sh"
   }
 }
 ```
