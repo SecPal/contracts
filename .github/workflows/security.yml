@@ -9,7 +9,7 @@ on:
   pull_request:
     branches: [main, develop]
   schedule:
-    - cron: "0 6 * * 1" # Weekly on Mondays at 6:00 AM UTC
+    - cron: '0 6 * * 1' # Weekly on Mondays at 6:00 AM UTC
 
 jobs:
   npm-audit:
@@ -20,7 +20,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: "22"
+          node-version: '22'
 
       - name: Install dependencies
         run: npm ci
@@ -55,9 +55,10 @@ jobs:
 
           # Check for unpinned actions (should use commit SHA or specific version)
           echo "Checking for unpinned actions..."
-          if grep -r "uses:.*@main\|uses:.*@master" .github/workflows/ 2>/dev/null; then
-            echo "⚠️  Warning: Found actions using @main or @master branches"
-            echo "Consider pinning to specific versions or commit SHAs"
+          if grep -r -E "uses:.*@main$|uses:.*@master$" .github/workflows/ 2>/dev/null; then
+            echo "⚠️  Error: Found actions using @main or @master branches"
+            echo "Actions must be pinned to specific versions or commit SHAs for security"
+            exit 1
           else
             echo "✅ No unpinned actions found"
           fi
