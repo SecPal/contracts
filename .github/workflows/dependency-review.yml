@@ -36,10 +36,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+      - name: Load license policy
+        id: policy
+        run: |
+          if [ ! -f .license-policy.json ]; then
+            echo "Error: .license-policy.json not found!" >&2
+            exit 1
+          fi
+          DENIED=$(jq -r '.deniedLicenses | join(", ")' .license-policy.json)
+          if [ -z "$DENIED" ]; then
+            echo "Error: deniedLicenses is empty in .license-policy.json!" >&2
+            exit 1
+          fi
+          echo "denied=$DENIED" >> $GITHUB_OUTPUT
+
       - name: Dependency Review
         # Skip for GitHub Actions-only updates from Dependabot
         if: steps.check-files.outputs.all_workflows != 'true' || github.actor != 'dependabot[bot]'
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: moderate
-          deny-licenses: GPL-2.0, LGPL-2.0, LGPL-2.1, AGPL-1.0
+          deny-licenses: ${{ steps.policy.outputs.denied }}
