@@ -26,7 +26,8 @@ To enforce this workflow, add it as a **required status check** in branch protec
 
 ```bash
 # Add to branch protection rules for 'main'
-gh api -X PUT repos/SecPal/.github/branches/main/protection \
+# Replace <owner>/<repo> with your repository (e.g., SecPal/.github or SecPal/contracts)
+gh api -X PUT repos/<owner>/<repo>/branches/main/protection \
   --input - <<EOF
 {
   "required_status_checks": {
