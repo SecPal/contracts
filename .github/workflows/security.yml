@@ -54,11 +54,13 @@ jobs:
           echo "Checking GitHub Actions workflows for security issues..."
 
           # Check for unpinned actions (should use commit SHA or specific version)
+          # Exception: Allow @main for reusable workflows from SecPal organization (DRY principle)
           echo "Checking for unpinned actions..."
-          if grep -r -E "uses:.*@main$|uses:.*@master$" .github/workflows/ 2>/dev/null; then
-            echo "⚠️  Error: Found actions using @main or @master branches"
-            echo "Actions must be pinned to specific versions or commit SHAs for security"
+          if grep -r -E "uses:.*@main$|uses:.*@master$" .github/workflows/ 2>/dev/null | grep -v "SecPal/"; then
+            echo "⚠️  Error: Found external actions using @main or @master branches"
+            echo "External actions must be pinned to specific versions or commit SHAs for security"
+            echo "Note: SecPal reusable workflows may use @main for DRY principle"
             exit 1
           else
-            echo "✅ No unpinned actions found"
+            echo "✅ No unpinned external actions found"
           fi
