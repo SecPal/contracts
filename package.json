@@ -42,7 +42,7 @@
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
-    "@redocly/cli": "^2.5.0",
+    "@redocly/cli": "^2.7.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.7.2",
     "@typescript-eslint/eslint-plugin": "^8.46.1",
