@@ -14,15 +14,29 @@ Implements **Lesson #18 (Copilot Review Enforcement System)**: Make code review 
 ## How It Works
 
 1. **Triggers on every PR event** (open, push, review, comment)
-2. **Checks for Copilot review** existence on HEAD commit
-3. **Verifies review is current** (on HEAD commit, not outdated)
-4. **Detects low-confidence reviews** (with override mechanism)
-5. **Counts unresolved comments** (excludes comments starting with `~~RESOLVED~~`)
-6. **Blocks merge** if:
+2. **Checks PR author** - automatically skips for Dependabot
+3. **Checks for Copilot review** existence on HEAD commit
+4. **Verifies review is current** (on HEAD commit, not outdated)
+5. **Detects low-confidence reviews** (with override mechanism)
+6. **Counts unresolved comments** (excludes comments starting with `~~RESOLVED~~`)
+7. **Blocks merge** if:
    - No Copilot review found, OR
    - Review is outdated (not on HEAD commit), OR
    - Review has low confidence (without override), OR
    - Any unresolved Copilot comments exist
+
+### Automatic Exceptions
+
+**Dependabot PRs are automatically exempted** from Copilot review requirements:
+
+- Dependency updates are automated and don't contain human-authored code
+- Quality assurance is provided by:
+  - ✓ Automated tests (contracts-tests, unit tests, etc.)
+  - ✓ Security checks (npm audit, dependency review)
+  - ✓ Code quality checks (prettier, eslint, reuse)
+  - ✓ CI/CD pipeline validation
+
+The workflow detects `dependabot[bot]` as the PR author and automatically passes the check.
 
 ### Key Features (Lesson #18 + #19)
 
@@ -135,5 +149,6 @@ gh pr list --state all --json number,reviews,statusCheckRollup \
 ---
 
 **Implementation Date:** 2025-10-14
-**Status:** Active enforcement on all PRs
+**Dependabot Exception Added:** 2025-10-17
+**Status:** Active enforcement on all human-authored PRs (Dependabot PRs auto-pass)
 **Effectiveness:** TBD (track metrics after 1 month)
