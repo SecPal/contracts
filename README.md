@@ -161,7 +161,7 @@ Please read [CONTRIBUTING.md](https://github.com/SecPal/.github/blob/main/CONTRI
 
 ## 🔒 Security
 
-For security issues, please email **security@sepal.app**. Do not create public issues for security vulnerabilities.
+For security issues, please email **security@secpal.app**. Do not create public issues for security vulnerabilities.
 
 See [SECURITY.md](https://github.com/SecPal/.github/blob/main/SECURITY.md) for our security policy.
 
