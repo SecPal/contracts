@@ -9,28 +9,4 @@ on:
 
 jobs:
   check-npm-licenses:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-          cache: "npm"
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install license-checker
-        run: npm install -g license-checker
-
-      - name: Load license policy
-        id: policy
-        run: |
-          ALLOWED=$(jq -r '.allowedLicenses | join(";")' .license-policy.json)
-          echo "allowed=$ALLOWED" >> $GITHUB_OUTPUT
-
-      - name: Check licenses
-        run: |
-          license-checker --production --onlyAllow "${{ steps.policy.outputs.allowed }}" --summary
+    uses: SecPal/.github/.github/workflows/reusable-license-check.yml@main

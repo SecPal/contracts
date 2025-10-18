@@ -9,52 +9,10 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
+  pull-requests: read
 
 jobs:
   dependency-review:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Check if GitHub Actions only changes
-        id: check-files
-        run: |
-          # Get changed files
-          files=$(gh pr view ${{ github.event.pull_request.number }} --json files -q '.files[].path')
-
-          # Check if all changes are only in .github/workflows
-          all_workflows=true
-          while IFS= read -r file; do
-            if [[ ! "$file" =~ ^\.github/workflows/ ]]; then
-              all_workflows=false
-              break
-            fi
-          done <<< "$files"
-
-          echo "all_workflows=$all_workflows" >> $GITHUB_OUTPUT
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      - name: Load license policy
-        id: policy
-        run: |
-          if [ ! -f .license-policy.json ]; then
-            echo "Error: .license-policy.json not found!" >&2
-            exit 1
-          fi
-          # Check deniedLicenses key exists (empty array is valid - means no licenses denied)
-          if ! jq -e '.deniedLicenses' .license-policy.json > /dev/null; then
-            echo "Error: deniedLicenses key missing in .license-policy.json!" >&2
-            exit 1
-          fi
-          DENIED=$(jq -r '.deniedLicenses | join(", ")' .license-policy.json)
-          echo "denied=$DENIED" >> $GITHUB_OUTPUT
-
-      - name: Dependency Review
-        # Skip for GitHub Actions-only updates from Dependabot
-        if: steps.check-files.outputs.all_workflows != 'true' || github.actor != 'dependabot[bot]'
-        uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: moderate
-          deny-licenses: ${{ steps.policy.outputs.denied }}
+    uses: SecPal/.github/.github/workflows/reusable-dependency-review.yml@main
+    with:
+      skip-dependabot-workflow-only: true
