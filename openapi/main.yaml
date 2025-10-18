@@ -10,7 +10,7 @@ info:
     This API provides endpoints for managing security shifts, log entries, users, and reports.
   version: 0.0.1
   contact:
-    email: security@sepal.app
+    email: security@secpal.app
   license:
     name: AGPL-3.0-or-later
     url: https://www.gnu.org/licenses/agpl-3.0.html
