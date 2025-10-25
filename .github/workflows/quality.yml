@@ -20,6 +20,8 @@ jobs:
   openapi-lint:
     name: OpenAPI Lint
     uses: SecPal/.github/.github/workflows/reusable-openapi-lint.yml@main
+    with:
+      openapi-file: 'docs/openapi.yaml'
 
   actionlint:
     name: Actionlint
