@@ -1,0 +1,26 @@
+name: Code Quality
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  reuse:
+    name: REUSE Compliance
+    uses: SecPal/.github/.github/workflows/reusable-reuse.yml@main
+
+  prettier:
+    name: Prettier Formatting
+    uses: SecPal/.github/.github/workflows/reusable-prettier.yml@main
+
+  openapi-lint:
+    name: OpenAPI Lint
+    uses: SecPal/.github/.github/workflows/reusable-openapi-lint.yml@main
+
+  actionlint:
+    name: Actionlint
+    uses: SecPal/.github/.github/workflows/reusable-actionlint.yml@main
