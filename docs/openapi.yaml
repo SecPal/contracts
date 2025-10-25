@@ -44,19 +44,6 @@ paths:
                   status:
                     type: string
                     example: ok
-        '400':
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: error
-                  message:
-                    type: string
-                    example: Invalid request
         '503':
           description: Service Unavailable
           content:
