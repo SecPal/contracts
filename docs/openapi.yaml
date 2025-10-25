@@ -24,6 +24,103 @@ servers:
 
 security: []
 
+components:
+  schemas:
+    Error:
+      type: object
+      required:
+        - message
+        - code
+      properties:
+        message:
+          type: string
+          description: Human-readable error message
+          example: Resource not found
+        code:
+          type: string
+          description: Machine-readable error code
+          example: RESOURCE_NOT_FOUND
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+
+    HealthStatus:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+          description: Health status of the API
+          example: ok
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the health check
+          example: '2025-10-25T19:25:00Z'
+
+  responses:
+    BadRequest:
+      description: Bad Request - Invalid input parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Invalid request parameters
+            code: BAD_REQUEST
+
+    Unauthorized:
+      description: Unauthorized - Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Authentication required
+            code: UNAUTHORIZED
+
+    Forbidden:
+      description: Forbidden - Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Insufficient permissions
+            code: FORBIDDEN
+
+    NotFound:
+      description: Not Found - Resource does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Resource not found
+            code: NOT_FOUND
+
+    InternalServerError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: An internal error occurred
+            code: INTERNAL_ERROR
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT-based authentication. Include the token in the Authorization header:
+        `Authorization: Bearer <token>`
+
 paths:
   /health:
     get:
@@ -39,18 +136,13 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: ok
+                $ref: '#/components/schemas/HealthStatus'
         '503':
           description: Service Unavailable
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: error
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Service temporarily unavailable
+                code: SERVICE_UNAVAILABLE
