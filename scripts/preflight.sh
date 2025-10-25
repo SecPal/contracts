@@ -77,7 +77,7 @@ if [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then
 elif [ -f package-lock.json ] && command -v npm >/dev/null 2>&1; then
   npm ci
   npm audit --audit-level=high || {
-    echo "High-severity vulnerabilities detected by npm audit. Please address the issues above before continuing." >&2
+    echo "High or critical severity vulnerabilities detected by npm audit. Please address the issues above before continuing." >&2
     exit 1
   }
   # npm run lint runs redocly - exit code 1 = errors, 2 = warnings
@@ -88,7 +88,7 @@ elif [ -f package-lock.json ] && command -v npm >/dev/null 2>&1; then
       echo "Linting failed with errors" >&2
       exit 1
     elif [ $EXIT -eq 2 ]; then
-      # Exit code 2 = warnings only, continue
+      # Exit code 2 = warnings only; this is acceptable, so we intentionally do nothing here.
       :
     else
       echo "Linting failed with unexpected exit code $EXIT" >&2
