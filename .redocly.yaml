@@ -4,13 +4,19 @@
 # Redocly Configuration for SecPal API
 #
 # Rules customization:
-# - operation-4xx-response: Disabled because health check endpoints
-#   semantically only return 200 (healthy) or 503 (unhealthy).
-#   Client errors (4xx) are not applicable to monitoring endpoints
-#   that accept no parameters and perform no user-driven operations.
+# - operation-4xx-response: Disabled for health/monitoring endpoints.
 #
-#   Future endpoints that accept parameters MUST include appropriate
-#   4xx responses (400, 401, 403, 404, etc.) in their OpenAPI specs.
+#   Health check endpoints (like /health) semantically only return:
+#   - 200 OK (service is healthy)
+#   - 503 Service Unavailable (service is unhealthy)
+#
+#   Client errors (4xx) are not applicable because these endpoints:
+#   - Accept no parameters
+#   - Perform no user-driven operations
+#   - Have no authentication or authorization requirements
+#
+#   Future API endpoints that accept user input MUST include appropriate
+#   4xx error responses (400, 401, 403, 404, etc.) in their OpenAPI specs.
 
 extends:
   - recommended
