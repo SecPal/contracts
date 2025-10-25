@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: 2025 SecPal Contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+openapi: 3.1.0
+info:
+  title: SecPal API
+  description: |
+    This is the official API for SecPal, a digital guard book and security operations platform.
+    It provides endpoints for managing guards, shifts, reports, and other security-related resources.
+  version: 0.0.1
+  contact:
+    name: SecPal API Support
+    url: https://github.com/SecPal
+    email: support@secpal.com
+  license:
+    name: AGPL-3.0-or-later
+    url: https://spdx.org/licenses/AGPL-3.0-or-later.html
+
+servers:
+  - url: https://api.secpal.com/v1
+    description: Production Server
+  - url: https://api.staging.secpal.com/v1
+    description: Staging Server
+
+paths:
+  /health:
+    get:
+      summary: Health Check
+      description: Provides the health status of the API.
+      operationId: getHealth
+      tags:
+        - Monitoring
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
