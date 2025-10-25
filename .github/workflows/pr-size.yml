@@ -18,7 +18,19 @@ jobs:
           fetch-depth: 0
 
       - name: Check PR size
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          # Check if PR has 'large-pr-approved' label
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          LABELS=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name')
+
+          if echo "$LABELS" | grep -q "large-pr-approved"; then
+            echo "✅ PR has 'large-pr-approved' label - skipping size check"
+            echo "Reason: Legitimate large PR (e.g., boilerplate templates, auto-generated code)"
+            exit 0
+          fi
+
           # Fetch base branch
           git fetch origin ${{ github.base_ref }}
 
@@ -39,6 +51,7 @@ jobs:
           if [ "$CHANGED" -gt 600 ]; then
             echo "::error::PR too large ($CHANGED > 600 lines). Please split into smaller changes."
             echo "Tip: Auto-generated files (package-lock.json, composer.lock, etc.) and license texts are excluded from this count."
+            echo "For legitimate large PRs (e.g., boilerplate templates), request the 'large-pr-approved' label from a maintainer."
             exit 1
           fi
 
