@@ -10,49 +10,7 @@ on:
 jobs:
   pr-size:
     name: Check PR Size
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Check PR size
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # Check if PR has 'large-pr-approved' label
-          PR_NUMBER="${{ github.event.pull_request.number }}"
-          LABELS=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name')
-
-          if echo "$LABELS" | grep -q "large-pr-approved"; then
-            echo "✅ PR has 'large-pr-approved' label - skipping size check"
-            echo "Reason: Legitimate large PR (e.g., boilerplate templates, auto-generated code)"
-            exit 0
-          fi
-
-          # Fetch base branch
-          git fetch origin ${{ github.base_ref }}
-
-          # Calculate merge base
-          MERGE_BASE=$(git merge-base origin/${{ github.base_ref }} HEAD)
-
-          # Count changed lines excluding auto-generated files and license texts
-          CHANGED=$(git diff --numstat "$MERGE_BASE"..HEAD | \
-            grep -v 'package-lock.json' | \
-            grep -v 'composer.lock' | \
-            grep -v 'yarn.lock' | \
-            grep -v 'pnpm-lock.yaml' | \
-            grep -v 'LICENSES/.*\.txt$' | \
-            awk '{ins+=$1; del+=$2} END {print ins+del+0}')
-
-          echo "Changed lines (excluding lock files and license texts): $CHANGED"
-
-          if [ "$CHANGED" -gt 600 ]; then
-            echo "::error::PR too large ($CHANGED > 600 lines). Please split into smaller changes."
-            echo "Tip: Auto-generated files (package-lock.json, composer.lock, etc.) and license texts are excluded from this count."
-            echo "For legitimate large PRs (e.g., boilerplate templates), request the 'large-pr-approved' label from a maintainer."
-            exit 1
-          fi
-
-          echo "✅ PR size is acceptable ($CHANGED <= 600 lines)"
+    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@main
+    with:
+      max-lines: 600
+      exclude-patterns: ""
