@@ -13,4 +13,4 @@ jobs:
     uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@main
     with:
       max-lines: 600
-      exclude-patterns: ""
+      exclude-patterns: ''
