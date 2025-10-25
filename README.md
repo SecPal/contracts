@@ -57,3 +57,5 @@ Please read the main `CONTRIBUTING.md` in the [SecPal/.github](https://github.co
 ## Licensing
 
 This repository uses a dual-licensing model. See the `LICENSE` and `REUSE.toml` files for details.
+
+<- CLA Test: Verify CI workflows -->
