@@ -82,19 +82,21 @@ elif [ -f package-lock.json ] && command -v npm >/dev/null 2>&1; then
   }
   # npm run lint runs redocly - exit code 1 = errors, 2 = warnings
   # We accept warnings (exit 2) but fail on errors (exit 1)
-  npm run --if-present lint || {
-    EXIT=$?
-    if [ $EXIT -eq 1 ]; then
-      echo "Linting failed with errors" >&2
-      exit 1
-    elif [ $EXIT -eq 2 ]; then
-      # Exit code 2 = warnings only; this is acceptable, so we intentionally do nothing here.
-      :
-    else
-      echo "Linting failed with unexpected exit code $EXIT" >&2
-      exit $EXIT
-    fi
-  }
+  set +e  # Temporarily disable exit-on-error to capture exit code
+  npm run --if-present lint
+  EXIT=$?
+  set -e  # Re-enable exit-on-error
+  if [ $EXIT -eq 1 ]; then
+    echo "Linting failed with errors" >&2
+    exit 1
+  elif [ $EXIT -eq 2 ]; then
+    # Exit code 2 = warnings only; this is acceptable, so we intentionally do nothing here.
+    # Warnings are still shown above; we just don't block the commit on them.
+    :
+  elif [ $EXIT -ne 0 ]; then
+    echo "Linting failed with unexpected exit code $EXIT" >&2
+    exit $EXIT
+  fi
   npm run --if-present typecheck
   npm run --if-present test
 elif [ -f yarn.lock ] && command -v yarn >/dev/null 2>&1; then
