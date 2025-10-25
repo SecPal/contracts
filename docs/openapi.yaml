@@ -11,15 +11,15 @@ info:
   contact:
     name: SecPal API Support
     url: https://github.com/SecPal
-    email: support@secpal.com
+    email: support@secpal.app
   license:
     name: AGPL-3.0-or-later
     url: https://spdx.org/licenses/AGPL-3.0-or-later.html
 
 servers:
-  - url: https://api.secpal.com/v1
+  - url: https://api.secpal.app/v1
     description: Production Server
-  - url: https://api.staging.secpal.com/v1
+  - url: https://api.staging.secpal.app/v1
     description: Staging Server
 
 security: []
