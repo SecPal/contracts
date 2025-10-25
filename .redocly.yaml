@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2025 SecPal Contributors
+# SPDX-License-Identifier: CC0-1.0
+#
+# Redocly Configuration for SecPal API
+#
+# Rules customization:
+# - operation-4xx-response: Disabled for health/monitoring endpoints.
+#
+#   Health check endpoints (like /health) semantically only return:
+#   - 200 OK (service is healthy)
+#   - 503 Service Unavailable (service is unhealthy)
+#
+#   Client errors (4xx) are not applicable because these endpoints:
+#   - Accept no parameters
+#   - Perform no user-driven operations
+#   - Have no authentication or authorization requirements
+#
+#   Future API endpoints that accept user input MUST include appropriate
+#   4xx error responses (400, 401, 403, 404, etc.) in their OpenAPI specs.
+
+extends:
+  - recommended
+
+rules:
+  operation-4xx-response: off
