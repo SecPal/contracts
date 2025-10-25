@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: 2025 SecPal
+# SPDX-License-Identifier: CC0-1.0
+
+name: PR Size Check
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  pr-size:
+    name: Check PR Size
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Check PR size
+        run: |
+          # Fetch base branch
+          git fetch origin ${{ github.base_ref }}
+
+          # Calculate merge base
+          MERGE_BASE=$(git merge-base origin/${{ github.base_ref }} HEAD)
+
+          # Count changed lines excluding auto-generated files
+          CHANGED=$(git diff --numstat "$MERGE_BASE"..HEAD | \
+            grep -v 'package-lock.json' | \
+            grep -v 'composer.lock' | \
+            grep -v 'yarn.lock' | \
+            grep -v 'pnpm-lock.yaml' | \
+            awk '{ins+=$1; del+=$2} END {print ins+del+0}')
+
+          echo "Changed lines (excluding lock files): $CHANGED"
+
+          if [ "$CHANGED" -gt 600 ]; then
+            echo "::error::PR too large ($CHANGED > 600 lines). Please split into smaller changes."
+            echo "Tip: Auto-generated files (package-lock.json, composer.lock, etc.) are excluded from this count."
+            exit 1
+          fi
+
+          echo "✅ PR size is acceptable ($CHANGED <= 600 lines)"
