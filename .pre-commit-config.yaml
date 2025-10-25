@@ -25,14 +25,14 @@ repos:
     rev: v0.18.1
     hooks:
       - id: markdownlint-cli2
-        args: ["--config", ".markdownlint.json"]
+        args: ['--config', '.markdownlint.json']
 
   # YAML linting
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.35.1
     hooks:
       - id: yamllint
-        args: ["-c", ".yamllint.yml"]
+        args: ['-c', '.yamllint.yml']
 
   # GitHub Actions workflow linting
   - repo: https://github.com/rhysd/actionlint
@@ -51,10 +51,10 @@ repos:
     rev: v5.0.0
     hooks:
       - id: check-added-large-files
-        args: ["--maxkb=1000"]
+        args: ['--maxkb=1000']
       - id: check-merge-conflict
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: mixed-line-ending
-        args: ["--fix=lf"]
+        args: ['--fix=lf']

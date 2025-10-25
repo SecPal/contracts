@@ -22,6 +22,8 @@ servers:
   - url: https://api.staging.secpal.com/v1
     description: Staging Server
 
+security: []
+
 paths:
   /health:
     get:
@@ -30,6 +32,7 @@ paths:
       operationId: getHealth
       tags:
         - Monitoring
+      security: []
       responses:
         '200':
           description: API is healthy
@@ -41,3 +44,13 @@ paths:
                   status:
                     type: string
                     example: ok
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: error

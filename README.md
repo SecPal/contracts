@@ -16,6 +16,7 @@ This repository contains the OpenAPI 3.1 specifications for the SecPal API. It s
 ## Usage
 
 The API specification can be used to:
+
 - Generate client libraries
 - Generate server stubs
 - Configure API gateways
