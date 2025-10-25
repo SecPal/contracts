@@ -7,6 +7,19 @@ info:
   description: |
     This is the official API for SecPal, a digital guard book and security operations platform.
     It provides endpoints for managing guards, shifts, reports, and other security-related resources.
+
+    ## Security
+
+    - **Authentication:** Bearer token (JWT) required for most endpoints
+    - **Rate Limiting:** 100 requests per minute per API key
+    - **CORS:** Allowed origins must be configured in application settings
+    - **Security Headers:** HSTS, CSP, X-Frame-Options enforced
+
+    ## API Policies
+
+    - All timestamps use ISO 8601 format (UTC)
+    - Pagination uses cursor-based approach for large datasets
+    - Maximum page size: 100 items
   version: 0.0.1
   contact:
     name: SecPal API Support
