@@ -9,9 +9,27 @@ This repository contains the OpenAPI 3.1 specifications for the SecPal API. It s
 
 ## Overview
 
-- **OpenAPI Version:** 3.1.0
+- **OpenAPI Format:** 3.1.0
+- **API Version:** `0.0.1` (Initial Development)
 - **Specification File:** `docs/openapi.yaml`
-- **Version:** `0.0.1` (Initial Development)
+- **Base URL:** `https://api.secpal.com/v1`
+- **Last Updated:** 2025-10-25
+
+### Available Endpoints
+
+**Monitoring:**
+
+- `GET /health` - Health check endpoint for monitoring API status
+
+**Future Endpoints** _(planned)_:
+
+- Authentication & Authorization
+- Guard Management
+- Shift Scheduling
+- Incident Reporting
+- Client Management
+
+_See `docs/openapi.yaml` for complete specification details._
 
 ## Usage
 
