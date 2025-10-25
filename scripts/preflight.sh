@@ -76,7 +76,27 @@ if [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then
   pnpm run --if-present test
 elif [ -f package-lock.json ] && command -v npm >/dev/null 2>&1; then
   npm ci
+  npm audit --audit-level=high || {
+    echo "High or critical severity vulnerabilities detected by npm audit. Please address the issues above before continuing." >&2
+    exit 1
+  }
+  # npm run lint runs redocly - exit code 1 = errors, 2 = warnings
+  # We accept warnings (exit 2) but fail on errors (exit 1)
+  set +e  # Temporarily disable exit-on-error to capture exit code
   npm run --if-present lint
+  EXIT=$?
+  set -e  # Re-enable exit-on-error
+  if [ $EXIT -eq 1 ]; then
+    echo "Linting failed with errors" >&2
+    exit 1
+  elif [ $EXIT -eq 2 ]; then
+    # Exit code 2 = warnings only; this is acceptable, so we intentionally do nothing here.
+    # Warnings are still shown above; we just don't block the commit on them.
+    :
+  elif [ $EXIT -ne 0 ]; then
+    echo "Linting failed with unexpected exit code $EXIT" >&2
+    exit $EXIT
+  fi
   npm run --if-present typecheck
   npm run --if-present test
 elif [ -f yarn.lock ] && command -v yarn >/dev/null 2>&1; then
@@ -98,12 +118,7 @@ elif [ -f yarn.lock ] && command -v yarn >/dev/null 2>&1; then
   fi
 fi
 
-# 3) OpenAPI (Spectral)
-if [ -f docs/openapi.yaml ] && command -v npx >/dev/null 2>&1; then
-  npx --yes @stoplight/spectral-cli lint docs/openapi.yaml
-fi
-
-# 4) Check PR size locally (against BASE)
+# 3) Check PR size locally (against BASE)
 if ! git rev-parse -q --verify "origin/$BASE" >/dev/null 2>&1; then
   echo "Warning: Cannot verify base branch origin/$BASE. Skipping PR size check. (Run 'git fetch origin $BASE' to enable.)" >&2
 else
