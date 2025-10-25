@@ -558,7 +558,7 @@ MUST verify ALL items before commit:
 - [ ] Run `grep -o "secpal\.[a-z]*" docs/openapi.yaml | sort -u` → returns ONLY secpal.app, secpal.dev
 - [ ] All server URLs use api.secpal.app (production) or api.secpal.dev (development)
 - [ ] All contact emails use @secpal.app domain
-- [ ] All homepage/documentation URLs use <https://secpal.app>
+- [ ] All homepage/documentation URLs use `https://secpal.app`
 - [ ] ZERO instances of secpal.com or secpal.org
 
 ### Checklist 3: Error Coverage
