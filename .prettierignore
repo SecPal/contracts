@@ -1,5 +1,27 @@
 # SPDX-FileCopyrightText: 2025 SecPal Contributors
 # SPDX-License-Identifier: CC0-1.0
 
-# Ignore generated files
+# Dependencies
+node_modules/
+vendor/
+
+# Build artifacts
+dist/
+build/
+
+# Minified files
+*.min.js
+*.min.css
+
+# Lock files
 package-lock.json
+composer.lock
+yarn.lock
+pnpm-lock.yaml
+
+# Config files without parsers
+.gitignore
+.gitattributes
+.editorconfig
+.prettierignore
+.markdownlintignore

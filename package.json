@@ -3,9 +3,21 @@
   "version": "0.0.1",
   "description": "OpenAPI contracts for the SecPal API",
   "private": true,
+  "author": "SecPal",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SecPal/contracts.git"
+  },
+  "homepage": "https://github.com/SecPal/contracts#readme",
+  "bugs": {
+    "url": "https://github.com/SecPal/contracts/issues"
+  },
   "scripts": {
     "lint": "redocly lint docs/openapi.yaml",
-    "format": "prettier --write '**/*.{md,yml,yaml,json}'"
+    "format": "prettier --write '**/*.{md,yml,yaml,json}'",
+    "format:check": "prettier --check '**/*.{md,yml,yaml,json}'",
+    "validate": "redocly lint docs/openapi.yaml && prettier --check '**/*.{md,yml,yaml,json}'"
   },
   "devDependencies": {
     "@redocly/cli": "^2.8.0",
