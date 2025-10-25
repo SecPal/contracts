@@ -1,0 +1,16 @@
+{
+  "_comment": "SPDX-FileCopyrightText: 2025 SecPal Contributors",
+  "_license": "SPDX-License-Identifier: CC0-1.0",
+  "name": "@secpal/contracts",
+  "version": "0.0.1",
+  "description": "OpenAPI contracts for the SecPal API",
+  "private": true,
+  "scripts": {
+    "lint": "redocly lint docs/openapi.yaml",
+    "format": "prettier --write '**/*.{md,yml,yaml,json}'"
+  },
+  "devDependencies": {
+    "@redocly/cli": "^1.17.0",
+    "prettier": "^3.3.2"
+  }
+}
