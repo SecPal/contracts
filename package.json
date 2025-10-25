@@ -1,6 +1,4 @@
 {
-  "_comment": "SPDX-FileCopyrightText: 2025 SecPal Contributors",
-  "_license": "SPDX-License-Identifier: CC0-1.0",
   "name": "@secpal/contracts",
   "version": "0.0.1",
   "description": "OpenAPI contracts for the SecPal API",
