@@ -5,6 +5,12 @@ SPDX-License-Identifier: CC0-1.0
 
 # SecPal Contracts
 
+> OpenAPI 3.1 specifications for the SecPal API
+
+[![Quality Gates](https://github.com/SecPal/contracts/actions/workflows/quality.yml/badge.svg)](https://github.com/SecPal/contracts/actions/workflows/quality.yml)
+[![PR Size](https://github.com/SecPal/contracts/actions/workflows/pr-size.yml/badge.svg)](https://github.com/SecPal/contracts/actions/workflows/pr-size.yml)
+[![License: AGPL v3+](https://img.shields.io/badge/License-AGPL%20v3+-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+
 This repository contains the OpenAPI 3.1 specifications for the SecPal API. It serves as the single source of truth for all API contracts between the frontend, backend, and any other clients.
 
 ## Overview
