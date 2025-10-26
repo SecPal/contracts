@@ -134,12 +134,35 @@ else
     # Load exclude patterns from .preflight-exclude if it exists
     if [ -f "$ROOT_DIR/.preflight-exclude" ]; then
       # Extract non-comment, non-empty lines as grep-compatible regex patterns
-      EXCLUDE_PATTERNS=$(grep -vE '^[[:space:]]*(#|$)' "$ROOT_DIR/.preflight-exclude" || true)
+      # Strip CR for Windows/CRLF compatibility
+      EXCLUDE_PATTERNS=$(grep -vE '^[[:space:]]*(#|$)' "$ROOT_DIR/.preflight-exclude" | tr -d '\r' || true)
 
       if [ -n "$EXCLUDE_PATTERNS" ]; then
         # Build regex alternation for efficient filtering (patterns are used as-is)
         EXCLUDE_REGEX=$(echo "$EXCLUDE_PATTERNS" | tr '\n' '|' | sed 's/|$//')
-        DIFF_OUTPUT=$(echo "$DIFF_OUTPUT" | grep -vE "$EXCLUDE_REGEX" || true)
+
+        # Validate regex and warn about dangerous patterns
+        # grep exit codes: 0=match, 1=no match, 2=error (invalid regex)
+        echo "" | grep -qE -- "$EXCLUDE_REGEX" 2>/dev/null
+        GREP_EXIT=$?
+        if [ $GREP_EXIT -ne 2 ]; then
+          # Pattern is valid (exit 0 or 1), check if it matches everything
+          if echo "test-file.txt" | grep -qE -- "$EXCLUDE_REGEX" && \
+             echo "another-file.js" | grep -qE -- "$EXCLUDE_REGEX" && \
+             echo "random.md" | grep -qE -- "$EXCLUDE_REGEX"; then
+            echo "⚠️  WARNING: .preflight-exclude contains pattern that matches EVERYTHING (e.g., '.*')" >&2
+            echo "This will exclude all files from PR size calculation!" >&2
+          fi
+        else
+          # Invalid regex - grep failed even on empty input
+          echo "⚠️  WARNING: .preflight-exclude contains invalid regex pattern(s)" >&2
+          echo "The pattern will be ignored. Please check your .preflight-exclude file." >&2
+          echo "Common issues: unbalanced brackets [, unmatched (, trailing backslash \\" >&2
+        fi
+
+        # Use -- to prevent patterns starting with - from being interpreted as flags
+        # || true prevents script exit if pattern is invalid
+        DIFF_OUTPUT=$(echo "$DIFF_OUTPUT" | grep -vE -- "$EXCLUDE_REGEX" 2>/dev/null || true)
       fi
     fi
 
