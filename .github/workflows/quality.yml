@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2025 SecPal
+# SPDX-License-Identifier: CC0-1.0
+
 name: Code Quality
 
 on:
@@ -13,9 +16,17 @@ jobs:
     name: REUSE Compliance
     uses: SecPal/.github/.github/workflows/reusable-reuse.yml@main
 
+  license-compatibility:
+    name: License Compatibility
+    uses: SecPal/.github/.github/workflows/reusable-license-compatibility.yml@main
+
   prettier:
     name: Prettier Formatting
     uses: SecPal/.github/.github/workflows/reusable-prettier.yml@main
+
+  markdown-lint:
+    name: Markdown Lint
+    uses: SecPal/.github/.github/workflows/reusable-markdown-lint.yml@main
 
   openapi-lint:
     name: OpenAPI Lint
