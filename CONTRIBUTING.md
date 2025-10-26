@@ -119,25 +119,6 @@ rm .preflight-allow-large-pr
 
 ⚠️ **Important:** The override file is automatically ignored by git and should only be used for exceptional cases that match the criteria below.
 
-**Bypassing the PR size check locally:**
-
-If you need to work on a large PR that is justified (see exceptions below), you can temporarily bypass the 600-line limit:
-
-```bash
-# Create override file to allow large PR
-touch .preflight-allow-large-pr
-
-# Work on your changes
-git add .
-git commit -m "Your changes"
-git push
-
-# Clean up after merge
-rm .preflight-allow-large-pr
-```
-
-⚠️ **Important:** The override file is automatically ignored by git and should only be used for exceptional cases that match the criteria below.
-
 ## How to Contribute
 
 1. **Fork the repository** and create a new branch from `main`.
