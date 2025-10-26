@@ -89,7 +89,35 @@ This script runs automatically before every `git push` via the pre-push hook.
 - PHP linting and tests (if applicable)
 - Node.js linting and tests (if applicable)
 - OpenAPI validation (if applicable)
-- PR size (< 600 lines recommended)
+- PR size (< 600 lines recommended, excluding lock files and license files)
+
+**Excluded from PR size calculation:**
+
+The following files are automatically excluded from the 600-line limit because they are auto-generated or boilerplate:
+
+- `package-lock.json`, `composer.lock`, `yarn.lock`, `pnpm-lock.yaml` (dependency lock files)
+- `LICENSES/*.txt` (license boilerplate files)
+
+These exclusions are configured in `.preflight-exclude` and match the GitHub CI workflow. You can add project-specific patterns by editing this file.
+
+**Bypassing the PR size check locally:**
+
+If you need to work on a large PR that is justified (see exceptions below), you can temporarily bypass the 600-line limit:
+
+```bash
+# Create override file to allow large PR
+touch .preflight-allow-large-pr
+
+# Work on your changes
+git add .
+git commit -m "Your changes"
+git push
+
+# Clean up after merge
+rm .preflight-allow-large-pr
+```
+
+⚠️ **Important:** The override file is automatically ignored by git and should only be used for exceptional cases that match the criteria below.
 
 **Bypassing the PR size check locally:**
 
