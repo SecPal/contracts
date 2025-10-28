@@ -78,6 +78,24 @@ Please read the main `CONTRIBUTING.md` in the [SecPal/.github](https://github.co
 - **Commits:** Must follow Conventional Commits specification.
 - **Pull Requests:** Must be small, focused, and link to a relevant issue.
 
+## 🤖 Automation
+
+This repository uses automated project board management. Issues and PRs are automatically added to the [SecPal Roadmap](https://github.com/orgs/SecPal/projects/1) with status based on labels and PR state.
+
+**Quick Start:**
+
+```bash
+# Create issue (auto-added to project board)
+gh issue create --label "enhancement" --title "..."
+
+# Draft PR workflow (recommended)
+gh pr create --draft --body "Closes #123"  # → 🚧 In Progress
+gh pr ready <PR>                            # → 👀 In Review
+gh pr merge <PR> --squash                   # → ✅ Done
+```
+
+See [Project Automation docs](https://github.com/SecPal/.github/blob/main/docs/workflows/PROJECT_AUTOMATION.md) for details.
+
 ## Licensing
 
 This repository uses a dual-licensing model. See the `LICENSE` and `REUSE.toml` files for details.
