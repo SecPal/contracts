@@ -28,5 +28,4 @@ jobs:
   project-automation:
     name: Project automation
     uses: SecPal/.github/.github/workflows/project-automation-core.yml@main
-    secrets:
-      PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+    secrets: inherit
