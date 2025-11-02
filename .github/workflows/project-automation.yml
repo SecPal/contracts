@@ -16,6 +16,7 @@ on:
       - ready_for_review
       - closed
       - converted_to_draft
+      - labeled
   pull_request_review:
     types:
       - submitted
