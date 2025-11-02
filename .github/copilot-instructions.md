@@ -311,7 +311,10 @@ async function getUser(id: number): Promise<User> {
 
 ## Learned Lessons (Copilot-Proof Standard)
 
-**Note:** These lessons extend the organization-wide learned lessons. See [.github repository instructions](https://github.com/SecPal/.github/blob/main/.github/copilot-instructions.md#learned-lessons-copilot-proof-standard) for complete list.
+**Note:** These lessons extend the organization-wide learned lessons.
+See [.github repository instructions][org-lessons] for complete list.
+
+[org-lessons]: https://github.com/SecPal/.github/blob/main/.github/copilot-instructions.md#learned-lessons-copilot-proof-standard
 
 ### Contracts-Specific Lessons
 
@@ -364,7 +367,8 @@ components:
    - Standard headers (X-Request-ID, Rate-Limit-\*)
    - Server configurations (all environments)
 
-**VALIDATION:** Run `yq eval 'keys' docs/openapi.yaml` - MUST show: openapi, info, servers, security, components, paths. Missing ANY = incomplete.
+**VALIDATION:** Run `yq eval 'keys' docs/openapi.yaml` - MUST show: openapi, info, servers, security, components, paths.
+Missing ANY = incomplete.
 
 #### 2. Schema Reuse Over Inline (MANDATORY)
 
@@ -409,7 +413,8 @@ paths:
                   id: { type: integer }
 ```
 
-**VALIDATION:** Run `grep -n "type: object" docs/openapi.yaml` - MUST ONLY appear under `components/schemas/`. Zero matches in `paths/` section.
+**VALIDATION:** Run `grep -n "type: object" docs/openapi.yaml` - MUST ONLY appear under `components/schemas/`.
+Zero matches in `paths/` section.
 
 #### 3. Complete Error Coverage (MANDATORY)
 
@@ -442,7 +447,8 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 ```
 
-**VALIDATION:** For each path operation, count response codes. Minimum 3 (1 success + 2 errors). Protected endpoints: minimum 4 (include 401).
+**VALIDATION:** For each path operation, count response codes. Minimum 3 (1 success + 2 errors).
+Protected endpoints: minimum 4 (include 401).
 
 #### 4. Domain Policy in OpenAPI (CRITICAL)
 
@@ -472,7 +478,8 @@ servers:
     description: Development
 ```
 
-**VALIDATION:** Run `grep -o "secpal\.[a-z]*" docs/openapi.yaml | sort -u` - MUST return ONLY: secpal.app, secpal.dev. Any other match = BLOCKER.
+**VALIDATION:** Run `grep -o "secpal\.[a-z]*" docs/openapi.yaml | sort -u` - MUST return ONLY: secpal.app, secpal.dev.
+Any other match = BLOCKER.
 
 #### 5. Breaking Change Protocol (MANDATORY)
 
