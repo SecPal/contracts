@@ -127,11 +127,25 @@ fi
 # Branch prefixes that are exempt from CHANGELOG updates (configuration)
 CHANGELOG_EXEMPT_PREFIXES="^(docs|chore|ci|test)/"
 # Minimum lines in [Unreleased] to consider it non-empty
-# Typically: 3 lines = one line each for Added, Changed, Fixed sections
+# This counts substantive content lines (not headings, blanks, or HTML comments)
+# Minimum 3 ensures at least some documentation (e.g., 1-2 bullet points)
 MIN_CHANGELOG_LINES=3
 
+# Helper function to filter CHANGELOG content (POSIX-compliant with whitespace tolerance)
+filter_changelog_content() {
+  grep -Ev '^##' | grep -Ev '^$' | grep -Ev '^[[:space:]]*<!--' | grep -Ev '^[[:space:]]*-->'
+}
+
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
-if [ -f CHANGELOG.md ] && [ "$CURRENT_BRANCH" != "main" ] && [[ ! "$CURRENT_BRANCH" =~ $CHANGELOG_EXEMPT_PREFIXES ]]; then
+# Use POSIX-compliant case statement instead of bash-specific [[ =~ ]] for portability
+BRANCH_IS_EXEMPT=false
+case "$CURRENT_BRANCH" in
+  docs/*|chore/*|ci/*|test/*)
+    BRANCH_IS_EXEMPT=true
+    ;;
+esac
+
+if [ -f CHANGELOG.md ] && [ "$CURRENT_BRANCH" != "main" ] && [ "$BRANCH_IS_EXEMPT" = false ]; then
   # Check if CHANGELOG has [Unreleased] section
   if ! grep -q "## \[Unreleased\]" CHANGELOG.md; then
     echo "❌ CHANGELOG.md missing [Unreleased] section" >&2
@@ -142,16 +156,17 @@ if [ -f CHANGELOG.md ] && [ "$CURRENT_BRANCH" != "main" ] && [[ ! "$CURRENT_BRAN
 
   # Check if there's actual content after [Unreleased] (robust to last/only section)
   # Find line number of [Unreleased], then extract content up to next heading or EOF
-  UNRELEASED_START=$(grep -n '^## \[Unreleased\]' CHANGELOG.md | cut -d: -f1)
+  # Use grep -nE for robustness with Keep a Changelog format (supports links)
+  UNRELEASED_START=$(grep -nE '^## \[Unreleased\]' CHANGELOG.md | cut -d: -f1)
   if [ -n "$UNRELEASED_START" ]; then
     # Find next heading after [Unreleased], or use EOF if none found
     UNRELEASED_END=$(tail -n +"$((UNRELEASED_START + 1))" CHANGELOG.md | grep -n '^## ' | head -1 | cut -d: -f1)
     if [ -n "$UNRELEASED_END" ]; then
-      # Extract content between [Unreleased] and next heading
-      UNRELEASED_CONTENT=$(sed -n "$((UNRELEASED_START + 1)),$((UNRELEASED_START + UNRELEASED_END - 1))p" CHANGELOG.md | grep -v '^##' | grep -v '^$' | grep -v '^<!--' | grep -v '^-->' | wc -l)
+      # Extract content between [Unreleased] and next heading (using helper function)
+      UNRELEASED_CONTENT=$(sed -n "$((UNRELEASED_START + 1)),$((UNRELEASED_START + UNRELEASED_END - 1))p" CHANGELOG.md | filter_changelog_content | wc -l)
     else
-      # [Unreleased] is the last section, extract all remaining content
-      UNRELEASED_CONTENT=$(tail -n +"$((UNRELEASED_START + 1))" CHANGELOG.md | grep -v '^##' | grep -v '^$' | grep -v '^<!--' | grep -v '^-->' | wc -l)
+      # [Unreleased] is the last section, extract all remaining content (using helper function)
+      UNRELEASED_CONTENT=$(tail -n +"$((UNRELEASED_START + 1))" CHANGELOG.md | filter_changelog_content | wc -l)
     fi
 
     if [ "$UNRELEASED_CONTENT" -lt "$MIN_CHANGELOG_LINES" ]; then
