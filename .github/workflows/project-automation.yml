@@ -31,3 +31,7 @@ jobs:
     secrets:
       APP_ID: ${{ secrets.APP_ID }}
       APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+
+  draft-reminder:
+    name: Draft PR Reminder
+    uses: SecPal/.github/.github/workflows/draft-pr-reminder.yml@main
