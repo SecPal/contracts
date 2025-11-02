@@ -124,8 +124,9 @@ elif [ -f yarn.lock ] && command -v yarn >/dev/null 2>&1; then
 fi
 
 # 3) CHANGELOG validation (for non-docs branches)
-# Branch prefixes that are exempt from CHANGELOG updates (configuration)
-CHANGELOG_EXEMPT_PREFIXES="^(docs|chore|ci|test)/"
+# Branch prefixes that are exempt from CHANGELOG updates
+# Note: These must be kept in sync with the case statement below
+CHANGELOG_EXEMPT_PREFIXES="docs chore ci test"
 # Minimum lines in [Unreleased] to consider it non-empty
 # This counts substantive content lines (not headings, blanks, or HTML comments)
 # Minimum 3 ensures at least some documentation (e.g., 1-2 bullet points)
@@ -133,11 +134,12 @@ MIN_CHANGELOG_LINES=3
 
 # Helper function to filter CHANGELOG content (POSIX-compliant with whitespace tolerance)
 filter_changelog_content() {
-  grep -Ev '^##' | grep -Ev '^$' | grep -Ev '^[[:space:]]*<!--' | grep -Ev '^[[:space:]]*-->'
+  grep -Ev '(^##|^$|^[[:space:]]*<!--|^[[:space:]]*-->)'
 }
 
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
 # Use POSIX-compliant case statement instead of bash-specific [[ =~ ]] for portability
+# The case patterns below must match the prefixes in CHANGELOG_EXEMPT_PREFIXES
 BRANCH_IS_EXEMPT=false
 case "$CURRENT_BRANCH" in
   docs/*|chore/*|ci/*|test/*)
@@ -160,18 +162,20 @@ if [ -f CHANGELOG.md ] && [ "$CURRENT_BRANCH" != "main" ] && [ "$BRANCH_IS_EXEMP
   UNRELEASED_START=$(grep -nE '^## \[Unreleased\]' CHANGELOG.md | cut -d: -f1)
   if [ -n "$UNRELEASED_START" ]; then
     # Find next heading after [Unreleased], or use EOF if none found
-    UNRELEASED_END=$(tail -n +"$((UNRELEASED_START + 1))" CHANGELOG.md | grep -n '^## ' | head -1 | cut -d: -f1)
+    # Use grep -m 1 to stop after first match for better performance
+    UNRELEASED_END=$(tail -n +"$((UNRELEASED_START + 1))" CHANGELOG.md | grep -n -m 1 '^## ' | cut -d: -f1)
     if [ -n "$UNRELEASED_END" ]; then
       # Extract content between [Unreleased] and next heading (using helper function)
-      UNRELEASED_CONTENT=$(sed -n "$((UNRELEASED_START + 1)),$((UNRELEASED_START + UNRELEASED_END - 1))p" CHANGELOG.md | filter_changelog_content | wc -l)
+      # UNRELEASED_END is relative line number from tail, so add to UNRELEASED_START without -1
+      UNRELEASED_CONTENT=$(sed -n "$((UNRELEASED_START + 1)),$((UNRELEASED_START + UNRELEASED_END))p" CHANGELOG.md | filter_changelog_content | wc -l)
     else
       # [Unreleased] is the last section, extract all remaining content (using helper function)
       UNRELEASED_CONTENT=$(tail -n +"$((UNRELEASED_START + 1))" CHANGELOG.md | filter_changelog_content | wc -l)
     fi
 
     if [ "$UNRELEASED_CONTENT" -lt "$MIN_CHANGELOG_LINES" ]; then
-      echo "⚠️  Warning: [Unreleased] section appears empty in CHANGELOG.md" >&2
-      echo "Did you forget to document your changes?" >&2
+      echo "⚠️  Warning: [Unreleased] section appears empty in CHANGELOG.md (found fewer than $MIN_CHANGELOG_LINES content lines)" >&2
+      echo "This is non-blocking, but please add a summary of your changes to the [Unreleased] section before merging." >&2
     fi
   fi
 fi
