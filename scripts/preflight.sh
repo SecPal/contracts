@@ -163,7 +163,8 @@ if [ -f CHANGELOG.md ] && [ "$CURRENT_BRANCH" != "main" ] && [ "$BRANCH_IS_EXEMP
   if [ -n "$UNRELEASED_START" ]; then
     # Find next heading after [Unreleased], or use EOF if none found
     # Use grep -m 1 to stop after first match for better performance
-    UNRELEASED_END=$(tail -n +"$((UNRELEASED_START + 1))" CHANGELOG.md | grep -n -m 1 '^## ' | cut -d: -f1)
+    # grep returns exit 1 when no match found - this is expected when [Unreleased] is last section
+    UNRELEASED_END=$(tail -n +"$((UNRELEASED_START + 1))" CHANGELOG.md | grep -n -m 1 '^## ' | cut -d: -f1 || true)
     if [ -n "$UNRELEASED_END" ]; then
       # Extract content between [Unreleased] and next heading (using helper function)
       # UNRELEASED_END is relative line number from tail, so add to UNRELEASED_START without -1
