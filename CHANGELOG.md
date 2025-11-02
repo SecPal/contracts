@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Project automation now triggers on label changes (labeled event)
+- Pre-push hook no longer fails with exit code 1 when [Unreleased] is the last CHANGELOG section
 
 ### Added
 
