@@ -9,6 +9,7 @@ on:
       - opened
       - reopened
       - closed
+      - labeled
   pull_request:
     types:
       - opened

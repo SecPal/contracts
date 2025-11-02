@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Project automation now triggers on label changes (labeled event)
+
 ### Added
 
 - Initial repository structure for OpenAPI contracts.
