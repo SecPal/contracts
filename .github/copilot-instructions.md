@@ -3,6 +3,22 @@ SPDX-FileCopyrightText: 2025 SecPal
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
+<!--
+╔════════════════════════════════════════════════════════════════╗
+║  🚨 AI MUST READ ORGANIZATION-WIDE INSTRUCTIONS FIRST 🚨       ║
+╠════════════════════════════════════════════════════════════════╣
+║  Location: `../.github/.github/copilot-instructions.md`        ║
+║                                                                ║
+║  Critical Topics Defined There:                                ║
+║  - 🛡️ Copilot Review Protocol (ALWAYS request after PR)       ║
+║  - 🧪 Quality Gates (NEVER bypass)                            ║
+║  - 📝 TDD Policy (Write tests FIRST)                          ║
+║  - 🔐 Security Requirements                                    ║
+║                                                                ║
+║  ⚠️ This file contains REPO-SPECIFIC rules only               ║
+╚════════════════════════════════════════════════════════════════╝
+-->
+
 # Contracts Repository - Copilot Instructions
 
 Repository-specific instructions for GitHub Copilot when working in the `contracts` repository.
