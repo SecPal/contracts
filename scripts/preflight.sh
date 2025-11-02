@@ -123,7 +123,45 @@ elif [ -f yarn.lock ] && command -v yarn >/dev/null 2>&1; then
   fi
 fi
 
-# 3) Check PR size locally (against BASE)
+# 3) CHANGELOG validation (for non-docs branches)
+# Branch prefixes that are exempt from CHANGELOG updates (configuration)
+CHANGELOG_EXEMPT_PREFIXES="^(docs|chore|ci|test)/"
+# Minimum lines in [Unreleased] to consider it non-empty
+# Typically: 3 lines = one line each for Added, Changed, Fixed sections
+MIN_CHANGELOG_LINES=3
+
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+if [ -f CHANGELOG.md ] && [ "$CURRENT_BRANCH" != "main" ] && [[ ! "$CURRENT_BRANCH" =~ $CHANGELOG_EXEMPT_PREFIXES ]]; then
+  # Check if CHANGELOG has [Unreleased] section
+  if ! grep -q "## \[Unreleased\]" CHANGELOG.md; then
+    echo "❌ CHANGELOG.md missing [Unreleased] section" >&2
+    echo "Tip: Every feature/fix/refactor branch must update CHANGELOG.md" >&2
+    echo "Exempt branches: docs/*, chore/*, ci/*, test/*" >&2
+    exit 1
+  fi
+
+  # Check if there's actual content after [Unreleased] (robust to last/only section)
+  # Find line number of [Unreleased], then extract content up to next heading or EOF
+  UNRELEASED_START=$(grep -n '^## \[Unreleased\]' CHANGELOG.md | cut -d: -f1)
+  if [ -n "$UNRELEASED_START" ]; then
+    # Find next heading after [Unreleased], or use EOF if none found
+    UNRELEASED_END=$(tail -n +"$((UNRELEASED_START + 1))" CHANGELOG.md | grep -n '^## ' | head -1 | cut -d: -f1)
+    if [ -n "$UNRELEASED_END" ]; then
+      # Extract content between [Unreleased] and next heading
+      UNRELEASED_CONTENT=$(sed -n "$((UNRELEASED_START + 1)),$((UNRELEASED_START + UNRELEASED_END - 1))p" CHANGELOG.md | grep -v '^##' | grep -v '^$' | grep -v '^<!--' | grep -v '^-->' | wc -l)
+    else
+      # [Unreleased] is the last section, extract all remaining content
+      UNRELEASED_CONTENT=$(tail -n +"$((UNRELEASED_START + 1))" CHANGELOG.md | grep -v '^##' | grep -v '^$' | grep -v '^<!--' | grep -v '^-->' | wc -l)
+    fi
+
+    if [ "$UNRELEASED_CONTENT" -lt "$MIN_CHANGELOG_LINES" ]; then
+      echo "⚠️  Warning: [Unreleased] section appears empty in CHANGELOG.md" >&2
+      echo "Did you forget to document your changes?" >&2
+    fi
+  fi
+fi
+
+# 4) Check PR size locally (against BASE)
 if ! git rev-parse -q --verify "origin/$BASE" >/dev/null 2>&1; then
   echo "Warning: Cannot verify base branch origin/$BASE - skipping PR size check." >&2
   echo "Tip: Run 'git fetch origin $BASE' to enable PR size checking." >&2
