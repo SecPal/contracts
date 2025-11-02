@@ -22,6 +22,11 @@ concurrency:
   group: ${{ github.repository }}-dependabot-auto-merge-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
+# Required permissions for dependabot auto-merge
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   auto-merge:
     uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@v1
