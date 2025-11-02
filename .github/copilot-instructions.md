@@ -7,7 +7,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 ╔════════════════════════════════════════════════════════════════╗
 ║  🚨 AI MUST READ ORGANIZATION-WIDE INSTRUCTIONS FIRST 🚨       ║
 ╠════════════════════════════════════════════════════════════════╣
-║  Location: `../.github/.github/copilot-instructions.md`        ║
+║  Location: https://github.com/SecPal/.github/blob/main/.github/copilot-instructions.md ║
 ║                                                                ║
 ║  Critical Topics Defined There:                                ║
 ║  - 🛡️ Copilot Review Protocol (ALWAYS request after PR)       ║
