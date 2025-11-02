@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Pre-push hook no longer fails with exit code 1 when [Unreleased] is the last CHANGELOG section
+
 ### Added
 
 - Initial repository structure for OpenAPI contracts.
