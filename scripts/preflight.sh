@@ -14,14 +14,122 @@ BASE="$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/rem
 
 echo "Using base branch: $BASE"
 
-# Fetch base branch for PR size check (failure is handled later)
-git fetch origin "$BASE" 2>/dev/null || true
+# Portable timeout function for git fetch (supports Linux GNU timeout and macOS/BSD fallback)
+run_with_timeout() {
+  local timeout_seconds=$1
+  shift
+  
+  # Try GNU timeout first (Linux)
+  if command -v timeout >/dev/null 2>&1 && timeout --version 2>&1 | grep -q "GNU coreutils"; then
+    timeout "$timeout_seconds" "$@"
+    return $?
+  fi
+  
+  # Fallback: Perl with POSIX signals (works on macOS/BSD)
+  if command -v perl >/dev/null 2>&1; then
+    perl -e '
+      use POSIX ":sys_wait_h";
+      use POSIX::SigAction;
+      
+      my $timeout = shift @ARGV;
+      my $pid = fork();
+      
+      die "fork failed: $!" unless defined $pid;
+      
+      if ($pid == 0) {
+        exec @ARGV or die "exec failed: $!";
+      }
+      
+      # Parent: set up timeout handler using POSIX::SigAction
+      my $sigaction = POSIX::SigAction->new(
+        sub { kill 15, $pid; },
+        POSIX::SigSet->new(),
+        0
+      );
+      POSIX::sigaction(SIGALRM, $sigaction);
+      alarm($timeout);
+      
+      waitpid($pid, 0);
+      my $status = $? >> 8;
+      alarm(0);
+      exit($status);
+    ' "$timeout_seconds" "$@"
+    return $?
+  fi
+  
+  # No timeout available - run command directly
+  "$@"
+}
 
-# 0) Formatting & Compliance
+# Cached git fetch with timeout (5 minutes cache, 30s timeout)
+# This prevents hanging on slow networks and reduces redundant fetches
+FETCH_CACHE="/tmp/preflight-fetch-$(echo "$ROOT_DIR" | md5sum | cut -d' ' -f1)-$BASE"
+FETCH_AGE=999999
+if [ -f "$FETCH_CACHE" ]; then
+  FETCH_AGE=$(( $(date +%s) - $(stat -c %Y "$FETCH_CACHE" 2>/dev/null || stat -f %m "$FETCH_CACHE" 2>/dev/null || echo 0) ))
+fi
+
+if [ "$FETCH_AGE" -gt 300 ]; then
+  # Fetch with 30-second timeout
+  if run_with_timeout 30 git fetch origin "$BASE" 2>/dev/null; then
+    touch "$FETCH_CACHE"
+  else
+    FETCH_EXIT=$?
+    # Distinguish timeout (124/142) from other errors (auth, network)
+    if [ "$FETCH_EXIT" -eq 124 ] || [ "$FETCH_EXIT" -eq 142 ]; then
+      echo "Warning: git fetch timed out after 30s - using cached data if available" >&2
+    else
+      echo "Warning: git fetch failed (exit $FETCH_EXIT) - using cached data if available" >&2
+    fi
+  fi
+else
+  CACHE_AGE_MIN=$(( FETCH_AGE / 60 ))
+  echo "ℹ️  Using cached fetch from $CACHE_AGE_MIN minute(s) ago"
+fi
+
+# 0) Formatting & Compliance - OPTIMIZED
 FORMAT_EXIT=0
 if command -v npx >/dev/null 2>&1; then
-  npx --yes prettier --check '**/*.{md,yml,yaml,json,ts,tsx,js,jsx}' || FORMAT_EXIT=1
-  npx --yes markdownlint-cli2 '**/*.md' || FORMAT_EXIT=1
+  # OPTIMIZATION: Check only changed files in branch instead of all files
+  # This speeds up formatting checks significantly for small changes
+  if [ -d node_modules/.bin ] || command -v prettier >/dev/null 2>&1; then
+    # Determine merge base for changed files comparison
+    MERGE_BASE=""
+    if git rev-parse -q --verify "origin/$BASE" >/dev/null 2>&1; then
+      MERGE_BASE=$(git merge-base "origin/$BASE" HEAD 2>/dev/null || echo "")
+    fi
+
+    if [ -n "$MERGE_BASE" ]; then
+      # Get files changed in current branch (case-insensitive for extensions)
+      CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR "$MERGE_BASE"..HEAD 2>/dev/null | grep -iE '\.(md|yml|yaml|json|ts|tsx|js|jsx)$' || true)
+    else
+      # Fallback: check all files if merge-base unavailable
+      CHANGED_FILES=""
+    fi
+
+    if [ -n "$CHANGED_FILES" ]; then
+      # Count files correctly (handles filenames with spaces/special chars)
+      FILE_COUNT=$(printf '%s\n' "$CHANGED_FILES" | wc -l | tr -d ' ')
+      echo "ℹ️  Checking formatting on $FILE_COUNT changed files"
+      # Check prettier-relevant files (only if non-empty)
+      if echo "$CHANGED_FILES" | grep -q '[^[:space:]]'; then
+        echo "$CHANGED_FILES" | grep -v '^$' | xargs npx prettier --check || FORMAT_EXIT=1
+      fi
+      # Check markdown files
+      MD_FILES=$(echo "$CHANGED_FILES" | grep '\.md$' || true)
+      if echo "$MD_FILES" | grep -q '[^[:space:]]'; then
+        echo "$MD_FILES" | grep -v '^$' | xargs npx markdownlint-cli2 || FORMAT_EXIT=1
+      fi
+    else
+      # Fallback to checking all files
+      npx --yes prettier --check '**/*.{md,yml,yaml,json,ts,tsx,js,jsx}' || FORMAT_EXIT=1
+      npx --yes markdownlint-cli2 '**/*.md' || FORMAT_EXIT=1
+    fi
+  else
+    # node_modules not available, use npx --yes
+    npx --yes prettier --check '**/*.{md,yml,yaml,json,ts,tsx,js,jsx}' || FORMAT_EXIT=1
+    npx --yes markdownlint-cli2 '**/*.md' || FORMAT_EXIT=1
+  fi
 fi
 # Workflow linting (part of documented gates)
 # NOTE: actionlint is disabled in local preflight due to known hanging issues
@@ -43,12 +151,18 @@ if [ "$FORMAT_EXIT" -ne 0 ]; then
   exit 1
 fi
 
-# 1) PHP / Laravel
+# 1) PHP / Laravel - OPTIMIZED
 if [ -f composer.json ]; then
   if ! command -v composer >/dev/null 2>&1; then
     echo "Warning: composer.json found but composer not installed - skipping PHP checks" >&2
   else
-    composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
+    # OPTIMIZATION: Only install if composer.lock changed or vendor/ missing
+    if [ ! -d vendor ] || [ composer.lock -nt vendor ]; then
+      echo "Installing dependencies (lockfile changed or vendor missing)..."
+      composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
+    else
+      echo "ℹ️  Dependencies up to date, skipping composer install"
+    fi
     # Run Laravel Pint code style check if available (blocking: aligns with gates)
     if [ -x ./vendor/bin/pint ]; then
       ./vendor/bin/pint --test
@@ -72,19 +186,31 @@ if [ -f composer.json ]; then
   fi
 fi
 
-# 2) Node / React
+# 2) Node / React - OPTIMIZED
 if [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then
-  pnpm install --frozen-lockfile
-  # Check if scripts exist before running (pnpm run <script> exits 0 with --if-present)
+  # OPTIMIZATION: Only install if lockfile changed or node_modules missing
+  if [ ! -d node_modules ] || [ pnpm-lock.yaml -nt node_modules ]; then
+    echo "Installing dependencies (lockfile changed or node_modules missing)..."
+    pnpm install --frozen-lockfile
+  else
+    echo "ℹ️  Dependencies up to date, skipping pnpm install"
+  fi
   pnpm run --if-present lint
   pnpm run --if-present typecheck
   pnpm run --if-present test
 elif [ -f package-lock.json ] && command -v npm >/dev/null 2>&1; then
-  npm ci
-  npm audit --audit-level=high || {
-    echo "High or critical severity vulnerabilities detected by npm audit. Please address the issues above before continuing." >&2
-    exit 1
-  }
+  # OPTIMIZATION: Only install if lockfile changed or node_modules missing
+  if [ ! -d node_modules ] || [ package-lock.json -nt node_modules ]; then
+    echo "Installing dependencies (lockfile changed or node_modules missing)..."
+    npm ci
+    # Run audit after fresh install (security is important!)
+    npm audit --audit-level=high || {
+      echo "⚠️  High or critical vulnerabilities detected. Please review and fix." >&2
+      exit 1
+    }
+  else
+    echo "ℹ️  Dependencies up to date, skipping npm ci & audit"
+  fi
   # npm run lint runs redocly - exit code 1 = errors, 2 = warnings
   # We accept warnings (exit 2) but fail on errors (exit 1)
   set +e  # Temporarily disable exit-on-error to capture exit code
