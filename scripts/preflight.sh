@@ -18,28 +18,28 @@ echo "Using base branch: $BASE"
 run_with_timeout() {
   local timeout_seconds=$1
   shift
-  
+
   # Try GNU timeout first (Linux)
   if command -v timeout >/dev/null 2>&1 && timeout --version 2>&1 | grep -q "GNU coreutils"; then
     timeout "$timeout_seconds" "$@"
     return $?
   fi
-  
+
   # Fallback: Perl with POSIX signals (works on macOS/BSD)
   if command -v perl >/dev/null 2>&1; then
     perl -e '
       use POSIX ":sys_wait_h";
       use POSIX::SigAction;
-      
+
       my $timeout = shift @ARGV;
       my $pid = fork();
-      
+
       die "fork failed: $!" unless defined $pid;
-      
+
       if ($pid == 0) {
         exec @ARGV or die "exec failed: $!";
       }
-      
+
       # Parent: set up timeout handler using POSIX::SigAction
       my $sigaction = POSIX::SigAction->new(
         sub { kill 15, $pid; },
@@ -48,7 +48,7 @@ run_with_timeout() {
       );
       POSIX::sigaction(SIGALRM, $sigaction);
       alarm($timeout);
-      
+
       waitpid($pid, 0);
       my $status = $? >> 8;
       alarm(0);
@@ -56,14 +56,31 @@ run_with_timeout() {
     ' "$timeout_seconds" "$@"
     return $?
   fi
-  
+
   # No timeout available - run command directly
   "$@"
 }
 
+# Portable MD5 function (Linux: md5sum, macOS: md5, fallback: openssl)
+portable_md5() {
+  if command -v md5sum >/dev/null 2>&1; then
+    echo -n "$1" | md5sum | awk '{print $1}'
+  elif command -v md5 >/dev/null 2>&1; then
+    echo -n "$1" | md5 | awk '{print $NF}'
+  else
+    # Fallback: use openssl if available
+    if command -v openssl >/dev/null 2>&1; then
+      echo -n "$1" | openssl md5 | awk '{print $NF}'
+    else
+      echo "Error: No MD5 hash utility found (md5sum, md5, or openssl required)" >&2
+      exit 1
+    fi
+  fi
+}
+
 # Cached git fetch with timeout (5 minutes cache, 30s timeout)
 # This prevents hanging on slow networks and reduces redundant fetches
-FETCH_CACHE="/tmp/preflight-fetch-$(echo "$ROOT_DIR" | md5sum | cut -d' ' -f1)-$BASE"
+FETCH_CACHE="/tmp/preflight-fetch-$(portable_md5 "$ROOT_DIR")-$BASE"
 FETCH_AGE=999999
 if [ -f "$FETCH_CACHE" ]; then
   FETCH_AGE=$(( $(date +%s) - $(stat -c %Y "$FETCH_CACHE" 2>/dev/null || stat -f %m "$FETCH_CACHE" 2>/dev/null || echo 0) ))
@@ -100,26 +117,24 @@ if command -v npx >/dev/null 2>&1; then
     fi
 
     if [ -n "$MERGE_BASE" ]; then
-      # Get files changed in current branch (case-insensitive for extensions)
-      CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR "$MERGE_BASE"..HEAD 2>/dev/null | grep -iE '\.(md|yml|yaml|json|ts|tsx|js|jsx)$' || true)
+      # Get files changed in current branch using null-terminated strings for safety
+      # This handles filenames with spaces/special characters correctly
+      CHANGED_COUNT=$(git diff --name-only --diff-filter=ACMR -z "$MERGE_BASE"..HEAD 2>/dev/null | grep -izE '\.(md|yml|yaml|json|ts|tsx|js|jsx)\x00' | tr '\0' '\n' | wc -l | tr -d ' ')
     else
       # Fallback: check all files if merge-base unavailable
-      CHANGED_FILES=""
+      CHANGED_COUNT=0
     fi
 
-    if [ -n "$CHANGED_FILES" ]; then
-      # Count files correctly (handles filenames with spaces/special chars)
-      FILE_COUNT=$(printf '%s\n' "$CHANGED_FILES" | wc -l | tr -d ' ')
-      echo "ℹ️  Checking formatting on $FILE_COUNT changed files"
-      # Check prettier-relevant files (only if non-empty)
-      if echo "$CHANGED_FILES" | grep -q '[^[:space:]]'; then
-        echo "$CHANGED_FILES" | grep -v '^$' | xargs npx prettier --check || FORMAT_EXIT=1
-      fi
-      # Check markdown files
-      MD_FILES=$(echo "$CHANGED_FILES" | grep '\.md$' || true)
-      if echo "$MD_FILES" | grep -q '[^[:space:]]'; then
-        echo "$MD_FILES" | grep -v '^$' | xargs npx markdownlint-cli2 || FORMAT_EXIT=1
-      fi
+    if [ "$CHANGED_COUNT" -gt 0 ]; then
+      echo "ℹ️  Checking formatting on $CHANGED_COUNT changed files"
+      # Check prettier-relevant files using null-terminated strings
+      git diff --name-only --diff-filter=ACMR -z "$MERGE_BASE"..HEAD 2>/dev/null | \
+        grep -izE '\.(md|yml|yaml|json|ts|tsx|js|jsx)\x00' | \
+        xargs -0 npx prettier --check || FORMAT_EXIT=1
+      # Check markdown files using null-terminated strings
+      git diff --name-only --diff-filter=ACMR -z "$MERGE_BASE"..HEAD 2>/dev/null | \
+        grep -izE '\.md\x00' | \
+        xargs -0 npx markdownlint-cli2 || FORMAT_EXIT=1
     else
       # Fallback to checking all files
       npx --yes prettier --check '**/*.{md,yml,yaml,json,ts,tsx,js,jsx}' || FORMAT_EXIT=1
@@ -189,7 +204,9 @@ fi
 # 2) Node / React - OPTIMIZED
 if [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then
   # OPTIMIZATION: Only install if lockfile changed or node_modules missing
-  if [ ! -d node_modules ] || [ pnpm-lock.yaml -nt node_modules ]; then
+  # Check against node_modules/.modules.yaml for accurate timestamp comparison
+  PNPM_STAMP="node_modules/.modules.yaml"
+  if [ ! -d node_modules ] || [ ! -f "$PNPM_STAMP" ] || [ pnpm-lock.yaml -nt "$PNPM_STAMP" ]; then
     echo "Installing dependencies (lockfile changed or node_modules missing)..."
     pnpm install --frozen-lockfile
   else
@@ -200,17 +217,19 @@ if [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then
   pnpm run --if-present test
 elif [ -f package-lock.json ] && command -v npm >/dev/null 2>&1; then
   # OPTIMIZATION: Only install if lockfile changed or node_modules missing
-  if [ ! -d node_modules ] || [ package-lock.json -nt node_modules ]; then
+  # Check against node_modules/.package-lock.json for accurate timestamp comparison
+  NPM_STAMP="node_modules/.package-lock.json"
+  if [ ! -d node_modules ] || [ ! -f "$NPM_STAMP" ] || [ package-lock.json -nt "$NPM_STAMP" ]; then
     echo "Installing dependencies (lockfile changed or node_modules missing)..."
     npm ci
-    # Run audit after fresh install (security is important!)
-    npm audit --audit-level=high || {
-      echo "⚠️  High or critical vulnerabilities detected. Please review and fix." >&2
-      exit 1
-    }
   else
-    echo "ℹ️  Dependencies up to date, skipping npm ci & audit"
+    echo "ℹ️  Dependencies up to date, skipping npm ci"
   fi
+  # Always run audit to catch newly disclosed vulnerabilities
+  npm audit --audit-level=high || {
+    echo "⚠️  High or critical vulnerabilities detected. Please review and fix." >&2
+    exit 1
+  }
   # npm run lint runs redocly - exit code 1 = errors, 2 = warnings
   # We accept warnings (exit 2) but fail on errors (exit 1)
   set +e  # Temporarily disable exit-on-error to capture exit code
