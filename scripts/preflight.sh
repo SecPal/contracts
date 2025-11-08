@@ -119,7 +119,8 @@ if command -v npx >/dev/null 2>&1; then
     if [ -n "$MERGE_BASE" ]; then
       # Get files changed in current branch using null-terminated strings for safety
       # This handles filenames with spaces/special characters correctly
-      CHANGED_COUNT=$(git diff --name-only --diff-filter=ACMR -z "$MERGE_BASE"..HEAD 2>/dev/null | grep -izE '\.(md|yml|yaml|json|ts|tsx|js|jsx)\x00' | tr '\0' '\n' | wc -l | tr -d ' ')
+      # Note: Filtering by extension using tr to convert null bytes to newlines, then grep
+      CHANGED_COUNT=$(git diff --name-only --diff-filter=ACMR -z "$MERGE_BASE"..HEAD 2>/dev/null | tr '\0' '\n' | grep -iE '\.(md|yml|yaml|json|ts|tsx|js|jsx)$' | wc -l | tr -d ' ')
     else
       # Fallback: check all files if merge-base unavailable
       CHANGED_COUNT=0
@@ -127,14 +128,14 @@ if command -v npx >/dev/null 2>&1; then
 
     if [ "$CHANGED_COUNT" -gt 0 ]; then
       echo "ℹ️  Checking formatting on $CHANGED_COUNT changed files"
-      # Check prettier-relevant files using null-terminated strings
+      # Check prettier-relevant files using null-terminated strings for xargs safety
       git diff --name-only --diff-filter=ACMR -z "$MERGE_BASE"..HEAD 2>/dev/null | \
-        grep -izE '\.(md|yml|yaml|json|ts|tsx|js|jsx)\x00' | \
-        xargs -0 npx prettier --check || FORMAT_EXIT=1
-      # Check markdown files using null-terminated strings
+        tr '\0' '\n' | grep -iE '\.(md|yml|yaml|json|ts|tsx|js|jsx)$' | \
+        tr '\n' '\0' | xargs -0 npx prettier --check || FORMAT_EXIT=1
+      # Check markdown files using null-terminated strings for xargs safety
       git diff --name-only --diff-filter=ACMR -z "$MERGE_BASE"..HEAD 2>/dev/null | \
-        grep -izE '\.md\x00' | \
-        xargs -0 npx markdownlint-cli2 || FORMAT_EXIT=1
+        tr '\0' '\n' | grep -iE '\.md$' | \
+        tr '\n' '\0' | xargs -0 npx markdownlint-cli2 || FORMAT_EXIT=1
     else
       # Fallback to checking all files
       npx --yes prettier --check '**/*.{md,yml,yaml,json,ts,tsx,js,jsx}' || FORMAT_EXIT=1
