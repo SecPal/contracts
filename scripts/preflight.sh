@@ -46,8 +46,12 @@ git fetch origin "$BASE" 2>/dev/null || true
 
 # 0) Formatting & Compliance
 FORMAT_EXIT=0
-if command -v npx >/dev/null 2>&1; then
-  npx --yes prettier --check '**/*.{md,yml,yaml,json,ts,tsx,js,jsx}' || FORMAT_EXIT=1
+if command -v npm >/dev/null 2>&1; then
+  if command -v prettier >/dev/null 2>&1; then
+    prettier --check '**/*.{md,yml,yaml,json,ts,tsx,js,jsx}' || FORMAT_EXIT=1
+  else
+    npx --yes prettier --check '**/*.{md,yml,yaml,json,ts,tsx,js,jsx}' || FORMAT_EXIT=1
+  fi
   npx --yes markdownlint-cli2 '**/*.md' || FORMAT_EXIT=1
 fi
 # Workflow linting (part of documented gates)
