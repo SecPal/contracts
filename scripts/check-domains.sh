@@ -22,11 +22,12 @@ echo ""
 
 # Search for secpal domains
 # Includes common file types: md, yaml, json, sh, ts, tsx, js, jsx, php, html
-# Excludes:
-#   - This script itself
-#   - Lines documenting forbidden domains (with "Forbidden:" or "FORBIDDEN:" label)
-#   - YAML arrays of forbidden domains (lines with "- "secpal.")
-#   - Checklist items mentioning forbidden domains (lines with "[ ]")
+# Exclusions (in order):
+#   1. This script itself (check-domains.sh)
+#   2. Allowed domains (secpal.app, secpal.dev)
+#   3. Documentation of forbidden domains (lines with "Forbidden:" or "FORBIDDEN:")
+#   4. YAML arrays of forbidden domains (lines with '- "secpal.')
+#   5. Checklist items mentioning forbidden domains (lines with '- [ ]')
 violations=$(grep -r "secpal\." \
     --include="*.md" \
     --include="*.yaml" \
@@ -50,7 +51,7 @@ violations=$(grep -r "secpal\." \
     grep -v -- '- "secpal\.' | \
     grep -v -- '- \[ \]' || true)
 
-if [[ -z "$violations" ]]; then
+if [ -z "$violations" ]; then
     echo -e "${GREEN}✅ Domain Policy Check PASSED${NC}"
     echo "All domains use secpal.app or secpal.dev"
     exit 0

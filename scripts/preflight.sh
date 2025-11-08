@@ -9,11 +9,13 @@ cd "$ROOT_DIR"
 
 # Check if pushing from a protected branch
 # NOTE: Keep this list in sync with .pre-commit-config.yaml (no-commit-to-branch hook)
-CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "detached")
+get_current_branch() {
+  git symbolic-ref --short HEAD 2>/dev/null || echo "detached"
+}
 PROTECTED_BRANCHES=("main" "master" "production")
 
 for branch in "${PROTECTED_BRANCHES[@]}"; do
-  if [ "$CURRENT_BRANCH" = "$branch" ]; then
+  if [ "$(get_current_branch)" = "$branch" ]; then
     echo ""
     echo "❌ BLOCKED: Direct push from protected branch '$branch' is not allowed!"
     echo ""
@@ -41,8 +43,8 @@ BASE="$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/rem
 
 echo "Using base branch: $BASE"
 
-# Fetch base branch for PR size check (failure is handled later)
-git fetch origin "$BASE" 2>/dev/null || true
+# Fetch base branch for PR size check with 30s timeout (prevents indefinite hang; failure is handled later)
+timeout 30 git fetch origin "$BASE" 2>/dev/null || true
 
 # 0) Formatting & Compliance
 FORMAT_EXIT=0
@@ -144,9 +146,12 @@ elif [ -f yarn.lock ] && command -v yarn >/dev/null 2>&1; then
   fi
 fi
 
-# 3) OpenAPI (Spectral)
-if [ -f docs/openapi.yaml ] && command -v npx >/dev/null 2>&1; then
-  npx --yes @stoplight/spectral-cli lint docs/openapi.yaml
+# 3) OpenAPI (Redocly lint via package manager)
+if [ -f package.json ]; then
+  # Use npm (project uses package-lock.json)
+  if [ -f package-lock.json ] && command -v npm >/dev/null 2>&1; then
+    npm run --if-present lint
+  fi
 fi
 
 # 4) Check PR size locally (against BASE)
