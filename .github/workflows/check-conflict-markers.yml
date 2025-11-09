@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2025 SecPal Contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: Check for Merge Conflict Markers
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check-conflicts:
+    name: Check for Git Conflict Markers
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run conflict marker check
+        run: |
+          chmod +x scripts/check-conflict-markers.sh
+          ./scripts/check-conflict-markers.sh
