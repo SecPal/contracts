@@ -45,15 +45,41 @@ The script runs automatically in CI via GitHub Actions on every PR and push to `
 
 ### Pre-commit Hook
 
+> **Performance Note:**  
+> By default, `check-conflict-markers.sh` scans **all tracked files** in the repository.  
+> For large repositories, this can be slow when used as a pre-commit hook.
+
+You have two options for pre-commit integration:
+
+#### 1. Check All Tracked Files (Simple, May Be Slow)
+
 Add to `.git/hooks/pre-commit`:
 
 ```bash
 #!/bin/bash
-# Run conflict marker check
+# Run conflict marker check on all tracked files (may be slow in large repos)
 if [ -f scripts/check-conflict-markers.sh ]; then
   ./scripts/check-conflict-markers.sh || exit 1
 fi
 ```
+
+#### 2. Check Only Staged Files (Recommended for Large Repos)
+
+Add to `.git/hooks/pre-commit`:
+
+```bash
+#!/bin/bash
+# Only check files staged for commit
+if [ -f scripts/check-conflict-markers.sh ]; then
+  STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -v '^$' | xargs)
+  if [ -n "$STAGED_FILES" ]; then
+    ./scripts/check-conflict-markers.sh $STAGED_FILES || exit 1
+  fi
+fi
+```
+
+> **Tip:**  
+> The staged-files approach is much faster, but will only catch conflict markers in files you are about to commit.
 
 ## Detected Patterns
 
@@ -129,10 +155,18 @@ Action required:
 
 ### False Positives
 
-The script only checks lines **starting with** conflict markers, reducing false positives. If you legitimately need these patterns in your code (e.g., documentation), indent them:
+The script only checks lines **starting with** conflict markers, reducing false positives.
+
+**Markdown Files:** To prevent false positives from documentation examples (like this very document), Markdown files (`.md`) are **completely excluded** from checks. This means real conflict markers in Markdown files will not be detected. This is an acceptable trade-off since:
+
+- Documentation rarely has complex merge conflicts
+- CI/CD catches most issues through other checks
+- Code examples in docs often contain marker patterns
+
+If you legitimately need these patterns in other code files (e.g., test fixtures), indent them:
 
 ```markdown
-<!-- This is documentation, not a conflict -->
+<!-- This is code, not a conflict -->
 
     <<<<<<< This won't trigger (indented)
 ```
