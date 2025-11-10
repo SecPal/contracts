@@ -22,12 +22,12 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Conflict marker patterns
+# Conflict marker patterns (without trailing spaces for regex matching)
 MARKERS=(
-  "<<<<<<< "  # Start of conflict (from HEAD)
-  "======="   # Separator between changes
-  ">>>>>>> "  # End of conflict (from incoming)
-  "||||||"    # Optional: diff3 style marker
+  "<<<<<<<" # Start of conflict (from HEAD)
+  "=======" # Separator between changes
+  ">>>>>>>" # End of conflict (from incoming)
+  "|||||||" # Optional: diff3 style marker
 )
 
 CONFLICTS_FOUND=0
@@ -57,7 +57,12 @@ while IFS= read -r -d '' file; do
 
         # Show lines with conflict markers
         grep -n "^${marker}" "$file" | while IFS=: read -r line_num line_content; do
-          echo -e "  ${RED}Line $line_num:${NC} ${line_content:0:60}..."
+          # Only append "..." if line is longer than 60 chars
+          if [ ${#line_content} -gt 60 ]; then
+            echo -e "  ${RED}Line $line_num:${NC} ${line_content:0:60}..."
+          else
+            echo -e "  ${RED}Line $line_num:${NC} ${line_content}"
+          fi
         done
         echo ""
         break  # Only report once per file
