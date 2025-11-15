@@ -14,14 +14,4 @@ permissions:
 
 jobs:
   check-conflicts:
-    name: Check for Git Conflict Markers
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Run conflict marker check
-        run: |
-          chmod +x scripts/check-conflict-markers.sh
-          ./scripts/check-conflict-markers.sh
+    uses: SecPal/.github/.github/workflows/reusable-check-conflict-markers.yml@main
