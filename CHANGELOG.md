@@ -15,8 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Secret Management API Specification**: Complete OpenAPI 3.1 spec for Secret CRUD and Sharing endpoints
-  - **5 Secret CRUD endpoints**: `GET /secrets`, `POST /secrets`, `GET /secrets/{id}`, `PATCH /secrets/{id}`, `DELETE /secrets/{id}`
-  - **3 Secret Sharing endpoints**: `GET /secrets/{id}/shares`, `POST /secrets/{id}/shares`, `DELETE /secrets/{id}/shares/{shareId}`
+  - **5 Secret CRUD endpoints**: `GET /secrets`, `POST /secrets`, `GET /secrets/{secret}`, `PATCH /secrets/{secret}`, `DELETE /secrets/{secret}`
+  - **3 Secret Sharing endpoints**: `GET /secrets/{secret}/shares`, `POST /secrets/{secret}/shares`, `DELETE /secrets/{secret}/shares/{share}`
   - **Schemas**: `Secret` (with encrypted fields), `SecretShare` (with permission hierarchy)
   - **Validation Rules**: Field lengths, required fields, permission enums (`read`, `write`, `admin`)
   - **XOR Constraint**: Share with user OR role (not both) - documented in spec

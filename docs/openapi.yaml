@@ -18,7 +18,7 @@ info:
     ## API Policies
 
     - All timestamps use ISO 8601 format (UTC)
-    - Pagination uses cursor-based approach for large datasets
+    - Pagination: offset-based (page/per_page) for most endpoints, cursor-based for large datasets
     - Maximum page size: 100 items
   version: 0.0.1
   contact:
@@ -91,17 +91,17 @@ components:
         title:
           type: string
           maxLength: 255
-          description: Secret title (plaintext)
+          description: Secret title (decrypted)
           example: 'AWS Production Credentials'
         username:
           type: string
           maxLength: 255
-          description: Username or email (plaintext)
+          description: Username or email (decrypted)
           example: 'admin@company.com'
         password:
           type: string
           maxLength: 1000
-          description: Password or API key (plaintext)
+          description: Password or API key (decrypted)
           example: 'super-secret-password-123'
         url:
           type: string
@@ -374,6 +374,8 @@ paths:
                         example: 42
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
     post:
       summary: Create Secret
@@ -457,6 +459,8 @@ paths:
                 code: VALIDATION_ERROR
                 details:
                   title: ['The title field is required.']
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /secrets/{secret}:
     get:
@@ -492,6 +496,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
     patch:
       summary: Update Secret
@@ -573,6 +579,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
     delete:
       summary: Delete Secret
@@ -601,6 +609,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /secrets/{secret}/shares:
     get:
@@ -638,6 +648,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
     post:
       summary: Grant Secret Access
@@ -743,6 +755,8 @@ paths:
                         [
                           'The role id field is required when user id is not present.',
                         ]
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /secrets/{secret}/shares/{share}:
     delete:
@@ -778,6 +792,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /secrets/{secret}/attachments:
     post:
