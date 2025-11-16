@@ -74,6 +74,44 @@ components:
           description: Timestamp of the health check
           example: '2025-10-25T19:25:00Z'
 
+    SecretAttachment:
+      type: object
+      required:
+        - id
+        - filename
+        - file_size
+        - mime_type
+        - download_url
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique attachment identifier
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        filename:
+          type: string
+          description: Original filename (decrypted)
+          example: 'confidential-report.pdf'
+        file_size:
+          type: integer
+          description: File size in bytes
+          example: 102400
+        mime_type:
+          type: string
+          description: MIME type of the file
+          example: 'application/pdf'
+        download_url:
+          type: string
+          format: uri
+          description: URL to download the file
+          example: 'https://api.secpal.app/v1/attachments/550e8400-e29b-41d4-a716-446655440000/download'
+        created_at:
+          type: string
+          format: date-time
+          description: Upload timestamp (ISO 8601)
+          example: '2025-11-16T14:30:00Z'
+
   responses:
     BadRequest:
       description: Bad Request - Invalid input parameters
@@ -159,3 +197,178 @@ paths:
               example:
                 message: Service temporarily unavailable
                 code: SERVICE_UNAVAILABLE
+
+  /secrets/{secret}/attachments:
+    post:
+      summary: Upload Attachment
+      description: |
+        Upload a file attachment to a secret. File is encrypted at rest using tenant DEK.
+        Maximum file size and allowed MIME types are configurable.
+      operationId: uploadAttachment
+      tags:
+        - Secret Attachments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: secret
+          in: path
+          required: true
+          description: Secret UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: File to upload (max 10MB by default)
+      responses:
+        '201':
+          description: Attachment uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SecretAttachment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Validation failed
+                code: VALIDATION_ERROR
+                details:
+                  file: ['The file field is required.']
+
+    get:
+      summary: List Attachments
+      description: |
+        List all attachments for a secret. Returns attachments in descending order by creation date.
+      operationId: listAttachments
+      tags:
+        - Secret Attachments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: secret
+          in: path
+          required: true
+          description: Secret UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Attachments retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SecretAttachment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /attachments/{attachment}/download:
+    get:
+      summary: Download Attachment
+      description: |
+        Download and decrypt an attachment file. Returns the file with appropriate Content-Type and Content-Disposition headers.
+      operationId: downloadAttachment
+      tags:
+        - Secret Attachments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: attachment
+          in: path
+          required: true
+          description: Attachment UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: File downloaded successfully
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Type:
+              description: MIME type of the file
+              schema:
+                type: string
+                example: application/pdf
+            Content-Disposition:
+              description: Attachment filename
+              schema:
+                type: string
+                example: 'attachment; filename="report.pdf"'
+            Content-Length:
+              description: File size in bytes
+              schema:
+                type: integer
+                example: 102400
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /attachments/{attachment}:
+    delete:
+      summary: Delete Attachment
+      description: |
+        Delete an attachment file and its metadata. File is permanently removed from storage.
+      operationId: deleteAttachment
+      tags:
+        - Secret Attachments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: attachment
+          in: path
+          required: true
+          description: Attachment UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Attachment deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
