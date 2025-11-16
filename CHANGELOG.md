@@ -14,6 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Secret Management API Specification**: Complete OpenAPI 3.1 spec for Secret CRUD and Sharing endpoints
+  - **5 Secret CRUD endpoints**: `GET /secrets`, `POST /secrets`, `GET /secrets/{id}`, `PATCH /secrets/{id}`, `DELETE /secrets/{id}`
+  - **3 Secret Sharing endpoints**: `GET /secrets/{id}/shares`, `POST /secrets/{id}/shares`, `DELETE /secrets/{id}/shares/{shareId}`
+  - **Schemas**: `Secret` (with encrypted fields), `SecretShare` (with permission hierarchy)
+  - **Validation Rules**: Field lengths, required fields, permission enums (`read`, `write`, `admin`)
+  - **XOR Constraint**: Share with user OR role (not both) - documented in spec
+  - **Permission Hierarchy**: admin > write > read - documented with examples
+  - **Error Responses**: 400, 401, 403, 404, 422 with detailed examples
+  - **Authentication**: Bearer token (JWT) required for all endpoints
+  - **Pagination**: List endpoints support `page` and `per_page` query parameters
+  - Related: Implements spec for SecPal/api PRs #183, #185 (Phase 3: Secret Sharing & Access Control)
+
 - **Git Conflict Marker Detection**: Automated check for unresolved merge conflicts
   - `scripts/check-conflict-markers.sh` - Scans all tracked files for conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`, `|||||||`)
   - `.github/workflows/check-conflict-markers.yml` - CI integration (runs on all PRs and pushes to main)

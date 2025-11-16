@@ -74,6 +74,127 @@ components:
           description: Timestamp of the health check
           example: '2025-10-25T19:25:00Z'
 
+    Secret:
+      type: object
+      required:
+        - id
+        - title
+        - version
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique secret identifier
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        title:
+          type: string
+          maxLength: 255
+          description: Secret title (plaintext)
+          example: 'AWS Production Credentials'
+        username:
+          type: string
+          maxLength: 255
+          description: Username or email (plaintext)
+          example: 'admin@company.com'
+        password:
+          type: string
+          maxLength: 1000
+          description: Password or API key (plaintext)
+          example: 'super-secret-password-123'
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+          description: URL of the service
+          example: 'https://console.aws.amazon.com'
+        notes:
+          type: string
+          maxLength: 10000
+          description: Additional notes or instructions
+          example: 'Use MFA when logging in. Token in Authenticator app.'
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+          description: Tags for categorization
+          example: ['production', 'aws', 'critical']
+        expires_at:
+          type: string
+          format: date-time
+          description: Expiration date (ISO 8601)
+          example: '2025-12-31T23:59:59Z'
+        version:
+          type: integer
+          description: Version number (auto-incremented on updates)
+          example: 1
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp (ISO 8601)
+          example: '2025-11-16T10:00:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp (ISO 8601)
+          example: '2025-11-16T14:30:00Z'
+
+    SecretShare:
+      type: object
+      required:
+        - id
+        - secret_id
+        - permission
+        - granted_by
+        - granted_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique share identifier
+          example: '660e8400-e29b-41d4-a716-446655440000'
+        secret_id:
+          type: string
+          format: uuid
+          description: Secret being shared
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        user_id:
+          type: string
+          format: uuid
+          description: User granted access (XOR with role_id)
+          example: '770e8400-e29b-41d4-a716-446655440000'
+        role_id:
+          type: integer
+          format: int64
+          description: Role granted access (XOR with user_id)
+          example: 5
+        permission:
+          type: string
+          enum: [read, write, admin]
+          description: |
+            Permission level:
+            - **read**: View secret and download attachments
+            - **write**: View + update secret and upload attachments
+            - **admin**: Write + delete secret (but not grant shares)
+          example: read
+        granted_by:
+          type: string
+          format: uuid
+          description: User who granted access (always secret owner)
+          example: '880e8400-e29b-41d4-a716-446655440000'
+        granted_at:
+          type: string
+          format: date-time
+          description: When access was granted (ISO 8601)
+          example: '2025-11-16T10:00:00Z'
+        expires_at:
+          type: string
+          format: date-time
+          description: Optional expiration timestamp (ISO 8601)
+          example: '2025-12-31T23:59:59Z'
+
     SecretAttachment:
       type: object
       required:
@@ -197,6 +318,466 @@ paths:
               example:
                 message: Service temporarily unavailable
                 code: SERVICE_UNAVAILABLE
+
+  /secrets:
+    get:
+      summary: List Secrets
+      description: |
+        List all secrets accessible to the authenticated user (owned + shared).
+        Supports filtering and pagination.
+      operationId: listSecrets
+      tags:
+        - Secrets
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          required: false
+          description: Items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 15
+      responses:
+        '200':
+          description: Secrets retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Secret'
+                  meta:
+                    type: object
+                    properties:
+                      current_page:
+                        type: integer
+                        example: 1
+                      per_page:
+                        type: integer
+                        example: 15
+                      total:
+                        type: integer
+                        example: 42
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Create Secret
+      description: |
+        Create a new secret with encrypted storage. All sensitive fields are encrypted
+        at rest using the tenant's DEK (Data Encryption Key).
+      operationId: createSecret
+      tags:
+        - Secrets
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+              properties:
+                title:
+                  type: string
+                  maxLength: 255
+                  description: Secret title (required)
+                  example: 'Database Master Password'
+                username:
+                  type: string
+                  maxLength: 255
+                  description: Username or email
+                  example: 'db_admin'
+                password:
+                  type: string
+                  maxLength: 1000
+                  description: Password or API key
+                  example: 'my-secure-password-123'
+                url:
+                  type: string
+                  format: uri
+                  maxLength: 2048
+                  description: Service URL
+                  example: 'https://db.example.com:5432'
+                notes:
+                  type: string
+                  maxLength: 10000
+                  description: Additional notes
+                  example: 'Connect via SSL. Certificate in attachments.'
+                tags:
+                  type: array
+                  items:
+                    type: string
+                    maxLength: 50
+                  description: Tags for organization
+                  example: ['production', 'database', 'critical']
+                expires_at:
+                  type: string
+                  format: date-time
+                  description: Expiration date (must be future date)
+                  example: '2026-01-01T00:00:00Z'
+      responses:
+        '201':
+          description: Secret created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Secret'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Validation failed
+                code: VALIDATION_ERROR
+                details:
+                  title: ['The title field is required.']
+
+  /secrets/{secret}:
+    get:
+      summary: Get Secret Details
+      description: |
+        Retrieve full details of a specific secret. Requires ownership or read permission.
+      operationId: getSecret
+      tags:
+        - Secrets
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: secret
+          in: path
+          required: true
+          description: Secret UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Secret retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Secret'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Update Secret
+      description: |
+        Update a secret's fields. Requires ownership or write permission.
+        Version number is auto-incremented on successful update.
+      operationId: updateSecret
+      tags:
+        - Secrets
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: secret
+          in: path
+          required: true
+          description: Secret UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  maxLength: 255
+                  example: 'Updated Title'
+                username:
+                  type: string
+                  maxLength: 255
+                  example: 'new_username'
+                password:
+                  type: string
+                  maxLength: 1000
+                  example: 'new-password-456'
+                url:
+                  type: string
+                  format: uri
+                  maxLength: 2048
+                  example: 'https://new-url.com'
+                notes:
+                  type: string
+                  maxLength: 10000
+                  example: 'Updated notes'
+                tags:
+                  type: array
+                  items:
+                    type: string
+                    maxLength: 50
+                  example: ['updated', 'tag']
+                expires_at:
+                  type: string
+                  format: date-time
+                  example: '2026-06-01T00:00:00Z'
+      responses:
+        '200':
+          description: Secret updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Secret'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      summary: Delete Secret
+      description: |
+        Soft delete a secret. Requires ownership or admin permission.
+        Secret is marked as deleted but remains in database for audit.
+      operationId: deleteSecret
+      tags:
+        - Secrets
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: secret
+          in: path
+          required: true
+          description: Secret UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Secret deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /secrets/{secret}/shares:
+    get:
+      summary: List Secret Shares
+      description: |
+        List all active shares for a secret. Only owner or users with admin permission can view.
+      operationId: listSecretShares
+      tags:
+        - Secret Sharing
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: secret
+          in: path
+          required: true
+          description: Secret UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Shares retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SecretShare'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      summary: Grant Secret Access
+      description: |
+        Grant read/write/admin access to a user or role. Only secret owner can grant access.
+
+        **XOR Constraint:** Must provide EITHER `user_id` OR `role_id`, not both.
+
+        **Permission Hierarchy:**
+        - `read`: View secret + download attachments
+        - `write`: Read + update secret + upload attachments
+        - `admin`: Write + delete secret (cannot grant shares - owner only)
+      operationId: grantSecretAccess
+      tags:
+        - Secret Sharing
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: secret
+          in: path
+          required: true
+          description: Secret UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - permission
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+                  description: User to grant access (XOR with role_id)
+                  example: '770e8400-e29b-41d4-a716-446655440000'
+                role_id:
+                  type: integer
+                  format: int64
+                  description: Role to grant access (XOR with user_id)
+                  example: 5
+                permission:
+                  type: string
+                  enum: [read, write, admin]
+                  description: Permission level
+                  example: read
+                expires_at:
+                  type: string
+                  format: date-time
+                  description: Optional expiration date
+                  example: '2025-12-31T23:59:59Z'
+            examples:
+              grantToUser:
+                summary: Grant read access to user
+                value:
+                  user_id: '770e8400-e29b-41d4-a716-446655440000'
+                  permission: read
+                  expires_at: '2025-12-31T23:59:59Z'
+              grantToRole:
+                summary: Grant write access to role
+                value:
+                  role_id: 5
+                  permission: write
+      responses:
+        '201':
+          description: Access granted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SecretShare'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                xorViolation:
+                  summary: XOR constraint violated
+                  value:
+                    message: Validation failed
+                    code: VALIDATION_ERROR
+                    details:
+                      user_id:
+                        [
+                          'The user id field is required when role id is not present.',
+                        ]
+                      role_id:
+                        [
+                          'The role id field is required when user id is not present.',
+                        ]
+
+  /secrets/{secret}/shares/{share}:
+    delete:
+      summary: Revoke Secret Access
+      description: |
+        Revoke a user's or role's access to a secret. Only secret owner can revoke.
+      operationId: revokeSecretAccess
+      tags:
+        - Secret Sharing
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: secret
+          in: path
+          required: true
+          description: Secret UUID
+          schema:
+            type: string
+            format: uuid
+        - name: share
+          in: path
+          required: true
+          description: Share UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Access revoked successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /secrets/{secret}/attachments:
     post:
