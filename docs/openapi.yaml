@@ -233,6 +233,219 @@ components:
           description: Upload timestamp (ISO 8601)
           example: '2025-11-16T14:30:00Z'
 
+    # =============================================================================
+    # Employee Management Schemas
+    # =============================================================================
+
+    PaginationMeta:
+      type: object
+      description: Pagination metadata
+      required:
+        - current_page
+        - per_page
+        - total
+      properties:
+        current_page:
+          type: integer
+          description: Current page number
+          example: 1
+        per_page:
+          type: integer
+          description: Items per page
+          example: 15
+        last_page:
+          type: integer
+          description: Last page number
+          example: 5
+        total:
+          type: integer
+          description: Total number of items
+          example: 73
+        from:
+          type: [integer, 'null']
+          description: First item index on current page
+          example: 1
+        to:
+          type: [integer, 'null']
+          description: Last item index on current page
+          example: 15
+
+    Employee:
+      type: object
+      description: Employee entity with decrypted personal data
+      required:
+        - id
+        - tenant_id
+        - employee_number
+        - first_name
+        - last_name
+        - full_name
+        - email
+        - status
+        - contract_type
+        - user_account_active
+        - onboarding_completed
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        tenant_id:
+          type: string
+          example: 'tenant-12345-key'
+        employee_number:
+          type: string
+          example: 'EMP-2025-0042'
+        first_name:
+          type: string
+          description: Decrypted
+          example: 'Max'
+        last_name:
+          type: string
+          description: Decrypted
+          example: 'Mustermann'
+        full_name:
+          type: string
+          example: 'Max Mustermann'
+        date_of_birth:
+          type: [string, 'null']
+          format: date
+          description: Decrypted
+          example: '1990-05-15'
+        email:
+          type: string
+          format: email
+          example: 'max.mustermann@secpal.app'
+        phone:
+          type: [string, 'null']
+          example: '+49 30 12345678'
+        address:
+          type: [string, 'null']
+          description: Decrypted
+          example: 'Hauptstraße 123, 10115 Berlin'
+        photo_path:
+          type: [string, 'null']
+          example: 'employees/photos/550e8400.jpg'
+        tax_id:
+          type: [string, 'null']
+          description: Decrypted
+          example: '12345678901'
+        social_security_number:
+          type: [string, 'null']
+          description: Decrypted
+          example: '12 345678 A 123'
+        status:
+          type: string
+          enum: [applicant, pre_contract, active, on_leave, terminated]
+          example: 'active'
+        hire_date:
+          type: [string, 'null']
+          format: date
+          example: '2025-01-15'
+        contract_start_date:
+          type: [string, 'null']
+          format: date
+          example: '2025-02-01'
+        termination_date:
+          type: [string, 'null']
+          format: date
+        last_working_day:
+          type: [string, 'null']
+          format: date
+        contract_type:
+          type: string
+          enum: [permanent, fixed_term, temporary, minijob, student, internship]
+        weekly_hours:
+          type: [number, 'null']
+          format: float
+        monthly_hours:
+          type: [number, 'null']
+          format: float
+        hourly_rate:
+          type: [number, 'null']
+          format: float
+          description: Decrypted
+        health_insurance_type:
+          type: [string, 'null']
+          enum: [public, private]
+        health_insurance_provider:
+          type: [string, 'null']
+        health_insurance_number:
+          type: [string, 'null']
+        sachkunde_type:
+          type: [string, 'null']
+          enum: [none, paragraph_34a, nsv, other]
+        sachkunde_certificate:
+          type: [string, 'null']
+        sachkunde_expiry:
+          type: [string, 'null']
+          format: date
+        work_permit_type:
+          type: [string, 'null']
+          enum:
+            [
+              not_required,
+              eu_citizen,
+              work_visa,
+              blue_card,
+              residence_permit,
+              other,
+            ]
+        work_permit_number:
+          type: [string, 'null']
+        work_permit_expiry:
+          type: [string, 'null']
+          format: date
+        residence_permit_type:
+          type: [string, 'null']
+          enum: [not_required, permanent, temporary, student, other]
+        residence_permit_number:
+          type: [string, 'null']
+        residence_permit_expiry:
+          type: [string, 'null']
+          format: date
+        criminal_record_status:
+          type: [string, 'null']
+          enum: [not_checked, clean, pending, has_record]
+        criminal_record_check_date:
+          type: [string, 'null']
+          format: date
+        user_id:
+          type: [string, 'null']
+          format: uuid
+        user_account_active:
+          type: boolean
+        user_account_activated_at:
+          type: [string, 'null']
+          format: date-time
+        user_account_deactivated_at:
+          type: [string, 'null']
+          format: date-time
+        onboarding_completed:
+          type: boolean
+        onboarding_steps:
+          type: [object, 'null']
+        onboarding_started_at:
+          type: [string, 'null']
+          format: date-time
+        onboarding_completed_at:
+          type: [string, 'null']
+          format: date-time
+        organizational_unit_id:
+          type: [string, 'null']
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        deleted_at:
+          type: [string, 'null']
+          format: date-time
+
   responses:
     BadRequest:
       description: Bad Request - Invalid input parameters
@@ -273,6 +486,32 @@ components:
           example:
             message: Resource not found
             code: NOT_FOUND
+
+    ValidationError:
+      description: Validation Error - Invalid input data
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - message
+              - errors
+            properties:
+              message:
+                type: string
+                description: General validation error message
+                example: 'The given data was invalid.'
+              errors:
+                type: object
+                description: Field-specific validation errors
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+                example:
+                  email: ['The email has already been taken.']
+                  date_of_birth:
+                    ['The date of birth must be a date before today.']
 
     InternalServerError:
       description: Internal Server Error
@@ -969,3 +1208,266 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  # =============================================================================
+  # Employee Management
+  # =============================================================================
+
+  /employees:
+    get:
+      summary: List Employees
+      description: Get paginated list of all employees in the tenant
+      operationId: listEmployees
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          description: Number of items per page (max 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 15
+        - name: status
+          in: query
+          description: Filter employees by employment status
+          schema:
+            type: string
+            enum: [applicant, pre_contract, active, on_leave, terminated]
+      responses:
+        '200':
+          description: List of employees
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Employee'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create Employee
+      description: Create a new employee record
+      operationId: createEmployee
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - first_name
+                - last_name
+                - email
+                - contract_type
+              properties:
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+                date_of_birth:
+                  type: string
+                  format: date
+                email:
+                  type: string
+                  format: email
+                phone:
+                  type: string
+                address:
+                  type: string
+                contract_type:
+                  type: string
+                  enum:
+                    [
+                      permanent,
+                      fixed_term,
+                      temporary,
+                      minijob,
+                      student,
+                      internship,
+                    ]
+                contract_start_date:
+                  type: string
+                  format: date
+                weekly_hours:
+                  type: number
+                  format: float
+                hourly_rate:
+                  type: number
+                  format: float
+      responses:
+        '201':
+          description: Employee created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employees/{employee}:
+    get:
+      summary: Get Employee
+      description: Get a single employee by UUID
+      operationId: getEmployee
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employee
+          in: path
+          required: true
+          description: Employee UUID identifier
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Employee details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      summary: Update Employee
+      description: Update employee details (partial update)
+      operationId: updateEmployee
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employee
+          in: path
+          required: true
+          description: Employee UUID identifier
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                phone:
+                  type: string
+                address:
+                  type: string
+                contract_type:
+                  type: string
+                  enum:
+                    [
+                      permanent,
+                      fixed_term,
+                      temporary,
+                      minijob,
+                      student,
+                      internship,
+                    ]
+                status:
+                  type: string
+                  enum: [applicant, pre_contract, active, on_leave, terminated]
+                weekly_hours:
+                  type: number
+                  format: float
+                hourly_rate:
+                  type: number
+                  format: float
+      responses:
+        '200':
+          description: Employee updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete Employee
+      description: Soft delete an employee record
+      operationId: deleteEmployee
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employee
+          in: path
+          required: true
+          description: Employee UUID identifier
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Employee deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
