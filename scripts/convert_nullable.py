@@ -76,6 +76,15 @@ def convert_nullable_to_type_array(yaml_content: str) -> str:
 
                 # Skip all lines up to and including nullable
                 i = nullable_line_idx + 1
+            else:
+                # No nullable: true found, keep the original type line and continue
+                result_lines.append(line)
+                i += 1
+        else:
+            # Not a type line, just copy as is
+            result_lines.append(line)
+            i += 1
+
     return '\n'.join(result_lines)
 
 

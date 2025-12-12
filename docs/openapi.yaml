@@ -291,48 +291,63 @@ components:
         id:
           type: string
           format: uuid
+          example: '550e8400-e29b-41d4-a716-446655440000'
         tenant_id:
           type: string
+          example: 'tenant-12345-key'
         employee_number:
           type: string
           example: 'EMP-2025-0042'
         first_name:
           type: string
           description: Decrypted
+          example: 'Max'
         last_name:
           type: string
           description: Decrypted
+          example: 'Mustermann'
         full_name:
           type: string
+          example: 'Max Mustermann'
         date_of_birth:
           type: [string, 'null']
           format: date
           description: Decrypted
+          example: '1990-05-15'
         email:
           type: string
           format: email
+          example: 'max.mustermann@secpal.app'
         phone:
           type: [string, 'null']
+          example: '+49 30 12345678'
         address:
           type: [string, 'null']
           description: Decrypted
+          example: 'Hauptstraße 123, 10115 Berlin'
         photo_path:
           type: [string, 'null']
+          example: 'employees/photos/550e8400.jpg'
         tax_id:
           type: [string, 'null']
           description: Decrypted
+          example: '12345678901'
         social_security_number:
           type: [string, 'null']
           description: Decrypted
+          example: '12 345678 A 123'
         status:
           type: string
           enum: [applicant, pre_contract, active, on_leave, terminated]
+          example: 'active'
         hire_date:
           type: [string, 'null']
           format: date
+          example: '2025-01-15'
         contract_start_date:
           type: [string, 'null']
           format: date
+          example: '2025-02-01'
         termination_date:
           type: [string, 'null']
           format: date
@@ -1210,12 +1225,14 @@ paths:
       parameters:
         - name: page
           in: query
+          description: Page number for pagination
           schema:
             type: integer
             minimum: 1
             default: 1
         - name: per_page
           in: query
+          description: Number of items per page (max 100)
           schema:
             type: integer
             minimum: 1
@@ -1223,6 +1240,7 @@ paths:
             default: 15
         - name: status
           in: query
+          description: Filter employees by employment status
           schema:
             type: string
             enum: [applicant, pre_contract, active, on_leave, terminated]
@@ -1244,6 +1262,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
     post:
       summary: Create Employee
@@ -1314,6 +1334,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /employees/{employee}:
     get:
@@ -1328,6 +1350,7 @@ paths:
         - name: employee
           in: path
           required: true
+          description: Employee UUID identifier
           schema:
             type: string
             format: uuid
@@ -1344,6 +1367,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
     patch:
       summary: Update Employee
@@ -1357,6 +1382,7 @@ paths:
         - name: employee
           in: path
           required: true
+          description: Employee UUID identifier
           schema:
             type: string
             format: uuid
@@ -1415,6 +1441,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
     delete:
       summary: Delete Employee
@@ -1428,6 +1456,7 @@ paths:
         - name: employee
           in: path
           required: true
+          description: Employee UUID identifier
           schema:
             type: string
             format: uuid
@@ -1440,3 +1469,5 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
