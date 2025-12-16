@@ -12,3 +12,6 @@ rules:
   document-start: disable
   truthy:
     allowed-values: ['true', 'false', 'on', 'off']
+  braces:
+    min-spaces-inside: 1
+    max-spaces-inside: 1

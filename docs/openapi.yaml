@@ -446,6 +446,431 @@ components:
           type: [string, 'null']
           format: date-time
 
+    # =============================================================================
+    # Customer & Site Management Schemas (Epic #210)
+    # =============================================================================
+
+    Address:
+      type: object
+      description: Physical address with optional GPS coordinates
+      required:
+        - street
+        - city
+        - postal_code
+        - country
+      properties:
+        street:
+          type: string
+          maxLength: 255
+          description: Street address
+          example: 'Hauptstraße 123'
+        city:
+          type: string
+          maxLength: 100
+          description: City name
+          example: 'Berlin'
+        postal_code:
+          type: string
+          maxLength: 20
+          description: Postal/ZIP code
+          example: '10115'
+        country:
+          type: string
+          minLength: 2
+          maxLength: 2
+          description: ISO 3166-1 alpha-2 country code
+          example: 'DE'
+        latitude:
+          type: [number, 'null']
+          format: float
+          minimum: -90
+          maximum: 90
+          description: GPS latitude coordinate
+          example: 52.520008
+        longitude:
+          type: [number, 'null']
+          format: float
+          minimum: -180
+          maximum: 180
+          description: GPS longitude coordinate
+          example: 13.404954
+
+    Contact:
+      type: object
+      description: Contact information for person or organization
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          description: Contact person name
+          example: 'Max Mustermann'
+        email:
+          type: [string, 'null']
+          format: email
+          maxLength: 255
+          description: Email address
+          example: 'max.mustermann@example.com'
+        phone:
+          type: [string, 'null']
+          maxLength: 50
+          description: Phone number
+          example: '+49 30 12345678'
+        position:
+          type: [string, 'null']
+          maxLength: 100
+          description: Job title or position
+          example: 'Facility Manager'
+
+    Customer:
+      type: object
+      description: Customer (client organization) entity
+      required:
+        - id
+        - customer_number
+        - name
+        - billing_address
+        - is_active
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique customer identifier
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        customer_number:
+          type: string
+          maxLength: 50
+          description: Auto-generated customer number (KD-YYYY-####)
+          example: 'KD-2025-0001'
+        name:
+          type: string
+          maxLength: 255
+          description: Customer organization name
+          example: 'ACME Corporation GmbH'
+        billing_address:
+          $ref: '#/components/schemas/Address'
+        contact:
+          allOf:
+            - $ref: '#/components/schemas/Contact'
+            - type: [object, 'null']
+        is_active:
+          type: boolean
+          description: Whether customer is active
+          example: true
+        notes:
+          type: [string, 'null']
+          description: Internal notes (conditionally visible)
+          example: 'VIP customer - handle with priority'
+        metadata:
+          type: [object, 'null']
+          description: Custom metadata as JSON
+          additionalProperties: true
+          example: { 'industry': 'retail', 'employee_count': 500 }
+        sites_count:
+          type: integer
+          description: Number of sites (when counted)
+          example: 5
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: '2025-12-05T10:00:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: '2025-12-15T14:30:00Z'
+        deleted_at:
+          type: [string, 'null']
+          format: date-time
+          description: Soft deletion timestamp
+          example: null
+
+    Site:
+      type: object
+      description: Site (physical location/object) where services are provided
+      required:
+        - id
+        - customer_id
+        - organizational_unit_id
+        - site_number
+        - name
+        - type
+        - address
+        - is_active
+        - is_expired
+        - full_address
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique site identifier
+          example: '660e8400-e29b-41d4-a716-446655440000'
+        customer_id:
+          type: string
+          format: uuid
+          description: Customer that owns this site
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        organizational_unit_id:
+          type: string
+          format: uuid
+          description: Internal organizational unit responsible for this site
+          example: '770e8400-e29b-41d4-a716-446655440000'
+        site_number:
+          type: string
+          maxLength: 50
+          description: Auto-generated site number (OBJ-YYYY-####)
+          example: 'OBJ-2025-0042'
+        name:
+          type: string
+          maxLength: 255
+          description: Site name
+          example: 'Airport Terminal 1'
+        type:
+          type: string
+          enum: [permanent, temporary]
+          description: Site type (permanent location or temporary event)
+          example: 'permanent'
+        address:
+          $ref: '#/components/schemas/Address'
+        contact:
+          allOf:
+            - $ref: '#/components/schemas/Contact'
+            - type: [object, 'null']
+        access_instructions:
+          type: [string, 'null']
+          description: Instructions for accessing the site (conditionally visible)
+          example: 'Gate 5, Security Check, Badge required'
+        notes:
+          type: [string, 'null']
+          description: Internal notes (conditionally visible)
+          example: 'High security area'
+        metadata:
+          type: [object, 'null']
+          description: Custom metadata as JSON
+          additionalProperties: true
+          example: { 'area_sqm': 5000, 'floors': 3 }
+        is_active:
+          type: boolean
+          description: Whether site is active
+          example: true
+        valid_from:
+          type: [string, 'null']
+          format: date
+          description: Contract start date (for temporary sites)
+          example: '2025-01-01'
+        valid_until:
+          type: [string, 'null']
+          format: date
+          description: Contract end date (for temporary sites)
+          example: '2025-12-31'
+        is_expired:
+          type: boolean
+          description: Whether validity period has expired (computed)
+          example: false
+        full_address:
+          type: string
+          description: Formatted full address string (computed)
+          example: 'Hauptstraße 123, 10115, Berlin'
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: '2025-12-05T11:00:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: '2025-12-15T15:00:00Z'
+        deleted_at:
+          type: [string, 'null']
+          format: date-time
+          description: Soft deletion timestamp
+          example: null
+
+    CustomerAssignment:
+      type: object
+      description: Flexible user-to-customer role assignment
+      required:
+        - id
+        - customer_id
+        - user_id
+        - role
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique assignment identifier
+          example: '880e8400-e29b-41d4-a716-446655440000'
+        customer_id:
+          type: string
+          format: uuid
+          description: Customer being assigned
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        user_id:
+          type: string
+          format: uuid
+          description: User being assigned
+          example: '990e8400-e29b-41d4-a716-446655440000'
+        role:
+          type: string
+          maxLength: 100
+          description: Flexible role name (e.g., "Key Account Manager", "Billing Contact")
+          example: 'Key Account Manager'
+        valid_from:
+          type: [string, 'null']
+          format: date
+          description: Assignment start date
+          example: '2025-01-01'
+        valid_until:
+          type: [string, 'null']
+          format: date
+          description: Assignment end date
+          example: '2025-12-31'
+        notes:
+          type: [string, 'null']
+          description: Optional assignment notes
+          example: 'Primary contact for escalations'
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: '2025-12-05T12:00:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: '2025-12-15T16:00:00Z'
+
+    SiteAssignment:
+      type: object
+      description: Flexible user-to-site role assignment
+      required:
+        - id
+        - site_id
+        - user_id
+        - role
+        - is_primary
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique assignment identifier
+          example: 'aa0e8400-e29b-41d4-a716-446655440000'
+        site_id:
+          type: string
+          format: uuid
+          description: Site being assigned
+          example: '660e8400-e29b-41d4-a716-446655440000'
+        user_id:
+          type: string
+          format: uuid
+          description: User being assigned
+          example: '990e8400-e29b-41d4-a716-446655440000'
+        role:
+          type: string
+          maxLength: 100
+          description: Flexible role name (e.g., "Site Manager", "Account Manager")
+          example: 'Site Manager'
+        is_primary:
+          type: boolean
+          description: Whether this is the primary contact for the site
+          example: true
+        valid_from:
+          type: [string, 'null']
+          format: date
+          description: Assignment start date
+          example: '2025-01-01'
+        valid_until:
+          type: [string, 'null']
+          format: date
+          description: Assignment end date
+          example: '2025-12-31'
+        notes:
+          type: [string, 'null']
+          description: Optional assignment notes
+          example: 'On-site presence required'
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: '2025-12-05T13:00:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: '2025-12-15T17:00:00Z'
+
+    CostCenter:
+      type: object
+      description: Cost center for billing/accounting purposes (nested under site)
+      required:
+        - id
+        - site_id
+        - code
+        - name
+        - is_active
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique cost center identifier
+          example: 'bb0e8400-e29b-41d4-a716-446655440000'
+        site_id:
+          type: string
+          format: uuid
+          description: Parent site
+          example: '660e8400-e29b-41d4-a716-446655440000'
+        code:
+          type: string
+          maxLength: 50
+          description: Cost center code (unique per site)
+          example: '4711-001'
+        name:
+          type: string
+          maxLength: 255
+          description: Descriptive name
+          example: 'Reception Duty'
+        activity_type:
+          type: [string, 'null']
+          maxLength: 100
+          description: Type of activity performed
+          example: 'Static Guard Duty'
+        description:
+          type: [string, 'null']
+          description: Optional description
+          example: 'Main entrance reception desk'
+        is_active:
+          type: boolean
+          description: Whether cost center is active
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: '2025-12-05T14:00:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: '2025-12-15T18:00:00Z'
+        deleted_at:
+          type: [string, 'null']
+          format: date-time
+          description: Soft deletion timestamp
+          example: null
+
   responses:
     BadRequest:
       description: Bad Request - Invalid input parameters
@@ -1136,7 +1561,8 @@ paths:
     get:
       summary: Download Attachment
       description: |
-        Download and decrypt an attachment file. Returns the file with appropriate Content-Type and Content-Disposition headers.
+        Download and decrypt an attachment file. Returns the file with
+        appropriate Content-Type and Content-Disposition headers.
       operationId: downloadAttachment
       tags:
         - Secret Attachments
@@ -1463,6 +1889,1476 @@ paths:
       responses:
         '204':
           description: Employee deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # =============================================================================
+  # Customer Management Endpoints (Epic #210, Phase 5)
+  # =============================================================================
+
+  /customers:
+    get:
+      summary: List Customers
+      description: |
+        Retrieve a paginated list of customers with optional filtering.
+        Users only see customers they have access to (via assignments or organizational scope).
+      operationId: listCustomers
+      tags:
+        - Customers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number
+        - name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 15
+          description: Items per page
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 255
+          description: Search in name and customer_number
+        - name: is_active
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Filter by active status
+      responses:
+        '200':
+          description: Customers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - meta
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Customer'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create Customer
+      description: |
+        Create a new customer. Customer number is auto-generated (KD-YYYY-####).
+        Requires customers.create permission.
+      operationId: createCustomer
+      tags:
+        - Customers
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - billing_address
+              properties:
+                name:
+                  type: string
+                  maxLength: 255
+                  example: 'ACME Corporation GmbH'
+                billing_address:
+                  $ref: '#/components/schemas/Address'
+                contact:
+                  $ref: '#/components/schemas/Contact'
+                notes:
+                  type: string
+                  example: 'VIP customer'
+                metadata:
+                  type: object
+                  additionalProperties: true
+                  example: { 'industry': 'retail' }
+      responses:
+        '201':
+          description: Customer created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Customer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /customers/{customer}:
+    get:
+      summary: Get Customer
+      description: |
+        Retrieve a single customer by ID with optional relationships.
+        Requires view access via assignment or organizational scope.
+      operationId: getCustomer
+      tags:
+        - Customers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: customer
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Customer UUID
+        - name: include
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [sites, assignments, sites.assignments]
+          description: Comma-separated list of relationships to include
+      responses:
+        '200':
+          description: Customer retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Customer'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      summary: Update Customer
+      description: |
+        Update customer fields (PATCH semantics - all fields optional).
+        Requires customers.update permission and view access to customer.
+      operationId: updateCustomer
+      tags:
+        - Customers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: customer
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Customer UUID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 255
+                billing_address:
+                  $ref: '#/components/schemas/Address'
+                contact:
+                  $ref: '#/components/schemas/Contact'
+                is_active:
+                  type: boolean
+                notes:
+                  type: string
+                metadata:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Customer updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Customer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete Customer
+      description: |
+        Soft delete a customer. Requires customers.delete permission.
+        Will fail if customer has active sites.
+      operationId: deleteCustomer
+      tags:
+        - Customers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: customer
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Customer UUID
+      responses:
+        '204':
+          description: Customer deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Cannot delete customer with active sites
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /customers/{customer}/sites:
+    get:
+      summary: List Customer Sites
+      description: |
+        Retrieve all sites belonging to a specific customer.
+        Paginated with same filters as /sites endpoint.
+      operationId: listCustomerSites
+      tags:
+        - Customers
+        - Sites
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: customer
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Customer UUID
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 15
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [permanent, temporary]
+          description: Filter by site type
+        - name: is_active
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Filter by active status
+      responses:
+        '200':
+          description: Sites retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - meta
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Site'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # =============================================================================
+  # Site Management Endpoints (Epic #210, Phase 5)
+  # =============================================================================
+
+  /sites:
+    get:
+      summary: List Sites
+      description: |
+        Retrieve a paginated list of sites with comprehensive filtering.
+        Users see sites via organizational unit access, direct assignment, or customer assignment.
+      operationId: listSites
+      tags:
+        - Sites
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 15
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 255
+          description: Search in name, site_number, customer name
+        - name: customer_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Filter by customer
+        - name: organizational_unit_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Filter by organizational unit
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [permanent, temporary]
+          description: Filter by site type
+        - name: is_active
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Filter by active status
+        - name: currently_valid
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Filter by current validity (for temporary sites)
+      responses:
+        '200':
+          description: Sites retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - meta
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Site'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create Site
+      description: |
+        Create a new site. Site number is auto-generated (OBJ-YYYY-####).
+        Requires sites.create permission and access to organizational unit.
+      operationId: createSite
+      tags:
+        - Sites
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - customer_id
+                - organizational_unit_id
+                - type
+                - address
+              properties:
+                name:
+                  type: string
+                  maxLength: 255
+                  example: 'Airport Terminal 1'
+                customer_id:
+                  type: string
+                  format: uuid
+                  example: '550e8400-e29b-41d4-a716-446655440000'
+                organizational_unit_id:
+                  type: string
+                  format: uuid
+                  example: '770e8400-e29b-41d4-a716-446655440000'
+                type:
+                  type: string
+                  enum: [permanent, temporary]
+                  example: 'permanent'
+                address:
+                  $ref: '#/components/schemas/Address'
+                contact:
+                  $ref: '#/components/schemas/Contact'
+                access_instructions:
+                  type: string
+                  example: 'Gate 5, Security Check'
+                notes:
+                  type: string
+                  example: 'High security area'
+                metadata:
+                  type: object
+                  additionalProperties: true
+                valid_from:
+                  type: string
+                  format: date
+                  example: '2025-01-01'
+                valid_until:
+                  type: string
+                  format: date
+                  example: '2025-12-31'
+      responses:
+        '201':
+          description: Site created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Site'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /sites/{site}:
+    get:
+      summary: Get Site
+      description: |
+        Retrieve a single site by ID with optional relationships.
+        Requires view access via assignment, organizational unit, or customer assignment.
+      operationId: getSite
+      tags:
+        - Sites
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: site
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Site UUID
+        - name: include
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              [
+                customer,
+                organizationalUnit,
+                assignments,
+                costCenters,
+                customer.assignments,
+              ]
+          description: Comma-separated list of relationships to include
+      responses:
+        '200':
+          description: Site retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Site'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      summary: Update Site
+      description: |
+        Update site fields (PATCH semantics - all fields optional).
+        Requires sites.update permission and view access to site.
+      operationId: updateSite
+      tags:
+        - Sites
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: site
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Site UUID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 255
+                organizational_unit_id:
+                  type: string
+                  format: uuid
+                type:
+                  type: string
+                  enum: [permanent, temporary]
+                address:
+                  $ref: '#/components/schemas/Address'
+                contact:
+                  $ref: '#/components/schemas/Contact'
+                access_instructions:
+                  type: string
+                notes:
+                  type: string
+                metadata:
+                  type: object
+                  additionalProperties: true
+                is_active:
+                  type: boolean
+                valid_from:
+                  type: string
+                  format: date
+                valid_until:
+                  type: string
+                  format: date
+      responses:
+        '200':
+          description: Site updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Site'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete Site
+      description: |
+        Soft delete a site. Requires sites.delete permission.
+        Will fail if site has active cost centers.
+      operationId: deleteSite
+      tags:
+        - Sites
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: site
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Site UUID
+      responses:
+        '204':
+          description: Site deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Cannot delete site with active cost centers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # =============================================================================
+  # Customer Assignment Endpoints (Epic #210, Phase 5)
+  # =============================================================================
+
+  /customers/{customer}/assignments:
+    get:
+      summary: List Customer Assignments
+      description: Retrieve all user assignments for a specific customer.
+      operationId: listCustomerAssignments
+      tags:
+        - Assignments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: customer
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Customer UUID
+        - name: active_only
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Filter to currently active assignments only
+      responses:
+        '200':
+          description: Assignments retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CustomerAssignment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create Customer Assignment
+      description: |
+        Assign a user to a customer with flexible role name.
+        Requires assignments.create permission and view access to customer.
+      operationId: createCustomerAssignment
+      tags:
+        - Assignments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: customer
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Customer UUID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_id
+                - role
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+                  example: '990e8400-e29b-41d4-a716-446655440000'
+                role:
+                  type: string
+                  maxLength: 100
+                  example: 'Key Account Manager'
+                valid_from:
+                  type: string
+                  format: date
+                  example: '2025-01-01'
+                valid_until:
+                  type: string
+                  format: date
+                  example: '2025-12-31'
+                notes:
+                  type: string
+                  example: 'Primary escalation contact'
+      responses:
+        '201':
+          description: Assignment created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CustomerAssignment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /customer-assignments/{customerAssignment}:
+    patch:
+      summary: Update Customer Assignment
+      description: Update customer assignment fields (role, validity dates, notes).
+      operationId: updateCustomerAssignment
+      tags:
+        - Assignments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: customerAssignment
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Assignment UUID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  type: string
+                  maxLength: 100
+                valid_from:
+                  type: string
+                  format: date
+                valid_until:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Assignment updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CustomerAssignment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete Customer Assignment
+      description: Remove a user's assignment from a customer.
+      operationId: deleteCustomerAssignment
+      tags:
+        - Assignments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: customerAssignment
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Assignment UUID
+      responses:
+        '204':
+          description: Assignment deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # =============================================================================
+  # Site Assignment Endpoints (Epic #210, Phase 5)
+  # =============================================================================
+
+  /sites/{site}/assignments:
+    get:
+      summary: List Site Assignments
+      description: Retrieve all user assignments for a specific site.
+      operationId: listSiteAssignments
+      tags:
+        - Assignments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: site
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Site UUID
+        - name: active_only
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Filter to currently active assignments only
+      responses:
+        '200':
+          description: Assignments retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SiteAssignment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create Site Assignment
+      description: |
+        Assign a user to a site with flexible role name.
+        Requires assignments.create permission and view access to site.
+      operationId: createSiteAssignment
+      tags:
+        - Assignments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: site
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Site UUID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_id
+                - role
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+                  example: '990e8400-e29b-41d4-a716-446655440000'
+                role:
+                  type: string
+                  maxLength: 100
+                  example: 'Site Manager'
+                is_primary:
+                  type: boolean
+                  default: false
+                  example: true
+                valid_from:
+                  type: string
+                  format: date
+                  example: '2025-01-01'
+                valid_until:
+                  type: string
+                  format: date
+                  example: '2025-12-31'
+                notes:
+                  type: string
+                  example: 'On-site presence required'
+      responses:
+        '201':
+          description: Assignment created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SiteAssignment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /site-assignments/{siteAssignment}:
+    patch:
+      summary: Update Site Assignment
+      description: Update site assignment fields (role, is_primary, validity dates, notes).
+      operationId: updateSiteAssignment
+      tags:
+        - Assignments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: siteAssignment
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Assignment UUID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  type: string
+                  maxLength: 100
+                is_primary:
+                  type: boolean
+                valid_from:
+                  type: string
+                  format: date
+                valid_until:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Assignment updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SiteAssignment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete Site Assignment
+      description: Remove a user's assignment from a site.
+      operationId: deleteSiteAssignment
+      tags:
+        - Assignments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: siteAssignment
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Assignment UUID
+      responses:
+        '204':
+          description: Assignment deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # =============================================================================
+  # User Assignment Endpoints (Me Assignments) (Epic #210, Phase 5)
+  # =============================================================================
+
+  /me/customer-assignments:
+    get:
+      summary: Get My Customer Assignments
+      description: Retrieve all customer assignments for the authenticated user.
+      operationId: getMyCustomerAssignments
+      tags:
+        - Assignments
+        - Me
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: active_only
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Filter to currently active assignments only
+      responses:
+        '200':
+          description: Assignments retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CustomerAssignment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /me/site-assignments:
+    get:
+      summary: Get My Site Assignments
+      description: Retrieve all site assignments for the authenticated user.
+      operationId: getMySiteAssignments
+      tags:
+        - Assignments
+        - Me
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: active_only
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Filter to currently active assignments only
+      responses:
+        '200':
+          description: Assignments retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SiteAssignment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # =============================================================================
+  # Cost Center Endpoints (Epic #210, Phase 5)
+  # =============================================================================
+
+  /sites/{site}/cost-centers:
+    get:
+      summary: List Cost Centers for Site
+      description: Retrieve all cost centers for a specific site.
+      operationId: listCostCenters
+      tags:
+        - Cost Centers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: site
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Site UUID
+        - name: active_only
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Filter to active cost centers only
+      responses:
+        '200':
+          description: Cost centers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CostCenter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create Cost Center
+      description: |
+        Create a new cost center for a site.
+        Requires cost-centers.create permission and access to site.
+        Code must be unique per site.
+      operationId: createCostCenter
+      tags:
+        - Cost Centers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: site
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Site UUID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+                - name
+              properties:
+                code:
+                  type: string
+                  maxLength: 50
+                  example: '4711-001'
+                name:
+                  type: string
+                  maxLength: 255
+                  example: 'Reception Duty'
+                activity_type:
+                  type: string
+                  maxLength: 100
+                  example: 'Static Guard Duty'
+                description:
+                  type: string
+                  example: 'Main entrance reception desk'
+      responses:
+        '201':
+          description: Cost center created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CostCenter'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /sites/{site}/cost-centers/{costCenter}:
+    get:
+      summary: Get Cost Center
+      description: Retrieve a single cost center by ID.
+      operationId: getCostCenter
+      tags:
+        - Cost Centers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: site
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Site UUID
+        - name: costCenter
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Cost Center UUID
+      responses:
+        '200':
+          description: Cost center retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CostCenter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update Cost Center
+      description: |
+        Update cost center (PUT semantics - all fields required).
+        Requires cost-centers.update permission and access to site.
+      operationId: updateCostCenter
+      tags:
+        - Cost Centers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: site
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Site UUID
+        - name: costCenter
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Cost Center UUID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+                - name
+              properties:
+                code:
+                  type: string
+                  maxLength: 50
+                name:
+                  type: string
+                  maxLength: 255
+                activity_type:
+                  type: string
+                  maxLength: 100
+                description:
+                  type: string
+                is_active:
+                  type: boolean
+      responses:
+        '200':
+          description: Cost center updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CostCenter'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete Cost Center
+      description: Soft delete a cost center. Requires cost-centers.delete permission.
+      operationId: deleteCostCenter
+      tags:
+        - Cost Centers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: site
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Site UUID
+        - name: costCenter
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Cost Center UUID
+      responses:
+        '204':
+          description: Cost center deleted successfully
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
