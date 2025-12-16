@@ -14,6 +14,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Customer & Site Management API Specification** (#71, Phase 5 of Epic SecPal/.github#210): Complete OpenAPI 3.1 spec for Customer, Site, Assignment, and CostCenter management
+  - **6 Customer endpoints**: `GET /customers` (list with filters), `POST /customers` (create with auto-generated KD-YYYY-####), `GET /customers/{customer}` (show with relationships), `PATCH /customers/{customer}` (update), `DELETE /customers/{customer}` (soft delete), `GET /customers/{customer}/sites` (list customer's sites)
+  - **6 Site endpoints**: `GET /sites` (list with comprehensive filtering: customer_id, organizational_unit_id, type, is_active, currently_valid, search), `POST /sites` (create with auto-generated OBJ-YYYY-####), `GET /sites/{site}` (show with relationships), `PATCH /sites/{site}` (update), `DELETE /sites/{site}` (soft delete), nested cost centers route
+  - **10 Assignment endpoints**:
+    - Customer Assignments (4): `GET /customers/{customer}/assignments`, `POST /customers/{customer}/assignments`, `PATCH /customer-assignments/{assignment}`, `DELETE /customer-assignments/{assignment}`
+    - Site Assignments (4): `GET /sites/{site}/assignments`, `POST /sites/{site}/assignments`, `PATCH /site-assignments/{assignment}`, `DELETE /site-assignments/{assignment}`
+    - User Assignments (2): `GET /me/customer-assignments`, `GET /me/site-assignments`
+  - **5 CostCenter endpoints** (nested under sites): `GET /sites/{site}/cost-centers`, `POST /sites/{site}/cost-centers`, `GET /sites/{site}/cost-centers/{costCenter}`, `PUT /sites/{site}/cost-centers/{costCenter}`, `DELETE /sites/{site}/cost-centers/{costCenter}`
+  - **Schemas**: `Customer` (with billing_address, contact, metadata), `Site` (with type: permanent/temporary, GPS coordinates, validity dates), `CustomerAssignment` (flexible roles), `SiteAssignment` (with is_primary flag), `CostCenter` (with activity_type), `Address` (with lat/lng), `Contact` (reusable)
+  - **Validation Rules**: maxLength constraints, required fields, enum types, unique constraints (customer_number, site_number, cost_center code per site)
+  - **Filtering**: Comprehensive query parameters (search, customer_id, organizational_unit_id, type, is_active, currently_valid, active_only)
+  - **Pagination**: All list endpoints support `page` and `per_page` (default 15, max 100)
+  - **Relationships**: Support for eager loading (include parameter: sites, assignments, customer, organizationalUnit, costCenters)
+  - **Need-to-Know Access**: Users see customers/sites via organizational unit access, direct assignment, or customer assignment
+  - **Conditional Visibility**: notes and access_instructions only visible to users with update permission
+  - **Error Responses**: 400, 401, 403, 404, 422 with detailed schemas
+  - **Authentication**: Bearer token (JWT) required for all endpoints
+  - **PATCH Semantics**: Customer and Site updates use PATCH (all fields optional)
+  - **PUT Semantics**: CostCenter updates use PUT (required fields enforced)
+  - **Soft Deletes**: All entities support soft deletion with validation (e.g., cannot delete customer with active sites)
+  - Related: Implements spec for SecPal/api PRs #349-#368 (Epic #210: Customer & Site Management)
+
 - **Secret Management API Specification**: Complete OpenAPI 3.1 spec for Secret CRUD and Sharing endpoints
   - **5 Secret CRUD endpoints**: `GET /secrets`, `POST /secrets`, `GET /secrets/{secret}`, `PATCH /secrets/{secret}`, `DELETE /secrets/{secret}`
   - **3 Secret Sharing endpoints**: `GET /secrets/{secret}/shares`, `POST /secrets/{secret}/shares`, `DELETE /secrets/{secret}/shares/{share}`
