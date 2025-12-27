@@ -199,6 +199,7 @@ components:
             chain_valid:
               type: boolean
               description: Whether the blockchain chain is valid
+              example: true
             chain_message:
               type: string
               nullable: true
@@ -206,6 +207,7 @@ components:
             merkle_valid:
               type: boolean
               description: Whether the Merkle proof is valid
+              example: true
             merkle_message:
               type: string
               nullable: true
@@ -213,6 +215,7 @@ components:
             ots_valid:
               type: boolean
               description: Whether the OpenTimestamp verification is valid
+              example: true
             ots_message:
               type: string
               nullable: true
@@ -1890,6 +1893,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /activity-logs/{activity}:
     get:
@@ -1934,6 +1939,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /activity-logs/{activity}/verify:
     get:
@@ -2005,6 +2012,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /attachments/{attachment}/download:
     get:
