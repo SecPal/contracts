@@ -1728,13 +1728,13 @@ paths:
       description: |
         Retrieve a paginated list of activity logs with comprehensive filtering options.
         Access is automatically scoped based on the user's organizational units and leadership levels.
-        
+
         **Authorization Layers:**
         1. Tenant isolation (mandatory)
         2. Permission check (activity_log.read)
         3. Organizational scope filtering (ADR-010)
         4. Leadership level filtering (ADR-009)
-        
+
         **Access Control Logic:**
         - Users with NO organizational scopes: See ALL activities (global access)
         - Users WITH organizational scopes: See ONLY scoped activities (NOT global)
