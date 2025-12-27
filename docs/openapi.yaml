@@ -58,6 +58,171 @@ components:
           description: Additional error details
           additionalProperties: true
 
+    Activity:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - log_name
+        - description
+        - event
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique activity identifier
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        tenant_id:
+          type: string
+          format: uuid
+          description: Tenant UUID this activity belongs to
+          example: '660e8400-e29b-41d4-a716-446655440001'
+        log_name:
+          type: string
+          maxLength: 255
+          description: Log name categorizing the activity type
+          example: 'secret'
+        description:
+          type: string
+          description: Human-readable description of the activity
+          example: 'created'
+        event:
+          type: string
+          maxLength: 255
+          description: Event type that triggered the activity
+          example: 'created'
+        causer_type:
+          type: string
+          nullable: true
+          description: Polymorphic type of the user/entity that caused the activity
+          example: 'App\Models\User'
+        causer_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: UUID of the causer
+          example: '770e8400-e29b-41d4-a716-446655440002'
+        causer:
+          type: object
+          nullable: true
+          description: Full causer object (when loaded)
+          additionalProperties: true
+        subject_type:
+          type: string
+          nullable: true
+          description: Polymorphic type of the entity the activity is about
+          example: 'App\Models\Secret'
+        subject_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: UUID of the subject
+          example: '880e8400-e29b-41d4-a716-446655440003'
+        subject:
+          type: object
+          nullable: true
+          description: Full subject object (when loaded)
+          additionalProperties: true
+        organizational_unit_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Organizational unit this activity belongs to
+          example: '990e8400-e29b-41d4-a716-446655440004'
+        organizational_unit:
+          type: object
+          nullable: true
+          description: Full organizational unit object (when loaded)
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            parent_id:
+              type: string
+              format: uuid
+              nullable: true
+        properties:
+          type: object
+          nullable: true
+          description: Additional properties stored with the activity
+          additionalProperties: true
+        batch_uuid:
+          type: string
+          format: uuid
+          nullable: true
+          description: Batch UUID for grouping related activities
+          example: 'aa0e8400-e29b-41d4-a716-446655440005'
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the activity was created
+          example: '2025-11-16T10:00:00Z'
+        previous_hash:
+          type: string
+          nullable: true
+          description: Hash of the previous activity in the blockchain
+          example: '5f9c4ab08cac7457e9111a6e4e3e3c3e3c3e3c3e3c3e3c3e3c3e3c3e3c3e'
+        hash:
+          type: string
+          nullable: true
+          description: Hash of this activity
+          example: '6a8d5bc19dbd8568fa222b7f5f4f4d4f4d4f4d4f4d4f4d4f4d4f4d4f4d4f'
+        merkle_proof:
+          type: array
+          nullable: true
+          description: Merkle proof for this activity
+          items:
+            type: string
+        merkle_root:
+          type: string
+          nullable: true
+          description: Merkle root this activity is part of
+          example: '7b9e6cd2aece9679gb333c8g6g5g5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e'
+        ots_proof:
+          type: string
+          nullable: true
+          description: OpenTimestamp proof
+        ots_verified_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when OpenTimestamp verification completed
+          example: '2025-11-16T10:05:23Z'
+        verification:
+          type: object
+          nullable: true
+          description: Verification results (only present when include_verification=true)
+          properties:
+            chain_valid:
+              type: boolean
+              description: Whether the blockchain chain is valid
+            chain_message:
+              type: string
+              nullable: true
+              description: Chain validation message
+            merkle_valid:
+              type: boolean
+              description: Whether the Merkle proof is valid
+            merkle_message:
+              type: string
+              nullable: true
+              description: Merkle validation message
+            ots_valid:
+              type: boolean
+              description: Whether the OpenTimestamp verification is valid
+            ots_message:
+              type: string
+              nullable: true
+              description: OpenTimestamp validation message
+            ots_timestamp:
+              type: string
+              format: date-time
+              nullable: true
+              description: OpenTimestamp verification timestamp
+
     HealthStatus:
       type: object
       required:
@@ -1550,6 +1715,290 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/SecretAttachment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /activity-logs:
+    get:
+      summary: List Activity Logs
+      description: |
+        Retrieve a paginated list of activity logs with comprehensive filtering options.
+        Access is automatically scoped based on the user's organizational units and leadership levels.
+        
+        **Authorization Layers:**
+        1. Tenant isolation (mandatory)
+        2. Permission check (activity_log.read)
+        3. Organizational scope filtering (ADR-010)
+        4. Leadership level filtering (ADR-009)
+        
+        **Access Control Logic:**
+        - Users with NO organizational scopes: See ALL activities (global access)
+        - Users WITH organizational scopes: See ONLY scoped activities (NOT global)
+        - Leadership filtering: min/max_viewable_rank controls visibility
+        - System activities (no causer): Always visible within scoped units
+      operationId: listActivityLogs
+      tags:
+        - Activity Logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: from_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Start date for filtering activities (ISO 8601)
+          example: '2025-01-01T00:00:00Z'
+        - name: to_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: End date for filtering activities (ISO 8601, must be after from_date)
+          example: '2025-12-31T23:59:59Z'
+        - name: log_name
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 255
+          description: Filter by log name (e.g., 'user', 'secret', 'employee')
+          example: 'secret'
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 255
+          description: Search term for description field (case-insensitive)
+          example: 'created'
+        - name: organizational_unit_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Filter by organizational unit UUID
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        - name: causer_type
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Polymorphic type of the causer (e.g., 'App\Models\User')
+          example: 'App\Models\User'
+        - name: causer_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: UUID of the causer (requires causer_type)
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        - name: subject_type
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Polymorphic type of the subject (e.g., 'App\Models\Secret')
+          example: 'App\Models\Secret'
+        - name: subject_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: UUID of the subject (requires subject_type)
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        - name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 15
+          description: Number of items per page (max 100)
+          example: 25
+        - name: include_verification
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Include blockchain/OTS verification data
+          example: true
+      responses:
+        '200':
+          description: Paginated list of activity logs
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - links
+                  - meta
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Activity'
+                  links:
+                    type: object
+                    properties:
+                      first:
+                        type: string
+                        format: uri
+                      last:
+                        type: string
+                        format: uri
+                      prev:
+                        type: string
+                        format: uri
+                        nullable: true
+                      next:
+                        type: string
+                        format: uri
+                        nullable: true
+                  meta:
+                    type: object
+                    properties:
+                      current_page:
+                        type: integer
+                      from:
+                        type: integer
+                        nullable: true
+                      last_page:
+                        type: integer
+                      per_page:
+                        type: integer
+                      to:
+                        type: integer
+                        nullable: true
+                      total:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /activity-logs/{activity}:
+    get:
+      summary: Get Activity Log
+      description: |
+        Retrieve a single activity log entry with full details including relationships.
+        Access is controlled by organizational scoping and leadership levels.
+      operationId: getActivityLog
+      tags:
+        - Activity Logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: activity
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Activity UUID
+        - name: include_verification
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Include blockchain/OTS verification data
+          example: true
+      responses:
+        '200':
+          description: Activity log details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Activity'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /activity-logs/{activity}/verify:
+    get:
+      summary: Verify Activity Log
+      description: |
+        Retrieve verification results for an activity log entry including
+        blockchain chain validation, Merkle proof verification, and OpenTimestamp verification.
+      operationId: verifyActivityLog
+      tags:
+        - Activity Logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: activity
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Activity UUID
+      responses:
+        '200':
+          description: Verification results
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - chain_valid
+                  - merkle_valid
+                  - ots_valid
+                properties:
+                  chain_valid:
+                    type: boolean
+                    description: Whether the blockchain chain is valid
+                    example: true
+                  chain_message:
+                    type: string
+                    nullable: true
+                    description: Chain validation message
+                    example: 'Blockchain chain is valid'
+                  merkle_valid:
+                    type: boolean
+                    description: Whether the Merkle proof is valid
+                    example: true
+                  merkle_message:
+                    type: string
+                    nullable: true
+                    description: Merkle validation message
+                    example: 'Merkle proof is valid'
+                  ots_valid:
+                    type: boolean
+                    description: Whether the OpenTimestamp verification is valid
+                    example: true
+                  ots_message:
+                    type: string
+                    nullable: true
+                    description: OpenTimestamp validation message
+                    example: 'OpenTimestamp verification successful'
+                  ots_timestamp:
+                    type: string
+                    format: date-time
+                    nullable: true
+                    description: OpenTimestamp verification timestamp
+                    example: '2025-11-16T10:05:23Z'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

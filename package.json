@@ -14,10 +14,10 @@
     "url": "https://github.com/SecPal/contracts/issues"
   },
   "scripts": {
-    "lint": "redocly lint docs/openapi.yaml",
+    "lint": "redocly lint docs/openapi.yaml --config .redocly.yaml",
     "format": "prettier --write '**/*.{md,yml,yaml,json}'",
     "format:check": "prettier --check '**/*.{md,yml,yaml,json}'",
-    "validate": "redocly lint docs/openapi.yaml && prettier --check '**/*.{md,yml,yaml,json}'"
+    "validate": "redocly lint docs/openapi.yaml --config .redocly.yaml && prettier --check '**/*.{md,yml,yaml,json}'"
   },
   "devDependencies": {
     "@redocly/cli": "^2.14.1",
