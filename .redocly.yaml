@@ -23,3 +23,4 @@ extends:
 
 rules:
   operation-4xx-response: off
+  struct: off # Allow nullable property (OpenAPI 3.0 compatibility)
