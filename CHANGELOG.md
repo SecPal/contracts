@@ -12,6 +12,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Enhanced Activity Logs API Documentation** (#462): Comprehensive improvements to OpenAPI specification
+  - **Realistic Examples**: Added detailed request/response examples for all 3 endpoints
+    - `GET /activity-logs`: Paginated list with 3 activities showing hash chains, Merkle proofs, and OTS data
+    - `GET /activity-logs/{activity}`: Single activity with full relationships (causer, subject)
+    - `GET /activity-logs/{activity}/verify`: All verification scenarios (valid, pending, invalid)
+  - **Error Scenarios**: Detailed error response examples
+    - 422 Validation Errors: Date range validation, pagination limits, UUID format validation
+    - 403 Forbidden: Organizational scope denial with descriptive messages
+  - **Enhanced Descriptions**: Added comprehensive endpoint descriptions including:
+    - Authorization layer documentation (tenant isolation, permissions, organizational scoping, leadership filtering)
+    - Access control logic (scoped vs. global access, leadership ranks, system activities)
+    - Hash chain and Merkle tree explanations
+  - **Schema Compliance**: Fixed batch_uuid format to proper UUID format (removed "batch-" prefix)
+  - **Error Schema**: Added required `code` property to all error examples for schema compliance
+  - Related: Closes #462 (Activity Logging OpenAPI Documentation)
+
 ### Added
 
 - **Customer & Site Management API Specification** (#71, Phase 5 of Epic SecPal/.github#210): Complete OpenAPI 3.1 spec for Customer, Site, Assignment, and CostCenter management
