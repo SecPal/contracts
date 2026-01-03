@@ -1982,29 +1982,38 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                type: object
+                required:
+                  - message
+                  - errors
+                properties:
+                  message:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
               examples:
                 invalidDateRange:
                   summary: Invalid date range
                   value:
-                    message: The to_date must be a date after from_date.
-                    code: VALIDATION_ERROR
+                    message: The given data was invalid.
                     errors:
                       to_date:
                         - The to_date must be a date after from_date.
                 invalidPerPage:
                   summary: Invalid pagination limit
                   value:
-                    message: The per_page field must not be greater than 100.
-                    code: VALIDATION_ERROR
+                    message: The given data was invalid.
                     errors:
                       per_page:
                         - The per_page field must not be greater than 100.
                 invalidUUID:
                   summary: Invalid UUID format
                   value:
-                    message: The organizational_unit_id field must be a valid UUID.
-                    code: VALIDATION_ERROR
+                    message: The given data was invalid.
                     errors:
                       organizational_unit_id:
                         - The organizational_unit_id field must be a valid UUID.
@@ -2115,7 +2124,7 @@ paths:
                       causer: null
                       subject:
                         id: 550e8400-e29b-41d4-a716-446655440100
-                        uuid: batch-550e8400-e29b-41d4-a716-446655440102
+                        uuid: 550e8400-e29b-41d4-a716-446655440102
                         activity_count: 50
         '401':
           $ref: '#/components/responses/Unauthorized'
@@ -2131,11 +2140,11 @@ paths:
                   value:
                     message: This action is unauthorized due to organizational scope restrictions.
                     code: FORBIDDEN
-                    errors:
-                      authorization:
-                        - >-
-                          You do not have access to this activity log.
-                          It belongs to an organizational unit outside your scope.
+                    details:
+                      reason: organizational_scope_violation
+                      message: >-
+                        You do not have access to this activity log.
+                        It belongs to an organizational unit outside your scope.
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -2214,7 +2223,7 @@ paths:
                     merkle_valid: true
                     merkle_message: >-
                       Merkle proof is valid. Activity is part of batch
-                      batch-550e8400-e29b-41d4-a716-446655440100.
+                      550e8400-e29b-41d4-a716-446655440100.
                     ots_valid: true
                     ots_message: >-
                       OpenTimestamp verification successful. Anchored to Bitcoin
@@ -2228,7 +2237,7 @@ paths:
                     merkle_valid: true
                     merkle_message: >-
                       Merkle proof is valid. Activity is part of batch
-                      batch-550e8400-e29b-41d4-a716-446655440102.
+                      550e8400-e29b-41d4-a716-446655440102.
                     ots_valid: false
                     ots_message: >-
                       OpenTimestamp not yet anchored to Bitcoin blockchain.
@@ -2242,7 +2251,7 @@ paths:
                     merkle_valid: true
                     merkle_message: >-
                       Merkle proof is valid. Activity is part of batch
-                      batch-550e8400-e29b-41d4-a716-446655440103.
+                      550e8400-e29b-41d4-a716-446655440103.
                     ots_valid: false
                     ots_message: OpenTimestamp proof not yet submitted for this batch.
                     ots_timestamp: null
@@ -2284,11 +2293,11 @@ paths:
                   value:
                     message: This action is unauthorized due to organizational scope restrictions.
                     code: FORBIDDEN
-                    errors:
-                      authorization:
-                        - >-
-                          You do not have access to verify this activity log.
-                          It belongs to an organizational unit outside your scope.
+                    details:
+                      reason: organizational_scope_violation
+                      message: >-
+                        You do not have access to verify this activity log.
+                        It belongs to an organizational unit outside your scope.
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
