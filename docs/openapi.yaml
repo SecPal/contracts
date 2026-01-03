@@ -1743,6 +1743,11 @@ paths:
         - Users WITH organizational scopes: See ONLY scoped activities (NOT global)
         - Leadership filtering: min/max_viewable_rank controls visibility
         - System activities (no causer): Always visible within scoped units
+
+        **Hash Chain & Merkle Tree:**
+        - Each activity has `previous_hash` linking to previous activity (blockchain)
+        - Activities are grouped in batches with Merkle tree proofs
+        - OpenTimestamp anchors batch roots to Bitcoin blockchain
       operationId: listActivityLogs
       tags:
         - Activity Logs
@@ -1887,12 +1892,131 @@ paths:
                         nullable: true
                       total:
                         type: integer
+              examples:
+                paginatedResponse:
+                  summary: Paginated list with 3 activities
+                  value:
+                    data:
+                      - id: 550e8400-e29b-41d4-a716-446655440001
+                        tenant_id: 550e8400-e29b-41d4-a716-446655440000
+                        log_name: secret
+                        description: Created Secret "API Keys Production"
+                        subject_type: App\Models\Secret
+                        subject_id: 550e8400-e29b-41d4-a716-446655440010
+                        causer_type: App\Models\User
+                        causer_id: 550e8400-e29b-41d4-a716-446655440020
+                        event: created
+                        properties:
+                          attributes:
+                            name: API Keys Production
+                            status: active
+                        batch_uuid: 550e8400-e29b-41d4-a716-446655440100
+                        previous_hash: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+                        current_hash: 5d41402abc4b2a76b9719d911017c592
+                        merkle_root: a8c7e3d5f9b1c4e6d8a2f4b6c8e0d2f4a6b8c0e2d4f6a8b0c2e4d6f8a0b2c4e6
+                        merkle_proof: []
+                        ots_proof: null
+                        created_at: '2025-01-15T10:30:00Z'
+                        updated_at: '2025-01-15T10:30:00Z'
+                      - id: 550e8400-e29b-41d4-a716-446655440002
+                        tenant_id: 550e8400-e29b-41d4-a716-446655440000
+                        log_name: user
+                        description: Updated User profile
+                        subject_type: App\Models\User
+                        subject_id: 550e8400-e29b-41d4-a716-446655440021
+                        causer_type: App\Models\User
+                        causer_id: 550e8400-e29b-41d4-a716-446655440020
+                        event: updated
+                        properties:
+                          attributes:
+                            email: user@example.com
+                          old:
+                            email: old@example.com
+                        batch_uuid: 550e8400-e29b-41d4-a716-446655440100
+                        previous_hash: 5d41402abc4b2a76b9719d911017c592
+                        current_hash: 098f6bcd4621d373cade4e832627b4f6
+                        merkle_root: a8c7e3d5f9b1c4e6d8a2f4b6c8e0d2f4a6b8c0e2d4f6a8b0c2e4d6f8a0b2c4e6
+                        merkle_proof:
+                          - d3e5f7a9b1c3e5d7f9a1b3c5e7d9f1a3b5c7e9d1f3a5b7c9e1d3f5a7b9c1e3d5
+                        ots_proof: null
+                        created_at: '2025-01-15T11:00:00Z'
+                        updated_at: '2025-01-15T11:00:00Z'
+                      - id: 550e8400-e29b-41d4-a716-446655440003
+                        tenant_id: 550e8400-e29b-41d4-a716-446655440000
+                        log_name: secret
+                        description: Accessed Secret "Database Credentials"
+                        subject_type: App\Models\Secret
+                        subject_id: 550e8400-e29b-41d4-a716-446655440011
+                        causer_type: App\Models\User
+                        causer_id: 550e8400-e29b-41d4-a716-446655440022
+                        event: accessed
+                        properties: {} # yamllint disable-line rule:braces
+                        batch_uuid: 550e8400-e29b-41d4-a716-446655440101
+                        previous_hash: 098f6bcd4621d373cade4e832627b4f6
+                        current_hash: 5f4dcc3b5aa765d61d8327deb882cf99
+                        merkle_root: b9d8e4f6a8b0c2e4d6f8a0b2c4e6d8f0a2b4c6e8d0f2a4b6c8e0d2f4a6b8c0e2
+                        merkle_proof:
+                          - e4f6a8b0c2e4d6f8a0b2c4e6d8f0a2b4c6e8d0f2a4b6c8e0d2f4a6b8c0e2d4f6
+                          - f6a8b0c2e4d6f8a0b2c4e6d8f0a2b4c6e8d0f2a4b6c8e0d2f4a6b8c0e2d4f6a8
+                        ots_proof: 00589fbcc1d3fbf3feb7f9bc77f5c5b6c1f4c0f8f6f5f3f2f1f0f9f8f7f6f5f4
+                        created_at: '2025-01-15T14:20:00Z'
+                        updated_at: '2025-01-15T14:20:00Z'
+                    links:
+                      first: https://api.secpal.app/v1/activity-logs?page=1
+                      last: https://api.secpal.app/v1/activity-logs?page=10
+                      prev: null
+                      next: https://api.secpal.app/v1/activity-logs?page=2
+                    meta:
+                      current_page: 1
+                      from: 1
+                      last_page: 10
+                      per_page: 15
+                      to: 15
+                      total: 147
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '422':
-          $ref: '#/components/responses/ValidationError'
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message
+                  - errors
+                properties:
+                  message:
+                    type: string
+                  errors:
+                    type: object
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+              examples:
+                invalidDateRange:
+                  summary: Invalid date range
+                  value:
+                    message: The given data was invalid.
+                    errors:
+                      to_date:
+                        - The to_date must be a date after from_date.
+                invalidPerPage:
+                  summary: Invalid pagination limit
+                  value:
+                    message: The given data was invalid.
+                    errors:
+                      per_page:
+                        - The per_page field must not be greater than 100.
+                invalidUUID:
+                  summary: Invalid UUID format
+                  value:
+                    message: The given data was invalid.
+                    errors:
+                      organizational_unit_id:
+                        - The organizational_unit_id field must be a valid UUID.
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -1933,10 +2057,94 @@ paths:
                 properties:
                   data:
                     $ref: '#/components/schemas/Activity'
+              examples:
+                secretCreation:
+                  summary: Secret creation with full relationships
+                  value:
+                    data:
+                      id: 550e8400-e29b-41d4-a716-446655440001
+                      tenant_id: 550e8400-e29b-41d4-a716-446655440000
+                      log_name: secret
+                      description: Created Secret "API Keys Production"
+                      subject_type: App\Models\Secret
+                      subject_id: 550e8400-e29b-41d4-a716-446655440010
+                      causer_type: App\Models\User
+                      causer_id: 550e8400-e29b-41d4-a716-446655440020
+                      event: created
+                      properties:
+                        attributes:
+                          name: API Keys Production
+                          status: active
+                          organizational_unit_id: 550e8400-e29b-41d4-a716-446655440030
+                        ip: 192.0.2.1
+                        user_agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36
+                      batch_uuid: 550e8400-e29b-41d4-a716-446655440100
+                      previous_hash: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+                      current_hash: 5d41402abc4b2a76b9719d911017c592
+                      merkle_root: a8c7e3d5f9b1c4e6d8a2f4b6c8e0d2f4a6b8c0e2d4f6a8b0c2e4d6f8a0b2c4e6
+                      merkle_proof:
+                        - d3e5f7a9b1c3e5d7f9a1b3c5e7d9f1a3b5c7e9d1f3a5b7c9e1d3f5a7b9c1e3d5
+                        - e4f6a8b0c2e4d6f8a0b2c4e6d8f0a2b4c6e8d0f2a4b6c8e0d2f4a6b8c0e2d4f6
+                      ots_proof: 00589fbcc1d3fbf3feb7f9bc77f5c5b6c1f4c0f8f6f5f3f2f1f0f9f8f7f6f5f4
+                      created_at: '2025-01-15T10:30:00Z'
+                      updated_at: '2025-01-15T10:30:00Z'
+                      causer:
+                        id: 550e8400-e29b-41d4-a716-446655440020
+                        first_name: John
+                        last_name: Doe
+                        email: john.doe@example.com
+                      subject:
+                        id: 550e8400-e29b-41d4-a716-446655440010
+                        name: API Keys Production
+                        status: active
+                systemActivity:
+                  summary: System-initiated activity (no causer)
+                  value:
+                    data:
+                      id: 550e8400-e29b-41d4-a716-446655440004
+                      tenant_id: 550e8400-e29b-41d4-a716-446655440000
+                      log_name: system
+                      description: Automated OpenTimestamp submission completed
+                      subject_type: App\Models\ActivityBatch
+                      subject_id: 550e8400-e29b-41d4-a716-446655440100
+                      causer_type: null
+                      causer_id: null
+                      event: ots_submitted
+                      properties:
+                        batch_size: 50
+                        submission_timestamp: '2025-01-15T12:00:00Z'
+                      batch_uuid: 550e8400-e29b-41d4-a716-446655440102
+                      previous_hash: 5f4dcc3b5aa765d61d8327deb882cf99
+                      current_hash: 6329334b8f7f9d4e8327deb882cf9945
+                      merkle_root: c0e2d4f6a8b0c2e4d6f8a0b2c4e6d8f0
+                      merkle_proof: []
+                      ots_proof: null
+                      created_at: '2025-01-15T12:00:01Z'
+                      updated_at: '2025-01-15T12:00:01Z'
+                      causer: null
+                      subject:
+                        id: 550e8400-e29b-41d4-a716-446655440100
+                        uuid: 550e8400-e29b-41d4-a716-446655440102
+                        activity_count: 50
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Forbidden - Activity outside organizational scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                organizationalScope:
+                  summary: Activity outside user's organizational scope
+                  value:
+                    message: This action is unauthorized due to organizational scope restrictions.
+                    code: FORBIDDEN
+                    details:
+                      reason: organizational_scope_violation
+                      message: >-
+                        You do not have access to this activity log.
+                        It belongs to an organizational unit outside your scope.
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -2006,10 +2214,90 @@ paths:
                     nullable: true
                     description: OpenTimestamp verification timestamp
                     example: '2025-11-16T10:05:23Z'
+              examples:
+                allValid:
+                  summary: All verifications successful
+                  value:
+                    chain_valid: true
+                    chain_message: Hash chain is valid. Previous hash matches expected value.
+                    merkle_valid: true
+                    merkle_message: >-
+                      Merkle proof is valid. Activity is part of batch
+                      550e8400-e29b-41d4-a716-446655440100.
+                    ots_valid: true
+                    ots_message: >-
+                      OpenTimestamp verification successful. Anchored to Bitcoin
+                      block 820145 at height 820145.
+                    ots_timestamp: '2025-01-15T12:30:45Z'
+                otsNotYetAnchored:
+                  summary: OTS verification pending (not yet anchored)
+                  value:
+                    chain_valid: true
+                    chain_message: Hash chain is valid. Previous hash matches expected value.
+                    merkle_valid: true
+                    merkle_message: >-
+                      Merkle proof is valid. Activity is part of batch
+                      550e8400-e29b-41d4-a716-446655440102.
+                    ots_valid: false
+                    ots_message: >-
+                      OpenTimestamp not yet anchored to Bitcoin blockchain.
+                      Verification pending.
+                    ots_timestamp: null
+                otsNotSubmitted:
+                  summary: OTS not yet submitted
+                  value:
+                    chain_valid: true
+                    chain_message: Hash chain is valid. Previous hash matches expected value.
+                    merkle_valid: true
+                    merkle_message: >-
+                      Merkle proof is valid. Activity is part of batch
+                      550e8400-e29b-41d4-a716-446655440103.
+                    ots_valid: false
+                    ots_message: OpenTimestamp proof not yet submitted for this batch.
+                    ots_timestamp: null
+                chainInvalid:
+                  summary: Hash chain broken (tampering detected)
+                  value:
+                    chain_valid: false
+                    chain_message: >-
+                      Hash chain is INVALID. Previous hash does not match expected value.
+                      Possible tampering detected.
+                    merkle_valid: false
+                    merkle_message: Merkle verification skipped due to invalid chain.
+                    ots_valid: false
+                    ots_message: OpenTimestamp verification skipped due to invalid chain.
+                    ots_timestamp: null
+                merkleInvalid:
+                  summary: Merkle proof invalid (data integrity issue)
+                  value:
+                    chain_valid: true
+                    chain_message: Hash chain is valid. Previous hash matches expected value.
+                    merkle_valid: false
+                    merkle_message: >-
+                      Merkle proof is INVALID. Activity hash does not match Merkle tree
+                      computation. Data integrity compromised.
+                    ots_valid: false
+                    ots_message: OpenTimestamp verification skipped due to invalid Merkle proof.
+                    ots_timestamp: null
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Forbidden - Activity outside organizational scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                organizationalScope:
+                  summary: Activity outside user's organizational scope
+                  value:
+                    message: This action is unauthorized due to organizational scope restrictions.
+                    code: FORBIDDEN
+                    details:
+                      reason: organizational_scope_violation
+                      message: >-
+                        You do not have access to verify this activity log.
+                        It belongs to an organizational unit outside your scope.
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
