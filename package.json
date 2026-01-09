@@ -20,7 +20,7 @@
     "validate": "redocly lint docs/openapi.yaml --config .redocly.yaml && prettier --check '**/*.{md,yml,yaml,json}'"
   },
   "devDependencies": {
-    "@redocly/cli": "^2.14.3",
+    "@redocly/cli": "^2.14.4",
     "prettier": "^3.7.4"
   }
 }
