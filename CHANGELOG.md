@@ -16,17 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `.github/instructions/openapi.instructions.md` - targeted OpenAPI contract guidance for `docs/openapi.yaml`
 - `.github/instructions/github-workflows.instructions.md` - targeted workflow and Dependabot guidance for GitHub automation files in this repo
+- `.github/instructions/org-shared.instructions.md` — org-wide Copilot principles auto-loaded for all files via `applyTo: "**"`
 
 ### Changed
 
 - `.github/copilot-instructions.md` - replaced long-form repo guidance with a self-contained runtime baseline for this repository
 - `.github/instructions/org-shared.instructions.md` - reduced to a short repo-local overlay that reinforces the runtime baseline instead of duplicating org documents
-
-### Added
-
-- `.github/instructions/org-shared.instructions.md` — org-wide Copilot principles auto-loaded for all files via `applyTo: "**"`
-
-### Changed
 
 - `.github/copilot-instructions.md` — removed dead org-banner HTML comment block (replaced by `org-shared.instructions.md`)
 

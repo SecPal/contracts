@@ -18,6 +18,16 @@ Do not assume instructions from sibling repositories or comment-based inheritanc
 - Keep GitHub-facing communication in English.
 - Domain policy is strict: use only `secpal.app` and `secpal.dev`.
 
+## Required Checklist
+
+Before any commit, PR, or merge, announce and verify at least:
+
+- the relevant contract validation passed for the affected area, including `npm run lint` and formatting when needed
+- `CHANGELOG.md` was updated in the same change set for real changes
+- no bypass was used, including `--no-verify` or force-push
+- repo-local instructions remain self-contained and do not rely on cross-repo inheritance
+- out-of-scope findings were turned into GitHub issues immediately
+
 ## Repository Purpose
 
 - This repository is the contract-first source of truth for the SecPal API.
