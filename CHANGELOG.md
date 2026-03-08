@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `.github/instructions/org-shared.instructions.md` — org-wide Copilot principles auto-loaded for all files via `applyTo: "**"`
+
+### Changed
+
+- `.github/copilot-instructions.md` — removed dead org-banner HTML comment block (replaced by `org-shared.instructions.md`)
+
 ### Changed
 
 - **Enhanced Activity Logs API Documentation** (#462): Comprehensive improvements to OpenAPI specification
