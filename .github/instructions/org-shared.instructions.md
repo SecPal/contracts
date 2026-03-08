@@ -63,7 +63,7 @@ Run before EVERY commit:
 - [ ] All findings have GitHub issues created
 - [ ] No `--no-verify` or force bypass used
 
-## 🐛 Issue Creation Protocol (Critical Rule #6 — Zero Tolerance)
+## 🐛 Issue Creation Protocol (Critical Rule #10 — Zero Tolerance)
 
 Found a bug, tech debt, or security issue in existing code that cannot be fixed in this PR?
 
@@ -105,10 +105,10 @@ git status
 
 ## 🗂 Tech Stack
 
-| Layer     | Technology                                                  |
-| --------- | ----------------------------------------------------------- |
-| Contracts | OpenAPI 3.1, YAML, Spectral linting                         |
-| Backend   | PHP 8.4, Laravel 12, PostgreSQL 16 (provided by `api` repo) |
-| Frontend  | React, TypeScript (provided by `frontend` repo)             |
+| Layer     | Technology                                                              |
+| --------- | ----------------------------------------------------------------------- |
+| Contracts | OpenAPI 3.1, YAML, Redocly CLI linting (`@redocly/cli`, `redocly lint`) |
+| Backend   | PHP 8.4, Laravel 12, PostgreSQL 16 (provided by `api` repo)             |
+| Frontend  | React, TypeScript (provided by `frontend` repo)                         |
 
 > This repo is the single source of truth for all API specifications. Changes here affect both `api` and `frontend`.

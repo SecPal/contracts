@@ -20,8 +20,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `.github/copilot-instructions.md` — removed dead org-banner HTML comment block (replaced by `org-shared.instructions.md`)
 
-### Changed
-
 - **Enhanced Activity Logs API Documentation** (#462): Comprehensive improvements to OpenAPI specification
   - **Realistic Examples**: Added detailed request/response examples for all 3 endpoints
     - `GET /activity-logs`: Paginated list with 3 activities showing hash chains, Merkle proofs, and OTS data
