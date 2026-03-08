@@ -3,27 +3,12 @@ SPDX-FileCopyrightText: 2025 SecPal
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
-<!--
-╔════════════════════════════════════════════════════════════════╗
-║  🚨 AI MUST READ ORGANIZATION-WIDE INSTRUCTIONS FIRST 🚨       ║
-╠════════════════════════════════════════════════════════════════╣
-║  Location: https://github.com/SecPal/.github/blob/main/.github/copilot-instructions.md ║
-║                                                                ║
-║  Critical Topics Defined There:                                ║
-║  - 🛡️ Copilot Review Protocol (ALWAYS request after PR)       ║
-║  - 🧪 Quality Gates (NEVER bypass)                            ║
-║  - 📝 TDD Policy (Write tests FIRST)                          ║
-║  - 🔐 Security Requirements                                    ║
-║                                                                ║
-║  ⚠️ This file contains REPO-SPECIFIC rules only               ║
-╚════════════════════════════════════════════════════════════════╝
--->
+<!-- Org-wide principles (TDD, quality gates, PR protocol) are loaded automatically
+     via `.github/instructions/org-shared.instructions.md` — no manual reference needed. -->
 
 # Contracts Repository - Copilot Instructions
 
 Repository-specific instructions for GitHub Copilot when working in the `contracts` repository.
-
-**Note:** This file extends the [organization-wide Copilot instructions](https://github.com/SecPal/.github/blob/main/.github/copilot-instructions.md).
 
 ## Repository Purpose
 
