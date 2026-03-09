@@ -97,6 +97,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Employee OpenAPI contract now matches backend request/response behavior** (#116)
+  - corrected employee contract type enums to `full_time`, `part_time`, `minijob`, and `freelance`
+  - documented the `data` response envelope used by employee create/show/update endpoints
+  - added missing employee request and response fields such as `position`, `management_level`, embedded `organizational_unit`, and BWR-related fields
+  - replaced inline employee request bodies with reusable OpenAPI component schemas
+
 - Project automation now triggers on label changes (labeled event)
 - Pre-push hook no longer fails with exit code 1 when [Unreleased] is the last CHANGELOG section
 
