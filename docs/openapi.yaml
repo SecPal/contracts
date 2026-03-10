@@ -438,6 +438,577 @@ components:
           description: Last item index on current page
           example: 15
 
+    PaginationLinks:
+      type: object
+      description: Pagination navigation links
+      properties:
+        first:
+          type: [string, 'null']
+          format: uri
+        last:
+          type: [string, 'null']
+          format: uri
+        prev:
+          type: [string, 'null']
+          format: uri
+        next:
+          type: [string, 'null']
+          format: uri
+
+    EmployeeUserSummary:
+      type: object
+      description: Minimal embedded user information for an employee
+      required:
+        - id
+        - name
+        - email
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: '550e8400-e29b-41d4-a716-446655440100'
+        name:
+          type: string
+          example: 'Max Mustermann'
+        email:
+          type: string
+          format: email
+          example: 'max.mustermann@secpal.app'
+
+    EmployeeOrganizationalUnitSummary:
+      type: object
+      description: Minimal embedded organizational unit information for an employee
+      required:
+        - id
+        - type
+        - name
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: '550e8400-e29b-41d4-a716-446655440200'
+        type:
+          type: string
+          example: 'department'
+        name:
+          type: string
+          example: 'Operations'
+        custom_type_name:
+          type: [string, 'null']
+        description:
+          type: [string, 'null']
+        metadata:
+          type: [object, 'null']
+        parent:
+          type: ['null', object]
+          additionalProperties: true
+        children:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        ancestors:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        descendants:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    EmployeeAddressHistoryEntry:
+      type: object
+      required:
+        - from
+        - to
+        - street
+        - city
+        - postal_code
+        - country
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        street:
+          type: string
+          maxLength: 255
+        city:
+          type: string
+          maxLength: 255
+        postal_code:
+          type: string
+          maxLength: 20
+        country:
+          type: string
+          minLength: 2
+          maxLength: 2
+
+    EmployeeCreateRequest:
+      type: object
+      required:
+        - first_name
+        - last_name
+        - email
+        - status
+        - management_level
+        - contract_type
+      properties:
+        first_name:
+          type: string
+          maxLength: 255
+        last_name:
+          type: string
+          maxLength: 255
+        date_of_birth:
+          type: [string, 'null']
+          format: date
+        email:
+          type: string
+          format: email
+        phone:
+          type: [string, 'null']
+          maxLength: 255
+        photo_path:
+          type: [string, 'null']
+          maxLength: 255
+        bwr_id:
+          type: [string, 'null']
+          pattern: '^[0-9]{7}$'
+        bwr_status:
+          type: [string, 'null']
+          enum: [not_registered, pending, active, suspended, revoked]
+        bwr_registered_at:
+          type: [string, 'null']
+          format: date-time
+        bwr_submission_date:
+          type: [string, 'null']
+          format: date
+        bwr_notes:
+          type: [string, 'null']
+          maxLength: 1000
+        gender:
+          type: [string, 'null']
+          enum: [male, female, diverse]
+        birth_name:
+          type: [string, 'null']
+          maxLength: 255
+        previous_names:
+          type: [array, 'null']
+          items:
+            type: string
+            maxLength: 255
+        birth_city:
+          type: [string, 'null']
+          maxLength: 255
+        birth_country:
+          type: [string, 'null']
+          minLength: 2
+          maxLength: 2
+          pattern: '^[A-Z]{2}$'
+        birth_state:
+          type: [string, 'null']
+          maxLength: 100
+        nationalities:
+          type: [array, 'null']
+          items:
+            type: string
+            minLength: 2
+            maxLength: 2
+            pattern: '^[A-Z]{2}$'
+        address_street:
+          type: [string, 'null']
+          maxLength: 255
+        address_house_number:
+          type: [string, 'null']
+          maxLength: 10
+        address_postal_code:
+          type: [string, 'null']
+          maxLength: 20
+        address_city:
+          type: [string, 'null']
+          maxLength: 255
+        address_supplement:
+          type: [string, 'null']
+          maxLength: 255
+        address_country:
+          type: [string, 'null']
+          minLength: 2
+          maxLength: 2
+          pattern: '^[A-Z]{2}$'
+        address_state:
+          type: [string, 'null']
+          maxLength: 100
+        address_history:
+          type: [array, 'null']
+          items:
+            $ref: '#/components/schemas/EmployeeAddressHistoryEntry'
+        intended_activities:
+          type: [array, 'null']
+          items:
+            type: string
+            maxLength: 100
+        id_document_type:
+          type: [string, 'null']
+          enum: [passport, id_card, residence_permit]
+        id_document_number:
+          type: [string, 'null']
+          maxLength: 255
+        id_document_expiry:
+          type: [string, 'null']
+          format: date
+        employment_end_date:
+          type: [string, 'null']
+          format: date
+        retention_period_end:
+          type: [string, 'null']
+          format: date
+        tax_id:
+          type: [string, 'null']
+          maxLength: 255
+        social_security_number:
+          type: [string, 'null']
+          maxLength: 255
+        status:
+          type: string
+          enum: [applicant, pre_contract, active, on_leave, terminated]
+        position:
+          type: [string, 'null']
+          maxLength: 255
+        management_level:
+          type: integer
+          minimum: 0
+          maximum: 255
+        hire_date:
+          type: [string, 'null']
+          format: date
+        contract_start_date:
+          type: [string, 'null']
+          format: date
+        termination_date:
+          type: [string, 'null']
+          format: date
+        last_working_day:
+          type: [string, 'null']
+          format: date
+        contract_type:
+          type: string
+          enum: [full_time, part_time, minijob, freelance]
+        weekly_hours:
+          type: [number, 'null']
+          format: float
+          minimum: 0
+          maximum: 60
+        monthly_hours:
+          type: [number, 'null']
+          format: float
+          minimum: 0
+          maximum: 300
+        hourly_rate:
+          type: [number, 'null']
+          format: float
+          minimum: 0
+        health_insurance_type:
+          type: [string, 'null']
+          enum: [public, private, foreign]
+        health_insurance_provider:
+          type: [string, 'null']
+          maxLength: 255
+        health_insurance_number:
+          type: [string, 'null']
+          maxLength: 255
+        sachkunde_type:
+          type: [string, 'null']
+          maxLength: 255
+        sachkunde_certificate:
+          type: [string, 'null']
+          maxLength: 255
+        sachkunde_ihk_number:
+          type: [string, 'null']
+          maxLength: 50
+        sachkunde_exam_date:
+          type: [string, 'null']
+          format: date
+        sachkunde_issued_date:
+          type: [string, 'null']
+          format: date
+        work_permit_type:
+          type: [string, 'null']
+          enum: [unlimited, limited, none]
+        work_permit_number:
+          type: [string, 'null']
+          maxLength: 255
+        work_permit_expiry:
+          type: [string, 'null']
+          format: date
+        residence_permit_type:
+          type: [string, 'null']
+          enum: [unlimited, limited, none]
+        residence_permit_number:
+          type: [string, 'null']
+          maxLength: 255
+        residence_permit_expiry:
+          type: [string, 'null']
+          format: date
+        criminal_record_status:
+          type: [string, 'null']
+          enum: [valid, expired, pending]
+        criminal_record_check_date:
+          type: [string, 'null']
+          format: date
+        organizational_unit_id:
+          type: [string, 'null']
+          format: uuid
+
+    EmployeeUpdateRequest:
+      type: object
+      description: Partial employee update request. All properties are optional.
+      properties:
+        employee_number:
+          type: [string, 'null']
+          maxLength: 50
+        first_name:
+          type: [string, 'null']
+          maxLength: 255
+        last_name:
+          type: [string, 'null']
+          maxLength: 255
+        email:
+          type: [string, 'null']
+          format: email
+          maxLength: 255
+        phone:
+          type: [string, 'null']
+          maxLength: 255
+        date_of_birth:
+          type: [string, 'null']
+          format: date
+        photo_path:
+          type: [string, 'null']
+          maxLength: 255
+        bwr_id:
+          type: [string, 'null']
+          maxLength: 255
+        bwr_status:
+          type: [string, 'null']
+          enum: [not_registered, pending, active, suspended, revoked]
+        bwr_registered_at:
+          type: [string, 'null']
+          format: date-time
+        bwr_submission_date:
+          type: [string, 'null']
+          format: date
+        bwr_notes:
+          type: [string, 'null']
+        gender:
+          type: [string, 'null']
+          enum: [male, female, diverse]
+        birth_name:
+          type: [string, 'null']
+          maxLength: 255
+        previous_names:
+          type: [array, 'null']
+          items:
+            type: string
+            maxLength: 255
+        birth_city:
+          type: [string, 'null']
+          maxLength: 255
+        birth_country:
+          type: [string, 'null']
+          minLength: 2
+          maxLength: 2
+          pattern: '^[A-Z]{2}$'
+        birth_state:
+          type: [string, 'null']
+          maxLength: 100
+        nationalities:
+          type: [array, 'null']
+          items:
+            type: string
+            minLength: 2
+            maxLength: 2
+            pattern: '^[A-Z]{2}$'
+        address_street:
+          type: [string, 'null']
+          maxLength: 255
+        address_house_number:
+          type: [string, 'null']
+          maxLength: 10
+        address_postal_code:
+          type: [string, 'null']
+          maxLength: 20
+        address_city:
+          type: [string, 'null']
+          maxLength: 255
+        address_supplement:
+          type: [string, 'null']
+          maxLength: 255
+        address_country:
+          type: [string, 'null']
+          minLength: 2
+          maxLength: 2
+          pattern: '^[A-Z]{2}$'
+        address_state:
+          type: [string, 'null']
+          maxLength: 100
+        address_history:
+          type: [array, 'null']
+          items:
+            $ref: '#/components/schemas/EmployeeAddressHistoryEntry'
+        intended_activities:
+          type: [array, 'null']
+          items:
+            type: string
+            maxLength: 100
+        id_document_type:
+          type: [string, 'null']
+          enum: [passport, id_card, residence_permit]
+        id_document_number:
+          type: [string, 'null']
+          maxLength: 255
+        id_document_expiry:
+          type: [string, 'null']
+          format: date
+        employment_end_date:
+          type: [string, 'null']
+          format: date
+        retention_period_end:
+          type: [string, 'null']
+          format: date
+        tax_id:
+          type: [string, 'null']
+          maxLength: 255
+        social_security_number:
+          type: [string, 'null']
+          maxLength: 255
+        status:
+          type: string
+          enum: [applicant, pre_contract, active, on_leave, terminated]
+        position:
+          type: [string, 'null']
+          maxLength: 255
+        management_level:
+          type: integer
+          minimum: 0
+          maximum: 255
+        hire_date:
+          type: [string, 'null']
+          format: date
+        contract_start_date:
+          type: [string, 'null']
+          format: date
+        termination_date:
+          type: [string, 'null']
+          format: date
+        last_working_day:
+          type: [string, 'null']
+          format: date
+        contract_type:
+          type: string
+          enum: [full_time, part_time, minijob, freelance]
+        weekly_hours:
+          type: [number, 'null']
+          format: float
+          minimum: 0
+          maximum: 60
+        monthly_hours:
+          type: [number, 'null']
+          format: float
+          minimum: 0
+          maximum: 300
+        hourly_rate:
+          type: [number, 'null']
+          format: float
+          minimum: 0
+        health_insurance_type:
+          type: [string, 'null']
+          enum: [public, private, foreign]
+        health_insurance_provider:
+          type: [string, 'null']
+          maxLength: 255
+        health_insurance_number:
+          type: [string, 'null']
+          maxLength: 255
+        sachkunde_type:
+          type: [string, 'null']
+          maxLength: 255
+        sachkunde_certificate:
+          type: [string, 'null']
+          maxLength: 255
+        sachkunde_ihk_number:
+          type: [string, 'null']
+          maxLength: 50
+        sachkunde_exam_date:
+          type: [string, 'null']
+          format: date
+        sachkunde_issued_date:
+          type: [string, 'null']
+          format: date
+        work_permit_type:
+          type: [string, 'null']
+          enum: [unlimited, limited, none]
+        work_permit_number:
+          type: [string, 'null']
+          maxLength: 255
+        work_permit_expiry:
+          type: [string, 'null']
+          format: date
+        residence_permit_type:
+          type: [string, 'null']
+          enum: [unlimited, limited, none]
+        residence_permit_number:
+          type: [string, 'null']
+          maxLength: 255
+        residence_permit_expiry:
+          type: [string, 'null']
+          format: date
+        criminal_record_status:
+          type: [string, 'null']
+          enum: [valid, expired, pending]
+        criminal_record_check_date:
+          type: [string, 'null']
+          format: date
+        organizational_unit_id:
+          type: [string, 'null']
+          format: uuid
+
+    EmployeeResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Employee'
+
+    EmployeeCollectionResponse:
+      type: object
+      required:
+        - data
+        - links
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Employee'
+        links:
+          $ref: '#/components/schemas/PaginationLinks'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
     Employee:
       type: object
       description: Employee entity with decrypted personal data
@@ -489,13 +1060,77 @@ components:
         phone:
           type: [string, 'null']
           example: '+49 30 12345678'
-        address:
-          type: [string, 'null']
-          description: Decrypted
-          example: 'Hauptstraße 123, 10115 Berlin'
         photo_path:
           type: [string, 'null']
           example: 'employees/photos/550e8400.jpg'
+        bwr_id:
+          type: [string, 'null']
+          example: '1234567'
+        bwr_status:
+          type: [string, 'null']
+          enum: [not_registered, pending, active, suspended, revoked]
+        bwr_registered_at:
+          type: [string, 'null']
+          format: date-time
+        bwr_submission_date:
+          type: [string, 'null']
+          format: date
+        bwr_notes:
+          type: [string, 'null']
+        gender:
+          type: [string, 'null']
+          enum: [male, female, diverse]
+        birth_name:
+          type: [string, 'null']
+          description: Decrypted
+        previous_names:
+          type: [array, 'null']
+          items:
+            type: string
+        birth_city:
+          type: [string, 'null']
+        birth_country:
+          type: [string, 'null']
+          minLength: 2
+          maxLength: 2
+        birth_state:
+          type: [string, 'null']
+        nationalities:
+          type: [array, 'null']
+          items:
+            type: string
+        address_street:
+          type: [string, 'null']
+          description: Decrypted
+        address_house_number:
+          type: [string, 'null']
+          description: Decrypted
+        address_postal_code:
+          type: [string, 'null']
+          description: Decrypted
+        address_city:
+          type: [string, 'null']
+          description: Decrypted
+        address_supplement:
+          type: [string, 'null']
+          description: Decrypted
+        address_country:
+          type: [string, 'null']
+          minLength: 2
+          maxLength: 2
+        address_state:
+          type: [string, 'null']
+        structured_address:
+          type: [object, 'null']
+          additionalProperties: true
+        address_history:
+          type: [array, 'null']
+          items:
+            $ref: '#/components/schemas/EmployeeAddressHistoryEntry'
+        intended_activities:
+          type: [array, 'null']
+          items:
+            type: string
         tax_id:
           type: [string, 'null']
           description: Decrypted
@@ -524,7 +1159,15 @@ components:
           format: date
         contract_type:
           type: string
-          enum: [permanent, fixed_term, temporary, minijob, student, internship]
+          enum: [full_time, part_time, minijob, freelance]
+        position:
+          type: [string, 'null']
+          example: 'Security Guard'
+        management_level:
+          type: integer
+          minimum: 0
+          maximum: 255
+          example: 0
         weekly_hours:
           type: [number, 'null']
           format: float
@@ -537,30 +1180,27 @@ components:
           description: Decrypted
         health_insurance_type:
           type: [string, 'null']
-          enum: [public, private]
+          enum: [public, private, foreign]
         health_insurance_provider:
           type: [string, 'null']
         health_insurance_number:
           type: [string, 'null']
         sachkunde_type:
           type: [string, 'null']
-          enum: [none, paragraph_34a, nsv, other]
+          maxLength: 255
         sachkunde_certificate:
           type: [string, 'null']
-        sachkunde_expiry:
+        sachkunde_ihk_number:
+          type: [string, 'null']
+        sachkunde_exam_date:
+          type: [string, 'null']
+          format: date
+        sachkunde_issued_date:
           type: [string, 'null']
           format: date
         work_permit_type:
           type: [string, 'null']
-          enum:
-            [
-              not_required,
-              eu_citizen,
-              work_visa,
-              blue_card,
-              residence_permit,
-              other,
-            ]
+          enum: [unlimited, limited, none]
         work_permit_number:
           type: [string, 'null']
         work_permit_expiry:
@@ -568,7 +1208,7 @@ components:
           format: date
         residence_permit_type:
           type: [string, 'null']
-          enum: [not_required, permanent, temporary, student, other]
+          enum: [unlimited, limited, none]
         residence_permit_number:
           type: [string, 'null']
         residence_permit_expiry:
@@ -576,7 +1216,7 @@ components:
           format: date
         criminal_record_status:
           type: [string, 'null']
-          enum: [not_checked, clean, pending, has_record]
+          enum: [valid, expired, pending]
         criminal_record_check_date:
           type: [string, 'null']
           format: date
@@ -604,6 +1244,14 @@ components:
         organizational_unit_id:
           type: [string, 'null']
           format: uuid
+        user:
+          anyOf:
+            - $ref: '#/components/schemas/EmployeeUserSummary'
+            - type: 'null'
+        organizational_unit:
+          anyOf:
+            - $ref: '#/components/schemas/EmployeeOrganizationalUnitSummary'
+            - type: 'null'
         created_at:
           type: string
           format: date-time
@@ -2422,14 +3070,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Employee'
-                  meta:
-                    $ref: '#/components/schemas/PaginationMeta'
+                $ref: '#/components/schemas/EmployeeCollectionResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2450,54 +3091,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - first_name
-                - last_name
-                - email
-                - contract_type
-              properties:
-                first_name:
-                  type: string
-                last_name:
-                  type: string
-                date_of_birth:
-                  type: string
-                  format: date
-                email:
-                  type: string
-                  format: email
-                phone:
-                  type: string
-                address:
-                  type: string
-                contract_type:
-                  type: string
-                  enum:
-                    [
-                      permanent,
-                      fixed_term,
-                      temporary,
-                      minijob,
-                      student,
-                      internship,
-                    ]
-                contract_start_date:
-                  type: string
-                  format: date
-                weekly_hours:
-                  type: number
-                  format: float
-                hourly_rate:
-                  type: number
-                  format: float
+              $ref: '#/components/schemas/EmployeeCreateRequest'
       responses:
         '201':
           description: Employee created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Employee'
+                $ref: '#/components/schemas/EmployeeResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -2532,7 +3133,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Employee'
+                $ref: '#/components/schemas/EmployeeResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2563,46 +3164,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                first_name:
-                  type: string
-                last_name:
-                  type: string
-                email:
-                  type: string
-                  format: email
-                phone:
-                  type: string
-                address:
-                  type: string
-                contract_type:
-                  type: string
-                  enum:
-                    [
-                      permanent,
-                      fixed_term,
-                      temporary,
-                      minijob,
-                      student,
-                      internship,
-                    ]
-                status:
-                  type: string
-                  enum: [applicant, pre_contract, active, on_leave, terminated]
-                weekly_hours:
-                  type: number
-                  format: float
-                hourly_rate:
-                  type: number
-                  format: float
+              $ref: '#/components/schemas/EmployeeUpdateRequest'
       responses:
         '200':
           description: Employee updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Employee'
+                $ref: '#/components/schemas/EmployeeResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
