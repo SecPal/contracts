@@ -97,6 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Secret share grant requests now enforce the documented `user_id` XOR `role_id` constraint in the OpenAPI schema
 - **Employee OpenAPI contract now matches backend request/response behavior** (#116)
   - corrected employee contract type enums to `full_time`, `part_time`, `minijob`, and `freelance`
   - documented the `data` response envelope used by employee create/show/update endpoints
