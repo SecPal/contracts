@@ -155,21 +155,42 @@ components:
           nullable: true
           description: Batch UUID for grouping related activities
           example: 'aa0e8400-e29b-41d4-a716-446655440005'
+        ip_address:
+          type: string
+          nullable: true
+          description: Source IP address captured for the activity
+          example: '192.0.2.1'
+        user_agent:
+          type: string
+          nullable: true
+          description: User agent captured for the activity
+          example: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
         created_at:
           type: string
           format: date-time
           description: Timestamp when the activity was created
+          example: '2025-11-16T10:00:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the activity was last updated
           example: '2025-11-16T10:00:00Z'
         previous_hash:
           type: string
           nullable: true
           description: Hash of the previous activity in the blockchain
           example: '5f9c4ab08cac7457e9111a6e4e3e3c3e3c3e3c3e3c3e3c3e3c3e3c3e3c3e'
-        hash:
+        event_hash:
           type: string
           nullable: true
-          description: Hash of this activity
+          description: Hash of this activity event
           example: '6a8d5bc19dbd8568fa222b7f5f4f4d4f4d4f4d4f4d4f4d4f4d4f4d4f4d4f'
+        merkle_batch_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: Batch identifier for the Merkle tree grouping
+          example: 1742203200
         merkle_proof:
           type: array
           nullable: true
@@ -181,16 +202,37 @@ components:
           nullable: true
           description: Merkle root this activity is part of
           example: '7b9e6cd2aece9679gb333c8g6g5g5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e'
-        ots_proof:
+        ots_submitted_at:
           type: string
+          format: date-time
           nullable: true
-          description: OpenTimestamp proof
-        ots_verified_at:
+          description: Timestamp when the OpenTimestamp proof was submitted
+          example: '2025-11-16T10:03:00Z'
+        ots_confirmed_at:
           type: string
           format: date-time
           nullable: true
           description: Timestamp when OpenTimestamp verification completed
           example: '2025-11-16T10:05:23Z'
+        has_ots_proof:
+          type: boolean
+          description: Whether an OpenTimestamp proof is currently stored for this activity
+          example: true
+        is_orphaned_genesis:
+          type: boolean
+          description: Whether the activity became a genesis entry after retention archived its predecessor
+          example: false
+        orphaned_reason:
+          type: string
+          nullable: true
+          description: Reason why the activity became an orphaned genesis entry
+          example: 'Predecessor archived (retention: authentication, 2026-03-01)'
+        orphaned_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the activity was marked as orphaned genesis
+          example: '2025-11-16T10:07:00Z'
         verification:
           type: object
           nullable: true
@@ -200,31 +242,18 @@ components:
               type: boolean
               description: Whether the blockchain chain is valid
               example: true
-            chain_message:
-              type: string
-              nullable: true
-              description: Chain validation message
+            chain_link_valid:
+              type: boolean
+              description: Whether the immediate predecessor link is valid
+              example: true
             merkle_valid:
               type: boolean
               description: Whether the Merkle proof is valid
               example: true
-            merkle_message:
-              type: string
-              nullable: true
-              description: Merkle validation message
             ots_valid:
               type: boolean
               description: Whether the OpenTimestamp verification is valid
               example: true
-            ots_message:
-              type: string
-              nullable: true
-              description: OpenTimestamp validation message
-            ots_timestamp:
-              type: string
-              format: date-time
-              nullable: true
-              description: OpenTimestamp verification timestamp
 
     HealthStatus:
       type: object
@@ -2587,12 +2616,20 @@ paths:
                           attributes:
                             name: API Keys Production
                             status: active
+                        ip_address: 192.0.2.1
+                        user_agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36
                         batch_uuid: 550e8400-e29b-41d4-a716-446655440100
                         previous_hash: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-                        current_hash: 5d41402abc4b2a76b9719d911017c592
+                        event_hash: 5d41402abc4b2a76b9719d911017c592
+                        merkle_batch_id: 1742203200
                         merkle_root: a8c7e3d5f9b1c4e6d8a2f4b6c8e0d2f4a6b8c0e2d4f6a8b0c2e4d6f8a0b2c4e6
                         merkle_proof: []
-                        ots_proof: null
+                        ots_submitted_at: null
+                        ots_confirmed_at: null
+                        has_ots_proof: false
+                        is_orphaned_genesis: false
+                        orphaned_reason: null
+                        orphaned_at: null
                         created_at: '2025-01-15T10:30:00Z'
                         updated_at: '2025-01-15T10:30:00Z'
                       - id: 550e8400-e29b-41d4-a716-446655440002
@@ -2609,13 +2646,21 @@ paths:
                             email: user@example.com
                           old:
                             email: old@example.com
+                        ip_address: 192.0.2.55
+                        user_agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36
                         batch_uuid: 550e8400-e29b-41d4-a716-446655440100
                         previous_hash: 5d41402abc4b2a76b9719d911017c592
-                        current_hash: 098f6bcd4621d373cade4e832627b4f6
+                        event_hash: 098f6bcd4621d373cade4e832627b4f6
+                        merkle_batch_id: 1742203200
                         merkle_root: a8c7e3d5f9b1c4e6d8a2f4b6c8e0d2f4a6b8c0e2d4f6a8b0c2e4d6f8a0b2c4e6
                         merkle_proof:
                           - d3e5f7a9b1c3e5d7f9a1b3c5e7d9f1a3b5c7e9d1f3a5b7c9e1d3f5a7b9c1e3d5
-                        ots_proof: null
+                        ots_submitted_at: null
+                        ots_confirmed_at: null
+                        has_ots_proof: false
+                        is_orphaned_genesis: false
+                        orphaned_reason: null
+                        orphaned_at: null
                         created_at: '2025-01-15T11:00:00Z'
                         updated_at: '2025-01-15T11:00:00Z'
                       - id: 550e8400-e29b-41d4-a716-446655440003
@@ -2628,14 +2673,22 @@ paths:
                         causer_id: 550e8400-e29b-41d4-a716-446655440022
                         event: accessed
                         properties: {} # yamllint disable-line rule:braces
+                        ip_address: 198.51.100.10
+                        user_agent: curl/8.8.0
                         batch_uuid: 550e8400-e29b-41d4-a716-446655440101
                         previous_hash: 098f6bcd4621d373cade4e832627b4f6
-                        current_hash: 5f4dcc3b5aa765d61d8327deb882cf99
+                        event_hash: 5f4dcc3b5aa765d61d8327deb882cf99
+                        merkle_batch_id: 1742204100
                         merkle_root: b9d8e4f6a8b0c2e4d6f8a0b2c4e6d8f0a2b4c6e8d0f2a4b6c8e0d2f4a6b8c0e2
                         merkle_proof:
                           - e4f6a8b0c2e4d6f8a0b2c4e6d8f0a2b4c6e8d0f2a4b6c8e0d2f4a6b8c0e2d4f6
                           - f6a8b0c2e4d6f8a0b2c4e6d8f0a2b4c6e8d0f2a4b6c8e0d2f4a6b8c0e2d4f6a8
-                        ots_proof: 00589fbcc1d3fbf3feb7f9bc77f5c5b6c1f4c0f8f6f5f3f2f1f0f9f8f7f6f5f4
+                        ots_submitted_at: '2025-01-15T14:21:00Z'
+                        ots_confirmed_at: '2025-01-15T15:45:00Z'
+                        has_ots_proof: true
+                        is_orphaned_genesis: false
+                        orphaned_reason: null
+                        orphaned_at: null
                         created_at: '2025-01-15T14:20:00Z'
                         updated_at: '2025-01-15T14:20:00Z'
                     links:
@@ -2755,25 +2808,32 @@ paths:
                           organizational_unit_id: 550e8400-e29b-41d4-a716-446655440030
                         ip: 192.0.2.1
                         user_agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36
+                      ip_address: 192.0.2.1
+                      user_agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36
                       batch_uuid: 550e8400-e29b-41d4-a716-446655440100
                       previous_hash: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-                      current_hash: 5d41402abc4b2a76b9719d911017c592
+                      event_hash: 5d41402abc4b2a76b9719d911017c592
+                      merkle_batch_id: 1742203200
                       merkle_root: a8c7e3d5f9b1c4e6d8a2f4b6c8e0d2f4a6b8c0e2d4f6a8b0c2e4d6f8a0b2c4e6
                       merkle_proof:
                         - d3e5f7a9b1c3e5d7f9a1b3c5e7d9f1a3b5c7e9d1f3a5b7c9e1d3f5a7b9c1e3d5
                         - e4f6a8b0c2e4d6f8a0b2c4e6d8f0a2b4c6e8d0f2a4b6c8e0d2f4a6b8c0e2d4f6
-                      ots_proof: 00589fbcc1d3fbf3feb7f9bc77f5c5b6c1f4c0f8f6f5f3f2f1f0f9f8f7f6f5f4
+                      ots_submitted_at: '2025-01-15T10:31:00Z'
+                      ots_confirmed_at: '2025-01-15T12:30:45Z'
+                      has_ots_proof: true
+                      is_orphaned_genesis: false
+                      orphaned_reason: null
+                      orphaned_at: null
                       created_at: '2025-01-15T10:30:00Z'
                       updated_at: '2025-01-15T10:30:00Z'
                       causer:
+                        type: User
                         id: 550e8400-e29b-41d4-a716-446655440020
-                        first_name: John
-                        last_name: Doe
-                        email: john.doe@example.com
+                        name: John Doe
                       subject:
+                        type: Secret
                         id: 550e8400-e29b-41d4-a716-446655440010
                         name: API Keys Production
-                        status: active
                 systemActivity:
                   summary: System-initiated activity (no causer)
                   value:
@@ -2790,19 +2850,27 @@ paths:
                       properties:
                         batch_size: 50
                         submission_timestamp: '2025-01-15T12:00:00Z'
+                      ip_address: null
+                      user_agent: null
                       batch_uuid: 550e8400-e29b-41d4-a716-446655440102
                       previous_hash: 5f4dcc3b5aa765d61d8327deb882cf99
-                      current_hash: 6329334b8f7f9d4e8327deb882cf9945
+                      event_hash: 6329334b8f7f9d4e8327deb882cf9945
+                      merkle_batch_id: 1742212800
                       merkle_root: c0e2d4f6a8b0c2e4d6f8a0b2c4e6d8f0
                       merkle_proof: []
-                      ots_proof: null
+                      ots_submitted_at: '2025-01-15T12:00:30Z'
+                      ots_confirmed_at: null
+                      has_ots_proof: false
+                      is_orphaned_genesis: false
+                      orphaned_reason: null
+                      orphaned_at: null
                       created_at: '2025-01-15T12:00:01Z'
                       updated_at: '2025-01-15T12:00:01Z'
                       causer: null
                       subject:
+                        type: ActivityBatch
                         id: 550e8400-e29b-41d4-a716-446655440100
-                        uuid: 550e8400-e29b-41d4-a716-446655440102
-                        activity_count: 50
+                        name: Batch 1742212800
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2854,108 +2922,172 @@ paths:
               schema:
                 type: object
                 required:
-                  - chain_valid
-                  - merkle_valid
-                  - ots_valid
+                  - data
                 properties:
-                  chain_valid:
-                    type: boolean
-                    description: Whether the blockchain chain is valid
-                    example: true
-                  chain_message:
-                    type: string
-                    nullable: true
-                    description: Chain validation message
-                    example: 'Blockchain chain is valid'
-                  merkle_valid:
-                    type: boolean
-                    description: Whether the Merkle proof is valid
-                    example: true
-                  merkle_message:
-                    type: string
-                    nullable: true
-                    description: Merkle validation message
-                    example: 'Merkle proof is valid'
-                  ots_valid:
-                    type: boolean
-                    description: Whether the OpenTimestamp verification is valid
-                    example: true
-                  ots_message:
-                    type: string
-                    nullable: true
-                    description: OpenTimestamp validation message
-                    example: 'OpenTimestamp verification successful'
-                  ots_timestamp:
-                    type: string
-                    format: date-time
-                    nullable: true
-                    description: OpenTimestamp verification timestamp
-                    example: '2025-11-16T10:05:23Z'
+                  data:
+                    type: object
+                    required:
+                      - activity_id
+                      - verification
+                      - details
+                    properties:
+                      activity_id:
+                        type: string
+                        format: uuid
+                        description: Activity UUID
+                        example: '550e8400-e29b-41d4-a716-446655440001'
+                      verification:
+                        type: object
+                        required:
+                          - chain_valid
+                          - merkle_valid
+                          - ots_valid
+                        properties:
+                          chain_valid:
+                            type: boolean
+                            description: Whether the blockchain chain is valid
+                            example: true
+                          merkle_valid:
+                            type: boolean
+                            description: Whether the Merkle proof is valid
+                            example: true
+                          ots_valid:
+                            type: boolean
+                            description: Whether the OpenTimestamp verification is valid
+                            example: true
+                      details:
+                        type: object
+                        required:
+                          - event_hash
+                          - previous_hash
+                          - merkle_root
+                          - merkle_batch_id
+                          - ots_confirmed_at
+                          - is_orphaned_genesis
+                          - orphaned_reason
+                        properties:
+                          event_hash:
+                            type: string
+                            nullable: true
+                            description: Hash of this activity event
+                            example: '5d41402abc4b2a76b9719d911017c592'
+                          previous_hash:
+                            type: string
+                            nullable: true
+                            description: Hash of the previous activity in the chain
+                            example: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+                          merkle_root:
+                            type: string
+                            nullable: true
+                            description: Merkle root this activity is part of
+                            example: 'a8c7e3d5f9b1c4e6d8a2f4b6c8e0d2f4a6b8c0e2d4f6a8b0c2e4d6f8a0b2c4e6'
+                          merkle_batch_id:
+                            type: integer
+                            format: int64
+                            nullable: true
+                            description: Batch identifier for the Merkle tree grouping
+                            example: 1742203200
+                          ots_confirmed_at:
+                            type: string
+                            format: date-time
+                            nullable: true
+                            description: Timestamp when OpenTimestamp verification completed
+                            example: '2025-01-15T12:30:45Z'
+                          is_orphaned_genesis:
+                            type: boolean
+                            description: Whether the activity became an orphaned genesis entry
+                            example: false
+                          orphaned_reason:
+                            type: string
+                            nullable: true
+                            description: Reason why the activity became orphaned
+                            example: null
               examples:
                 allValid:
                   summary: All verifications successful
                   value:
-                    chain_valid: true
-                    chain_message: Hash chain is valid. Previous hash matches expected value.
-                    merkle_valid: true
-                    merkle_message: >-
-                      Merkle proof is valid. Activity is part of batch
-                      550e8400-e29b-41d4-a716-446655440100.
-                    ots_valid: true
-                    ots_message: >-
-                      OpenTimestamp verification successful. Anchored to Bitcoin
-                      block 820145 at height 820145.
-                    ots_timestamp: '2025-01-15T12:30:45Z'
+                    data:
+                      activity_id: '550e8400-e29b-41d4-a716-446655440001'
+                      verification:
+                        chain_valid: true
+                        merkle_valid: true
+                        ots_valid: true
+                      details:
+                        event_hash: 5d41402abc4b2a76b9719d911017c592
+                        previous_hash: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+                        merkle_root: a8c7e3d5f9b1c4e6d8a2f4b6c8e0d2f4a6b8c0e2d4f6a8b0c2e4d6f8a0b2c4e6
+                        merkle_batch_id: 1742203200
+                        ots_confirmed_at: '2025-01-15T12:30:45Z'
+                        is_orphaned_genesis: false
+                        orphaned_reason: null
                 otsNotYetAnchored:
                   summary: OTS verification pending (not yet anchored)
                   value:
-                    chain_valid: true
-                    chain_message: Hash chain is valid. Previous hash matches expected value.
-                    merkle_valid: true
-                    merkle_message: >-
-                      Merkle proof is valid. Activity is part of batch
-                      550e8400-e29b-41d4-a716-446655440102.
-                    ots_valid: false
-                    ots_message: >-
-                      OpenTimestamp not yet anchored to Bitcoin blockchain.
-                      Verification pending.
-                    ots_timestamp: null
+                    data:
+                      activity_id: '550e8400-e29b-41d4-a716-446655440004'
+                      verification:
+                        chain_valid: true
+                        merkle_valid: true
+                        ots_valid: false
+                      details:
+                        event_hash: 6329334b8f7f9d4e8327deb882cf9945
+                        previous_hash: 5f4dcc3b5aa765d61d8327deb882cf99
+                        merkle_root: c0e2d4f6a8b0c2e4d6f8a0b2c4e6d8f0
+                        merkle_batch_id: 1742212800
+                        ots_confirmed_at: null
+                        is_orphaned_genesis: false
+                        orphaned_reason: null
                 otsNotSubmitted:
                   summary: OTS not yet submitted
                   value:
-                    chain_valid: true
-                    chain_message: Hash chain is valid. Previous hash matches expected value.
-                    merkle_valid: true
-                    merkle_message: >-
-                      Merkle proof is valid. Activity is part of batch
-                      550e8400-e29b-41d4-a716-446655440103.
-                    ots_valid: false
-                    ots_message: OpenTimestamp proof not yet submitted for this batch.
-                    ots_timestamp: null
+                    data:
+                      activity_id: '550e8400-e29b-41d4-a716-446655440005'
+                      verification:
+                        chain_valid: true
+                        merkle_valid: true
+                        ots_valid: false
+                      details:
+                        event_hash: 7f83b1657ff1fc53b92dc18148a1d65dfa1350146f1fcb4f6e8f7d28e17f72d2
+                        previous_hash: 6329334b8f7f9d4e8327deb882cf9945
+                        merkle_root: d4f6a8b0c2e4d6f8a0b2c4e6d8f0a2b4c6e8d0f2a4b6c8e0d2f4a6b8c0e2d4f6
+                        merkle_batch_id: 1742216400
+                        ots_confirmed_at: null
+                        is_orphaned_genesis: false
+                        orphaned_reason: null
                 chainInvalid:
                   summary: Hash chain broken (tampering detected)
                   value:
-                    chain_valid: false
-                    chain_message: >-
-                      Hash chain is INVALID. Previous hash does not match expected value.
-                      Possible tampering detected.
-                    merkle_valid: false
-                    merkle_message: Merkle verification skipped due to invalid chain.
-                    ots_valid: false
-                    ots_message: OpenTimestamp verification skipped due to invalid chain.
-                    ots_timestamp: null
+                    data:
+                      activity_id: '550e8400-e29b-41d4-a716-446655440006'
+                      verification:
+                        chain_valid: false
+                        merkle_valid: false
+                        ots_valid: false
+                      details:
+                        event_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                        previous_hash: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+                        merkle_root: null
+                        merkle_batch_id: null
+                        ots_confirmed_at: null
+                        is_orphaned_genesis: false
+                        orphaned_reason: null
                 merkleInvalid:
                   summary: Merkle proof invalid (data integrity issue)
                   value:
-                    chain_valid: true
-                    chain_message: Hash chain is valid. Previous hash matches expected value.
-                    merkle_valid: false
-                    merkle_message: >-
-                      Merkle proof is INVALID. Activity hash does not match Merkle tree
-                      computation. Data integrity compromised.
-                    ots_valid: false
-                    ots_message: OpenTimestamp verification skipped due to invalid Merkle proof.
-                    ots_timestamp: null
+                    data:
+                      activity_id: '550e8400-e29b-41d4-a716-446655440007'
+                      verification:
+                        chain_valid: true
+                        merkle_valid: false
+                        ots_valid: false
+                      details:
+                        event_hash: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+                        previous_hash: 7f83b1657ff1fc53b92dc18148a1d65dfa1350146f1fcb4f6e8f7d28e17f72d2
+                        merkle_root: eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+                        merkle_batch_id: 1742217300
+                        ots_confirmed_at: null
+                        is_orphaned_genesis: false
+                        orphaned_reason: null
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
