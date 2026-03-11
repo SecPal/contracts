@@ -1421,9 +1421,9 @@ components:
         billing_address:
           $ref: '#/components/schemas/Address'
         contact:
-          allOf:
+          anyOf:
             - $ref: '#/components/schemas/Contact'
-            - type: [object, 'null']
+            - type: 'null'
         is_active:
           type: boolean
           description: Whether customer is active
@@ -1507,9 +1507,9 @@ components:
         address:
           $ref: '#/components/schemas/Address'
         contact:
-          allOf:
+          anyOf:
             - $ref: '#/components/schemas/Contact'
-            - type: [object, 'null']
+            - type: 'null'
         access_instructions:
           type: [string, 'null']
           description: Instructions for accessing the site (conditionally visible)
