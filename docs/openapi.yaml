@@ -365,6 +365,7 @@ components:
 
     SecretShareGrantRequestForUser:
       type: object
+      additionalProperties: false
       required:
         - user_id
         - permission
@@ -387,6 +388,7 @@ components:
 
     SecretShareGrantRequestForRole:
       type: object
+      additionalProperties: false
       required:
         - role_id
         - permission
