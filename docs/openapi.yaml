@@ -392,6 +392,58 @@ components:
           description: Optional expiration timestamp (ISO 8601)
           example: '2025-12-31T23:59:59Z'
 
+    SecretShareGrantRequestForUser:
+      type: object
+      additionalProperties: false
+      required:
+        - user_id
+        - permission
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          description: User to grant access (XOR with role_id)
+          example: '770e8400-e29b-41d4-a716-446655440000'
+        permission:
+          type: string
+          enum: [read, write, admin]
+          description: Permission level
+          example: read
+        expires_at:
+          type: string
+          format: date-time
+          description: Optional expiration date
+          example: '2025-12-31T23:59:59Z'
+
+    SecretShareGrantRequestForRole:
+      type: object
+      additionalProperties: false
+      required:
+        - role_id
+        - permission
+      properties:
+        role_id:
+          type: integer
+          format: int64
+          description: Role to grant access (XOR with user_id)
+          example: 5
+        permission:
+          type: string
+          enum: [read, write, admin]
+          description: Permission level
+          example: write
+        expires_at:
+          type: string
+          format: date-time
+          description: Optional expiration date
+          example: '2025-12-31T23:59:59Z'
+
+    SecretShareGrantRequest:
+      oneOf:
+        - $ref: '#/components/schemas/SecretShareGrantRequestForUser'
+        - $ref: '#/components/schemas/SecretShareGrantRequestForRole'
+      description: Grant secret access to exactly one target, either a user or a role.
+
     SecretAttachment:
       type: object
       required:
@@ -1398,9 +1450,9 @@ components:
         billing_address:
           $ref: '#/components/schemas/Address'
         contact:
-          allOf:
+          anyOf:
             - $ref: '#/components/schemas/Contact'
-            - type: [object, 'null']
+            - type: 'null'
         is_active:
           type: boolean
           description: Whether customer is active
@@ -1484,9 +1536,9 @@ components:
         address:
           $ref: '#/components/schemas/Address'
         contact:
-          allOf:
+          anyOf:
             - $ref: '#/components/schemas/Contact'
-            - type: [object, 'null']
+            - type: 'null'
         access_instructions:
           type: [string, 'null']
           description: Instructions for accessing the site (conditionally visible)
@@ -2189,30 +2241,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - permission
-              properties:
-                user_id:
-                  type: string
-                  format: uuid
-                  description: User to grant access (XOR with role_id)
-                  example: '770e8400-e29b-41d4-a716-446655440000'
-                role_id:
-                  type: integer
-                  format: int64
-                  description: Role to grant access (XOR with user_id)
-                  example: 5
-                permission:
-                  type: string
-                  enum: [read, write, admin]
-                  description: Permission level
-                  example: read
-                expires_at:
-                  type: string
-                  format: date-time
-                  description: Optional expiration date
-                  example: '2025-12-31T23:59:59Z'
+              $ref: '#/components/schemas/SecretShareGrantRequest'
             examples:
               grantToUser:
                 summary: Grant read access to user
