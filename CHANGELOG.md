@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Scoped the transitive `undici` override to `@redocly/cli` and pinned it to `6.24.0` so contract validation tooling no longer resolves the vulnerable HTTP client release reported by `npm audit`
+
 ### Added
 
 - `.github/instructions/openapi.instructions.md` - targeted OpenAPI contract guidance for `docs/openapi.yaml`
