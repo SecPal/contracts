@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- Pinned the transitive `undici` resolution to `>=6.24.0` so contract validation tooling no longer resolves the vulnerable HTTP client release reported by `npm audit`
+- Pinned the transitive `undici` resolution to `6.24.0` so contract validation tooling no longer resolves the vulnerable HTTP client release reported by `npm audit`
 
 ### Added
 
