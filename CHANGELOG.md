@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- Removed the Secret management contract, including CRUD, sharing, and attachment endpoints and schemas.
+- Removed the deleted legacy product-module contract, including its retired CRUD, sharing, and attachment endpoints and schemas.
 
 ### Security
 
@@ -73,18 +73,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Soft Deletes**: All entities support soft deletion with validation (e.g., cannot delete customer with active sites)
   - Related: Implements spec for SecPal/api PRs #349-#368 (Epic #210: Customer & Site Management)
 
-- **Secret Management API Specification**: Complete OpenAPI 3.1 spec for Secret CRUD and Sharing endpoints
-  - **5 Secret CRUD endpoints**: `GET /secrets`, `POST /secrets`, `GET /secrets/{secret}`, `PATCH /secrets/{secret}`, `DELETE /secrets/{secret}`
-  - **3 Secret Sharing endpoints**: `GET /secrets/{secret}/shares`, `POST /secrets/{secret}/shares`, `DELETE /secrets/{secret}/shares/{share}`
-  - **Schemas**: `Secret` (with encrypted fields), `SecretShare` (with permission hierarchy)
-  - **Validation Rules**: Field lengths, required fields, permission enums (`read`, `write`, `admin`)
-  - **XOR Constraint**: Share with user OR role (not both) - documented in spec
-  - **Permission Hierarchy**: admin > write > read - documented with examples
-  - **Error Responses**: 400, 401, 403, 404, 422 with detailed examples
-  - **Authentication**: Bearer token (JWT) required for all endpoints
-  - **Pagination**: List endpoints support `page` and `per_page` query parameters
-  - Related: Implements spec for SecPal/api PRs #183, #185 (Phase 3: Secret Sharing & Access Control)
-
 - **Git Conflict Marker Detection**: Automated check for unresolved merge conflicts
   - `scripts/check-conflict-markers.sh` - Scans all tracked files for conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`, `|||||||`)
   - `.github/workflows/check-conflict-markers.yml` - CI integration (runs on all PRs and pushes to main)
@@ -106,7 +94,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Activity log contract responses now match the backend resource and verification payload shapes
-- Secret share grant requests now enforce the documented `user_id` XOR `role_id` constraint in the OpenAPI schema
 - OpenAPI 3.1 now models nullable `Customer.contact` and `Site.contact` references correctly
 - **Employee OpenAPI contract now matches backend request/response behavior** (#116)
   - corrected employee contract type enums to `full_time`, `part_time`, `minijob`, and `freelance`
