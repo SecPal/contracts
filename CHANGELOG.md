@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Removed the Secret management contract, including CRUD, sharing, and attachment endpoints and schemas.
+
 ### Security
 
 - Scoped the transitive `undici` override to `@redocly/cli` and pinned it to `6.24.0` so contract validation tooling no longer resolves the vulnerable HTTP client release reported by `npm audit`
