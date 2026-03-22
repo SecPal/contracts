@@ -12,10 +12,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- Added explicit top-level OpenAPI tag declarations for all currently used operation groups so documentation tooling can render consistent tag metadata and descriptions (#129)
-
 ### Removed
 
 - Removed the deleted legacy product-module contract, including its retired CRUD, sharing, and attachment endpoints and schemas.
@@ -32,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Added explicit top-level OpenAPI tag declarations for all currently used operation groups so documentation tooling can render consistent tag metadata and descriptions (#129)
 - `.github/copilot-instructions.md` now requires a branch hygiene check before any write action so contract work never starts on local `main` and dirty non-`main` branches must be assessed before continuing
 - `.github/copilot-instructions.md` now requires stale `SPDX-FileCopyrightText` years in edited files and license sidecars to be normalized to `YYYY` or `YYYY-YYYY` without spaces
 - `.github/copilot-instructions.md` now clarifies that if an edited file has no inline SPDX header, its companion `.license` file must be checked and updated instead
