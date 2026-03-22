@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Updated `@redocly/cli` from `2.24.0` to `2.24.1` so `npm run validate` no longer emits the stale Redocly update notice tracked in #136
 - Added explicit top-level OpenAPI tag declarations for all currently used operation groups so documentation tooling can render consistent tag metadata and descriptions (#129)
 - `.github/copilot-instructions.md` now requires a branch hygiene check before any write action so contract work never starts on local `main` and dirty non-`main` branches must be assessed before continuing
 - `.github/copilot-instructions.md` now requires stale `SPDX-FileCopyrightText` years in edited files and license sidecars to be normalized to `YYYY` or `YYYY-YYYY` without spaces
