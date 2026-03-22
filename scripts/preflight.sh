@@ -46,10 +46,15 @@ echo "Using base branch: $BASE"
 # Fetch base branch for PR size check with 30s timeout (prevents indefinite hang; failure is handled later)
 timeout 30 git fetch origin "$BASE" 2>/dev/null || true
 
-if git rev-parse -q --verify "origin/$BASE" >/dev/null 2>&1; then
+if ! git rev-parse -q --verify "origin/$BASE" >/dev/null 2>&1; then
+  echo "Warning: Cannot verify base branch origin/$BASE - skipping .gitattributes symlink check." >&2
+  echo "Tip: Run 'git fetch origin $BASE' to enable this check." >&2
+else
   MERGE_BASE=$(git merge-base "origin/$BASE" HEAD 2>/dev/null || true)
 
-  if [ -n "$MERGE_BASE" ]; then
+  if [ -z "$MERGE_BASE" ]; then
+    echo "Warning: Cannot determine merge base with origin/$BASE - skipping .gitattributes symlink check." >&2
+  else
     GITATTRIBUTES_SYMLINK_COMMITS=""
 
     while IFS= read -r commit; do
