@@ -98,6 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `scripts/preflight.sh` now blocks branches whose commit range contains a symlinked `.gitattributes`, preventing the remote push warning investigated in #138 from being reintroduced
 - Activity log contract responses now match the backend resource and verification payload shapes
 - OpenAPI 3.1 now models nullable `Customer.contact` and `Site.contact` references correctly
 - **Employee OpenAPI contract now matches backend request/response behavior** (#116)

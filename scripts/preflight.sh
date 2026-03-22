@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-FileCopyrightText: 2025 SecPal Contributors
+# SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 # SPDX-License-Identifier: MIT
 
 set -euo pipefail
@@ -45,6 +45,31 @@ echo "Using base branch: $BASE"
 
 # Fetch base branch for PR size check with 30s timeout (prevents indefinite hang; failure is handled later)
 timeout 30 git fetch origin "$BASE" 2>/dev/null || true
+
+if git rev-parse -q --verify "origin/$BASE" >/dev/null 2>&1; then
+  MERGE_BASE=$(git merge-base "origin/$BASE" HEAD 2>/dev/null || true)
+
+  if [ -n "$MERGE_BASE" ]; then
+    GITATTRIBUTES_SYMLINK_COMMITS=""
+
+    while IFS= read -r commit; do
+      mode=$(git ls-tree "$commit" .gitattributes | awk '{print $1}')
+
+      if [ "$mode" = "120000" ]; then
+        GITATTRIBUTES_SYMLINK_COMMITS="${GITATTRIBUTES_SYMLINK_COMMITS}${commit}\n"
+      fi
+    done < <(git rev-list --reverse "$MERGE_BASE"..HEAD)
+
+    if [ -n "$GITATTRIBUTES_SYMLINK_COMMITS" ]; then
+      echo "" >&2
+      echo "❌ BLOCKED: .gitattributes must never be committed as a symlink." >&2
+      echo "The following commit(s) in this branch contain a symlinked .gitattributes:" >&2
+      printf '%b' "$GITATTRIBUTES_SYMLINK_COMMITS" >&2
+      echo "Replace the symlink with a real file copy before pushing." >&2
+      exit 1
+    fi
+  fi
+fi
 
 # 0) Formatting & Compliance
 FORMAT_EXIT=0
