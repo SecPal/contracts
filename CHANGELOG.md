@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Added explicit top-level OpenAPI tag declarations for all currently used operation groups so documentation tooling can render consistent tag metadata and descriptions (#129)
+
 ### Removed
 
 - Removed the deleted legacy product-module contract, including its retired CRUD, sharing, and attachment endpoints and schemas.
