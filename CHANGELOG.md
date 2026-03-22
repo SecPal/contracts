@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Added explicit top-level OpenAPI tag declarations for all currently used operation groups so documentation tooling can render consistent tag metadata and descriptions (#129)
 - `.github/copilot-instructions.md` now requires a branch hygiene check before any write action so contract work never starts on local `main` and dirty non-`main` branches must be assessed before continuing
 - `.github/copilot-instructions.md` now requires stale `SPDX-FileCopyrightText` years in edited files and license sidecars to be normalized to `YYYY` or `YYYY-YYYY` without spaces
 - `.github/copilot-instructions.md` now clarifies that if an edited file has no inline SPDX header, its companion `.license` file must be checked and updated instead
@@ -53,6 +54,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Schema Compliance**: Fixed batch_uuid format to proper UUID format (removed "batch-" prefix)
   - **Error Schema**: Added required `code` property to all error examples for schema compliance
   - Related: Closes #462 (Activity Logging OpenAPI Documentation)
+
+- **Preflight Script Performance**: Optimized `scripts/preflight.sh` for significantly faster local development
+  - Prettier/markdownlint: Check only changed files in branch instead of all files (up to 10-100x faster for small changes)
+  - composer/npm/pnpm: Skip dependency installation if lockfile unchanged and vendor/node_modules exists (saves minutes per push)
+  - npm audit: Only run after fresh install, skip when dependencies unchanged (saves 5-10s network call)
+  - git fetch: Cache for 5 minutes with 30s timeout to prevent hanging on slow networks
+  - Expected improvement: 60s → 10s for doc fixes, 90s → 25s for API changes without dependency updates
+  - All quality gates remain enforced: Pint, PHPStan, Prettier, Markdownlint, OpenAPI validation, REUSE
 
 ### Added
 
@@ -85,16 +94,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Exit codes: 0 = clean, 1 = conflicts detected
   - Prevents accidental commits of broken code from merge conflicts
   - Colored output shows exact file locations and line numbers
-
-### Changed
-
-- **Preflight Script Performance**: Optimized `scripts/preflight.sh` for significantly faster local development
-  - Prettier/markdownlint: Check only changed files in branch instead of all files (up to 10-100x faster for small changes)
-  - composer/npm/pnpm: Skip dependency installation if lockfile unchanged and vendor/node_modules exists (saves minutes per push)
-  - npm audit: Only run after fresh install, skip when dependencies unchanged (saves 5-10s network call)
-  - git fetch: Cache for 5 minutes with 30s timeout to prevent hanging on slow networks
-  - Expected improvement: 60s → 10s for doc fixes, 90s → 25s for API changes without dependency updates
-  - All quality gates remain enforced: Pint, PHPStan, Prettier, Markdownlint, OpenAPI validation, REUSE
 
 ### Fixed
 

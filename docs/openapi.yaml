@@ -37,6 +37,24 @@ servers:
 
 security: []
 
+tags:
+  - name: Monitoring
+    description: Service health and operational readiness endpoints.
+  - name: Activity Logs
+    description: Tamper-evident audit trail operations and verification flows.
+  - name: Employees
+    description: Employee lifecycle management endpoints.
+  - name: Customers
+    description: Customer management and related customer-scoped resources.
+  - name: Sites
+    description: Site management endpoints and site-related nested resources.
+  - name: Assignments
+    description: Customer, site, and self-service assignment operations.
+  - name: Me
+    description: Authenticated user endpoints for personal assignment views.
+  - name: Cost Centers
+    description: Site-scoped cost center management endpoints.
+
 components:
   schemas:
     Error:
