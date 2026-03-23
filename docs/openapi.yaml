@@ -596,7 +596,8 @@ components:
           enum: [full_time, part_time, minijob, freelance]
         send_invitation:
           type: boolean
-          description: Sends the onboarding invitation immediately after employee creation. Allowed only for pre_contract employees.
+          default: false
+          description: If true, sends the onboarding invitation immediately after employee creation; if false or omitted, no invitation is sent. Allowed only for pre_contract employees.
         weekly_hours:
           type: [number, 'null']
           format: float
