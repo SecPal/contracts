@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Aligned `EmployeeCreateRequest` with the employee-create API validation so `date_of_birth`, `position`, `contract_start_date`, and `organizational_unit_id` are now required and non-null in the shared contract (#141)
+
 ### Removed
 
 - Removed the deleted legacy product-module contract, including its retired CRUD, sharing, and attachment endpoints and schemas.
