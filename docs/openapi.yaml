@@ -449,10 +449,14 @@ components:
       required:
         - first_name
         - last_name
+        - date_of_birth
         - email
         - status
+        - position
         - management_level
+        - contract_start_date
         - contract_type
+        - organizational_unit_id
       properties:
         first_name:
           type: string
@@ -461,7 +465,7 @@ components:
           type: string
           maxLength: 255
         date_of_birth:
-          type: [string, 'null']
+          type: string
           format: date
         email:
           type: string
@@ -573,7 +577,7 @@ components:
           type: string
           enum: [applicant, pre_contract, active, on_leave, terminated]
         position:
-          type: [string, 'null']
+          type: string
           maxLength: 255
         management_level:
           type: integer
@@ -583,7 +587,7 @@ components:
           type: [string, 'null']
           format: date
         contract_start_date:
-          type: [string, 'null']
+          type: string
           format: date
         termination_date:
           type: [string, 'null']
@@ -661,7 +665,7 @@ components:
           type: [string, 'null']
           format: date
         organizational_unit_id:
-          type: [string, 'null']
+          type: string
           format: uuid
 
     EmployeeUpdateRequest:
