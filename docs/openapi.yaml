@@ -594,6 +594,10 @@ components:
         contract_type:
           type: string
           enum: [full_time, part_time, minijob, freelance]
+        send_invitation:
+          type: boolean
+          default: false
+          description: If true, sends the onboarding invitation immediately after employee creation; if false or omitted, no invitation is sent. Allowed only for pre_contract employees.
         weekly_hours:
           type: [number, 'null']
           format: float
@@ -881,6 +885,29 @@ components:
         data:
           $ref: '#/components/schemas/Employee'
 
+    EmployeeOnboardingInvitation:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [not_requested, sent, created_not_sent, failed]
+        requested_at:
+          type: [string, 'null']
+          format: date-time
+        token_created_at:
+          type: [string, 'null']
+          format: date-time
+        mail_sent_at:
+          type: [string, 'null']
+          format: date-time
+        mail_failed_at:
+          type: [string, 'null']
+          format: date-time
+        failure_reason:
+          type: [string, 'null']
+
     EmployeeCollectionResponse:
       type: object
       required:
@@ -912,6 +939,7 @@ components:
         - contract_type
         - user_account_active
         - onboarding_completed
+        - onboarding_invitation
         - created_at
         - updated_at
       properties:
@@ -1129,6 +1157,8 @@ components:
         onboarding_completed_at:
           type: [string, 'null']
           format: date-time
+        onboarding_invitation:
+          $ref: '#/components/schemas/EmployeeOnboardingInvitation'
         organizational_unit_id:
           type: [string, 'null']
           format: uuid
