@@ -1966,10 +1966,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
-                message: This endpoint requires a browser session context. Use /v1/auth/token for API clients.
+                message: This endpoint requires a browser session context. Use /auth/token for API clients.
                 code: BAD_REQUEST
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /auth/token:
     post:
@@ -1997,6 +1999,8 @@ paths:
                 $ref: '#/components/schemas/TokenLoginResponse'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /auth/logout:
     post:
@@ -2022,6 +2026,8 @@ paths:
                 $ref: '#/components/schemas/LogoutMessageResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /auth/session/logout:
     post:
@@ -2043,6 +2049,8 @@ paths:
                 $ref: '#/components/schemas/LogoutMessageResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /auth/logout-all:
     post:
@@ -2061,15 +2069,11 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - message
-                properties:
-                  message:
-                    type: string
-                    example: All tokens revoked successfully
+                $ref: '#/components/schemas/LogoutMessageResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /me:
     get:
@@ -2093,6 +2097,8 @@ paths:
                 $ref: '#/components/schemas/AuthenticatedUser'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /me/language:
     patch:
@@ -2122,6 +2128,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /me/organizational-scopes:
     get:
@@ -2149,6 +2157,8 @@ paths:
                       $ref: '#/components/schemas/MyOrganizationalScope'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /activity-logs:
     get:
