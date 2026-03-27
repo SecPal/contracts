@@ -643,6 +643,23 @@ components:
           minLength: 2
           maxLength: 2
 
+    EmployeeStatus:
+      type: string
+      description: |
+        Official employee lifecycle status.
+
+        - `applicant`: candidate record; onboarding invitation is not available yet.
+        - `pre_contract`: contract preparation phase; onboarding invitation and onboarding portal access are allowed.
+        - `active`: actively employed.
+        - `on_leave`: temporarily absent while still employed.
+        - `terminated`: employment ended.
+      enum: [applicant, pre_contract, active, on_leave, terminated]
+
+    EmployeeInvitableStatus:
+      type: string
+      description: Employee status that may receive an onboarding invitation.
+      enum: [pre_contract]
+
     EmployeeCreateRequest:
       type: object
       required:
@@ -773,8 +790,7 @@ components:
           type: [string, 'null']
           maxLength: 255
         status:
-          type: string
-          enum: [applicant, pre_contract, active, on_leave, terminated]
+          $ref: '#/components/schemas/EmployeeStatus'
         position:
           type: string
           maxLength: 255
@@ -800,7 +816,7 @@ components:
         send_invitation:
           type: boolean
           default: false
-          description: If true, sends the onboarding invitation immediately after employee creation; if false or omitted, no invitation is sent. Allowed only for pre_contract employees.
+          description: If true, sends the onboarding invitation immediately after employee creation. This is allowed only when `status` is `pre_contract`; requests using any other status are rejected with a validation error.
         weekly_hours:
           type: [number, 'null']
           format: float
@@ -990,8 +1006,7 @@ components:
           type: [string, 'null']
           maxLength: 255
         status:
-          type: string
-          enum: [applicant, pre_contract, active, on_leave, terminated]
+          $ref: '#/components/schemas/EmployeeStatus'
         position:
           type: [string, 'null']
           maxLength: 255
@@ -1096,6 +1111,20 @@ components:
         status:
           type: string
           enum: [not_requested, sent, created_not_sent, failed]
+        available:
+          type: boolean
+          description: Whether an onboarding invitation may currently be requested for this employee.
+          example: false
+        eligible_statuses:
+          type: array
+          description: Employee statuses that are allowed to receive onboarding invitations.
+          items:
+            $ref: '#/components/schemas/EmployeeInvitableStatus'
+          example: [pre_contract]
+        rule_message:
+          type: [string, 'null']
+          description: Human-readable explanation of the onboarding invitation rule for the current employee status.
+          example: Onboarding invitations are only available while the employee is in pre_contract status.
         requested_at:
           type: [string, 'null']
           format: date-time
@@ -1259,8 +1288,8 @@ components:
           description: Decrypted
           example: '12 345678 A 123'
         status:
-          type: string
-          enum: [applicant, pre_contract, active, on_leave, terminated]
+          allOf:
+            - $ref: '#/components/schemas/EmployeeStatus'
           example: 'active'
         hire_date:
           type: [string, 'null']
@@ -2848,7 +2877,7 @@ paths:
   /employees:
     get:
       summary: List Employees
-      description: Get paginated list of all employees in the tenant
+      description: Get paginated list of all employees in the tenant. Valid lifecycle statuses are `applicant`, `pre_contract`, `active`, `on_leave`, and `terminated`.
       operationId: listEmployees
       tags:
         - Employees
@@ -2872,10 +2901,9 @@ paths:
             default: 15
         - name: status
           in: query
-          description: Filter employees by employment status
+          description: Filter employees by the official lifecycle status.
           schema:
-            type: string
-            enum: [applicant, pre_contract, active, on_leave, terminated]
+            $ref: '#/components/schemas/EmployeeStatus'
       responses:
         '200':
           description: List of employees
@@ -2892,7 +2920,7 @@ paths:
 
     post:
       summary: Create Employee
-      description: Create a new employee record
+      description: Create a new employee record. Onboarding invitations may only be requested during the `pre_contract` phase.
       operationId: createEmployee
       tags:
         - Employees
