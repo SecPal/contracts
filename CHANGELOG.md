@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- documented the canonical auth/self-service contract surface in `docs/openapi.yaml` for Issue #146, including `POST /auth/login`, `POST /auth/token`, `POST /auth/logout`, the deprecated legacy alias `POST /auth/session/logout`, `POST /auth/logout-all`, and the official `/me` self-service namespace
+
 ### Removed
 
 - Removed the deleted legacy product-module contract, including its retired CRUD, sharing, and attachment endpoints and schemas.

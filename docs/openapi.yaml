@@ -10,7 +10,7 @@ info:
 
     ## Security
 
-    - **Authentication:** Bearer token (JWT) required for most endpoints
+    - **Authentication:** Laravel Sanctum with first-party browser sessions and Personal Access Tokens
     - **Rate Limiting:** 100 requests per minute per API key
     - **CORS:** Allowed origins must be configured in application settings
     - **Security Headers:** HSTS, CSP, X-Frame-Options enforced
@@ -38,6 +38,8 @@ servers:
 security: []
 
 tags:
+  - name: Authentication
+    description: Login and logout endpoints for browser-session and Bearer-token clients.
   - name: Monitoring
     description: Service health and operational readiness endpoints.
   - name: Activity Logs
@@ -51,7 +53,7 @@ tags:
   - name: Assignments
     description: Customer, site, and self-service assignment operations.
   - name: Me
-    description: Authenticated user endpoints for personal assignment views.
+    description: Canonical self-service endpoints for the authenticated caller under the `/me` namespace.
   - name: Cost Centers
     description: Site-scoped cost center management endpoints.
 
@@ -362,6 +364,203 @@ components:
           type: string
           format: email
           example: 'max.mustermann@secpal.app'
+
+    AuthenticatedUser:
+      type: object
+      description: Authenticated user profile and authorization context returned by auth and self-service endpoints.
+      required:
+        - id
+        - name
+        - email
+        - roles
+        - permissions
+        - hasOrganizationalScopes
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: 'John Doe'
+        email:
+          type: string
+          format: email
+          example: 'john.doe@secpal.app'
+        roles:
+          type: array
+          items:
+            type: string
+          example: ['Admin']
+        permissions:
+          type: array
+          items:
+            type: string
+          example: ['employees.read', 'reports.generate']
+        hasOrganizationalScopes:
+          type: boolean
+          example: true
+
+    SessionLoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: 'john.doe@secpal.app'
+        password:
+          type: string
+          format: password
+          example: 'CorrectHorseBatteryStaple!'
+
+    TokenLoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: 'john.doe@secpal.app'
+        password:
+          type: string
+          format: password
+          example: 'CorrectHorseBatteryStaple!'
+        device_name:
+          type: string
+          description: Friendly client identifier for the created personal access token.
+          example: 'android-phone'
+
+    SessionLoginResponse:
+      type: object
+      required:
+        - user
+      properties:
+        user:
+          $ref: '#/components/schemas/AuthenticatedUser'
+
+    TokenLoginResponse:
+      type: object
+      required:
+        - token
+        - user
+      properties:
+        token:
+          type: string
+          description: Plain-text Laravel Sanctum personal access token.
+          example: '1|abcdefghijklmnopqrstuvwxyz1234567890'
+        user:
+          $ref: '#/components/schemas/AuthenticatedUser'
+
+    LogoutMessageResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: 'Logged out successfully'
+
+    UpdateLanguagePreferenceRequest:
+      type: object
+      required:
+        - locale
+      properties:
+        locale:
+          type: ['null', string]
+          description: Preferred locale for the authenticated user, or `null` to clear the preference.
+          example: 'de'
+
+    UpdateLanguagePreferenceResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          required:
+            - preferred_locale
+          properties:
+            preferred_locale:
+              type: ['null', string]
+              example: 'de'
+
+    MyOrganizationalScope:
+      type: object
+      required:
+        - id
+        - user_id
+        - organizational_unit_id
+        - access_level
+        - include_descendants
+        - min_viewable_rank
+        - max_viewable_rank
+        - min_assignable_rank
+        - max_assignable_rank
+        - allow_self_access
+        - created_at
+        - updated_at
+        - organizational_unit
+      properties:
+        id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 42
+        organizational_unit_id:
+          type: string
+          format: uuid
+          example: '550e8400-e29b-41d4-a716-446655440010'
+        access_level:
+          type: string
+          example: 'admin'
+        include_descendants:
+          type: boolean
+          example: true
+        min_viewable_rank:
+          type: [integer, 'null']
+          example: 1
+        max_viewable_rank:
+          type: [integer, 'null']
+          example: 10
+        min_assignable_rank:
+          type: [integer, 'null']
+          example: 1
+        max_assignable_rank:
+          type: [integer, 'null']
+          example: 5
+        allow_self_access:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          example: '2026-03-27T10:15:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          example: '2026-03-27T10:15:00Z'
+        organizational_unit:
+          type: object
+          required:
+            - id
+            - name
+            - type
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: '550e8400-e29b-41d4-a716-446655440010'
+            name:
+              type: string
+              example: 'Operations'
+            type:
+              type: string
+              example: 'department'
 
     EmployeeOrganizationalUnitSummary:
       type: object
@@ -1627,7 +1826,7 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
           example:
-            message: Authentication required
+            message: Unauthenticated.
             code: UNAUTHORIZED
 
     Forbidden:
@@ -1690,10 +1889,20 @@ components:
     BearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: JWT
+      bearerFormat: Sanctum PAT
       description: |
-        JWT-based authentication. Include the token in the Authorization header:
+        Laravel Sanctum personal access token authentication. Include the token in the Authorization header:
         `Authorization: Bearer <token>`
+    SessionAuth:
+      type: apiKey
+      in: cookie
+      name: laravel_session
+      description: First-party browser session authentication for the SecPal SPA.
+    CsrfToken:
+      type: apiKey
+      in: header
+      name: X-XSRF-TOKEN
+      description: Required on state-changing requests that use `SessionAuth`.
 
 paths:
   /health:
@@ -1720,6 +1929,226 @@ paths:
               example:
                 message: Service temporarily unavailable
                 code: SERVICE_UNAVAILABLE
+
+  # =============================================================================
+  # Authentication & Self-Service Endpoints
+  # =============================================================================
+
+  /auth/login:
+    post:
+      summary: Log In with Browser Session
+      description: |
+        Start a first-party browser session for the SecPal SPA.
+
+        This endpoint is reserved for session-based login flows that completed the Sanctum CSRF/cookie bootstrap via `/sanctum/csrf-cookie`.
+        Stateless API clients must use `/auth/token` instead.
+      operationId: loginWithSession
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionLoginRequest'
+      responses:
+        '200':
+          description: Browser session established successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionLoginResponse'
+        '400':
+          description: Wrong login context for the endpoint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: This endpoint requires a browser session context. Use /v1/auth/token for API clients.
+                code: BAD_REQUEST
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/token:
+    post:
+      summary: Create Bearer Token
+      description: |
+        Authenticate a non-browser client and return a Laravel Sanctum personal access token.
+
+        Use this endpoint for Android, native, CLI, and integration clients. Browser SPAs should use `/auth/login` instead.
+      operationId: createAuthToken
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenLoginRequest'
+      responses:
+        '201':
+          description: Bearer token created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenLoginResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/logout:
+    post:
+      summary: Log Out Current Session or Token
+      description: |
+        Canonical logout endpoint for authenticated clients.
+
+        - Browser sessions use the current Sanctum session plus `X-XSRF-TOKEN`
+        - Bearer-token clients revoke the current personal access token
+      operationId: logoutCurrentAuthContext
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      responses:
+        '200':
+          description: Authenticated context logged out successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutMessageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/session/logout:
+    post:
+      summary: Legacy Browser Session Logout Alias
+      description: Deprecated compatibility alias for older SPA clients. New clients should use `/auth/logout`.
+      operationId: logoutLegacySessionAlias
+      tags:
+        - Authentication
+      deprecated: true
+      security:
+        - SessionAuth: []
+          CsrfToken: []
+      responses:
+        '200':
+          description: Session logged out successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutMessageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout-all:
+    post:
+      summary: Revoke All Personal Access Tokens
+      description: Revoke every Laravel Sanctum personal access token for the authenticated user.
+      operationId: logoutAllDevices
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      responses:
+        '200':
+          description: All personal access tokens revoked successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message
+                properties:
+                  message:
+                    type: string
+                    example: All tokens revoked successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /me:
+    get:
+      summary: Get Current User
+      description: |
+        Canonical self-service endpoint for the authenticated caller.
+
+        This endpoint is the supported way to retrieve the caller's profile and authorization context. Similar guessed aliases such as `/auth/me`, `/user`, `/user/profile`, and `/profile` are intentionally undefined.
+      operationId: getCurrentUser
+      tags:
+        - Me
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      responses:
+        '200':
+          description: Authenticated user returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticatedUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /me/language:
+    patch:
+      summary: Update My Preferred Language
+      description: Update the authenticated user's preferred locale.
+      operationId: updateMyLanguagePreference
+      tags:
+        - Me
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLanguagePreferenceRequest'
+      responses:
+        '200':
+          description: Preferred locale updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateLanguagePreferenceResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /me/organizational-scopes:
+    get:
+      summary: Get My Organizational Scopes
+      description: Retrieve the authenticated user's organizational scope assignments.
+      operationId: getMyOrganizationalScopes
+      tags:
+        - Me
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      responses:
+        '200':
+          description: Organizational scopes retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MyOrganizationalScope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /activity-logs:
     get:
