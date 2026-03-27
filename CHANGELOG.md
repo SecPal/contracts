@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- clarified the employee lifecycle contract by centralizing the official status set (`applicant`, `pre_contract`, `active`, `on_leave`, `terminated`), documenting that onboarding invitations are only allowed for `pre_contract`, and exposing invitation-eligibility metadata in employee response schemas
+- Clarified the employee lifecycle contract by centralizing the official status set (`applicant`, `pre_contract`, `active`, `on_leave`, `terminated`), documenting that onboarding invitations are only allowed for `pre_contract`, and exposing invitation-eligibility metadata in employee response schemas
 
 - Documented the canonical auth/self-service contract surface in `docs/openapi.yaml` for Issue #146, including `POST /auth/login`, `POST /auth/token`, `POST /auth/logout`, the deprecated legacy alias `POST /auth/session/logout`, `POST /auth/logout-all`, and the official `/me` self-service namespace
 - Documented the employee invite flow in the OpenAPI contract by adding `send_invitation` to employee creation requests and the persisted `onboarding_invitation` delivery-status block to employee responses

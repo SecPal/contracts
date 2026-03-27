@@ -816,7 +816,7 @@ components:
         send_invitation:
           type: boolean
           default: false
-          description: If true, sends the onboarding invitation immediately after employee creation. This is allowed only when `status` is `pre_contract`; requests using any other status are rejected with a validation error.
+          description: If true, sends the onboarding invitation immediately after employee creation, subject to server-side validation rules for the employee's status.
         weekly_hours:
           type: [number, 'null']
           format: float
@@ -2877,7 +2877,7 @@ paths:
   /employees:
     get:
       summary: List Employees
-      description: Get paginated list of all employees in the tenant. Valid lifecycle statuses are `applicant`, `pre_contract`, `active`, `on_leave`, and `terminated`.
+      description: Get paginated list of all employees in the tenant. Results can be filtered by the official employee lifecycle status as defined in the `EmployeeStatus` schema.
       operationId: listEmployees
       tags:
         - Employees
