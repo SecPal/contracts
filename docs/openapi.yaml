@@ -375,6 +375,8 @@ components:
         - roles
         - permissions
         - hasOrganizationalScopes
+        - hasCustomerAccess
+        - hasSiteAccess
       properties:
         id:
           type: integer
@@ -398,6 +400,14 @@ components:
           example: ['employees.read', 'reports.generate']
         hasOrganizationalScopes:
           type: boolean
+          example: true
+        hasCustomerAccess:
+          type: boolean
+          description: Whether the authenticated user may access customer collections either globally or through scoped assignments.
+          example: true
+        hasSiteAccess:
+          type: boolean
+          description: Whether the authenticated user may access site collections either globally or through scoped assignments.
           example: true
 
     SessionLoginRequest:
