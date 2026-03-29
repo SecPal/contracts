@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- aligned the contract repo's domain guidance and the OpenAPI base/server URLs with the active host split: `api.secpal.dev` for the API, `app.secpal.dev` for the PWA, `secpal.app` for the public homepage and real email addresses, and `app.secpal.app` only as the Android identifier
+
 ### Removed
 
 - Removed the deleted legacy product-module contract, including its retired CRUD, sharing, and attachment endpoints and schemas.
