@@ -12,10 +12,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- aligned the contract repo's domain guidance and the OpenAPI base/server URLs with the active host split: `api.secpal.dev` for the API, `app.secpal.dev` for the PWA, `secpal.app` for the public homepage and real email addresses, and `app.secpal.app` only as the Android identifier
-
 ### Removed
 
 - Removed the deleted legacy product-module contract, including its retired CRUD, sharing, and attachment endpoints and schemas.
@@ -33,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Aligned the contract repo's domain guidance and the OpenAPI base/server URLs with the active host split: `api.secpal.dev` for the API, `app.secpal.dev` for the PWA, `secpal.app` for the public homepage and real email addresses, and `app.secpal.app` only as the Android identifier
 - Extended the authenticated-user schema with explicit `hasCustomerAccess` and `hasSiteAccess` flags so clients can distinguish scoped collection access from pure role/permission metadata and keep customer/site route gating consistent with the API's fail-closed collection behavior
 - Clarified the employee lifecycle contract by centralizing the official status set (`applicant`, `pre_contract`, `active`, `on_leave`, `terminated`), documenting that onboarding invitations are only allowed for `pre_contract`, and exposing invitation-eligibility metadata in employee response schemas
 
