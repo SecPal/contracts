@@ -30,10 +30,8 @@ info:
     url: https://spdx.org/licenses/AGPL-3.0-or-later.html
 
 servers:
-  - url: https://api.secpal.app/v1
-    description: Production Server
-  - url: https://api.staging.secpal.app/v1
-    description: Staging Server
+  - url: https://api.secpal.dev/v1
+    description: Live API Server
 
 security: []
 
@@ -2460,10 +2458,10 @@ paths:
                         created_at: '2025-01-15T14:20:00Z'
                         updated_at: '2025-01-15T14:20:00Z'
                     links:
-                      first: https://api.secpal.app/v1/activity-logs?page=1
-                      last: https://api.secpal.app/v1/activity-logs?page=10
+                      first: https://api.secpal.dev/v1/activity-logs?page=1
+                      last: https://api.secpal.dev/v1/activity-logs?page=10
                       prev: null
-                      next: https://api.secpal.app/v1/activity-logs?page=2
+                      next: https://api.secpal.dev/v1/activity-logs?page=2
                     meta:
                       current_page: 1
                       from: 1

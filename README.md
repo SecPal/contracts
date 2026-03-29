@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 SecPal
+SPDX-FileCopyrightText: 2025-2026 SecPal
 SPDX-License-Identifier: CC0-1.0
 -->
 
@@ -18,7 +18,7 @@ This repository contains the OpenAPI 3.1 specifications for the SecPal API. It s
 - **OpenAPI Format:** 3.1.0
 - **API Version:** `0.0.1` (Initial Development)
 - **Specification File:** `docs/openapi.yaml`
-- **Base URL:** `https://api.secpal.app/v1`
+- **Base URL:** `https://api.secpal.dev/v1`
 - **Last Updated:** 2025-10-25
 
 ### Available Endpoints
