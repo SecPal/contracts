@@ -2331,39 +2331,9 @@ paths:
                     items:
                       $ref: '#/components/schemas/Activity'
                   links:
-                    type: object
-                    properties:
-                      first:
-                        type: string
-                        format: uri
-                      last:
-                        type: string
-                        format: uri
-                      prev:
-                        type: string
-                        format: uri
-                        nullable: true
-                      next:
-                        type: string
-                        format: uri
-                        nullable: true
+                    $ref: '#/components/schemas/PaginationLinks'
                   meta:
-                    type: object
-                    properties:
-                      current_page:
-                        type: integer
-                      from:
-                        type: integer
-                        nullable: true
-                      last_page:
-                        type: integer
-                      per_page:
-                        type: integer
-                      to:
-                        type: integer
-                        nullable: true
-                      total:
-                        type: integer
+                    $ref: '#/components/schemas/PaginationMeta'
               examples:
                 paginatedResponse:
                   summary: Paginated list with 3 activities

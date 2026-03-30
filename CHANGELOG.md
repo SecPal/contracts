@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced the remaining inline activity-log pagination schema with shared `PaginationLinks` and `PaginationMeta` component references so paginated responses use the contract's canonical pagination building blocks
 - Updated `@redocly/cli` from `2.25.2` to `2.25.3` so `npm run validate` no longer emits the current upgrade banner tracked in #156
 
 - Aligned the contract repo's domain guidance and the OpenAPI base/server URLs with the active host split: `api.secpal.dev` for the API, `app.secpal.dev` for the PWA, `secpal.app` for the public homepage and real email addresses, and `app.secpal.app` only as the Android identifier
