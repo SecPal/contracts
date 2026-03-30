@@ -2706,12 +2706,17 @@ paths:
                         type: object
                         required:
                           - chain_valid
+                          - chain_link_valid
                           - merkle_valid
                           - ots_valid
                         properties:
                           chain_valid:
                             type: boolean
                             description: Whether the blockchain chain is valid
+                            example: true
+                          chain_link_valid:
+                            type: boolean
+                            description: Whether the current hash chain link is valid
                             example: true
                           merkle_valid:
                             type: boolean
@@ -2776,6 +2781,7 @@ paths:
                       activity_id: '550e8400-e29b-41d4-a716-446655440001'
                       verification:
                         chain_valid: true
+                        chain_link_valid: true
                         merkle_valid: true
                         ots_valid: true
                       details:
@@ -2793,6 +2799,7 @@ paths:
                       activity_id: '550e8400-e29b-41d4-a716-446655440004'
                       verification:
                         chain_valid: true
+                        chain_link_valid: true
                         merkle_valid: true
                         ots_valid: false
                       details:
@@ -2810,6 +2817,7 @@ paths:
                       activity_id: '550e8400-e29b-41d4-a716-446655440005'
                       verification:
                         chain_valid: true
+                        chain_link_valid: true
                         merkle_valid: true
                         ots_valid: false
                       details:
@@ -2827,6 +2835,7 @@ paths:
                       activity_id: '550e8400-e29b-41d4-a716-446655440006'
                       verification:
                         chain_valid: false
+                        chain_link_valid: false
                         merkle_valid: false
                         ots_valid: false
                       details:
@@ -2844,6 +2853,7 @@ paths:
                       activity_id: '550e8400-e29b-41d4-a716-446655440007'
                       verification:
                         chain_valid: true
+                        chain_link_valid: true
                         merkle_valid: false
                         ots_valid: false
                       details:
