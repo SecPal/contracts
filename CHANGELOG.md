@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Added the missing `chain_link_valid` field to the `GET /v1/activity-logs/{activity}/verify` response schema so generated clients and response validators match the API payload
+
 ### Removed
 
 - Removed the deleted legacy product-module contract, including its retired CRUD, sharing, and attachment endpoints and schemas.
