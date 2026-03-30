@@ -2716,7 +2716,7 @@ paths:
                             example: true
                           chain_link_valid:
                             type: boolean
-                            description: Whether the current hash chain link is valid
+                            description: Whether the immediate predecessor link is valid
                             example: true
                           merkle_valid:
                             type: boolean
