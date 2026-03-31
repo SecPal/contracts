@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- reduced the repo-local Copilot always-on context by replacing the long runtime baseline and removing the auto-loaded overlay fallback, which lowers request size in large VS Code workspaces without dropping the contract-specific governance rules
+
 - Replaced the remaining inline activity-log pagination schema with shared `PaginationLinks` and `PaginationMeta` component references so paginated responses use the contract's canonical pagination building blocks
 - Updated `@redocly/cli` from `2.25.2` to `2.25.3` so `npm run validate` no longer emits the current upgrade banner tracked in #156
 
