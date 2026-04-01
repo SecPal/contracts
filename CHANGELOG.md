@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Switched the Contracts repo's Prettier and OpenAPI PR checks to repo-local workflow jobs so contract PRs no longer fail when the shared `.github` composite Node setup action path is unavailable during GitHub Actions resolution
 - Added the missing `chain_link_valid` field to the `GET /v1/activity-logs/{activity}/verify` response schema so generated clients and response validators match the API payload
 
 ### Removed
