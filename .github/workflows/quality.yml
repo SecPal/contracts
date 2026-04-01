@@ -22,25 +22,7 @@ jobs:
 
   prettier:
     name: Prettier Formatting
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run Prettier check
-        run: npm run format:check
+    uses: ./.github/workflows/local-prettier.yml
 
   markdown-lint:
     name: Markdown Lint
@@ -48,25 +30,7 @@ jobs:
 
   openapi-lint:
     name: OpenAPI Lint
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Validate OpenAPI specification
-        run: npm run lint
+    uses: ./.github/workflows/local-openapi-lint.yml
 
   actionlint:
     name: Actionlint

@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Switched the Contracts repo's Prettier and OpenAPI PR checks to repo-local workflow jobs so contract PRs no longer fail when the shared `.github` composite Node setup action path is unavailable during GitHub Actions resolution
+- introduced repo-local `local-prettier.yml` and `local-openapi-lint.yml` reusable workflows that produce the `Prettier Formatting / Check Code Formatting` and `OpenAPI Lint / Validate OpenAPI Specification` check names required by branch protection, working around a CI failure in the shared `reusable-prettier` and `reusable-openapi-lint` caused by the newly introduced `setup-node-with-deps` composite action (tracked in SecPal/.github#293)
 - Added the missing `chain_link_valid` field to the `GET /v1/activity-logs/{activity}/verify` response schema so generated clients and response validators match the API payload
 
 ### Removed
