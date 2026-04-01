@@ -29,9 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `.github/instructions/openapi.instructions.md` - targeted OpenAPI contract guidance for `docs/openapi.yaml`
 - `.github/instructions/github-workflows.instructions.md` - targeted workflow and Dependabot guidance for GitHub automation files in this repo
-- `.github/instructions/org-shared.instructions.md` — org-wide Copilot principles auto-loaded for all files via `applyTo: "**"`
+- `.github/instructions/org-shared.instructions.md` — org-wide Copilot principles available as a repo-local overlay that can be loaded
+  manually for contract-relevant files
 
 ### Changed
+
+- Reduced the repo-local Copilot always-on context by replacing the long runtime baseline and removing the auto-loaded overlay fallback, which lowers request size in large VS Code workspaces without dropping the contract-specific governance rules
 
 - Replaced the remaining inline activity-log pagination schema with shared `PaginationLinks` and `PaginationMeta` component references so paginated responses use the contract's canonical pagination building blocks
 - Updated `@redocly/cli` from `2.25.2` to `2.25.3` so `npm run validate` no longer emits the current upgrade banner tracked in #156
