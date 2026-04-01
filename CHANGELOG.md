@@ -29,7 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `.github/instructions/openapi.instructions.md` - targeted OpenAPI contract guidance for `docs/openapi.yaml`
 - `.github/instructions/github-workflows.instructions.md` - targeted workflow and Dependabot guidance for GitHub automation files in this repo
-- `.github/instructions/org-shared.instructions.md` — org-wide Copilot principles loaded for contract-relevant files
+- `.github/instructions/org-shared.instructions.md` — org-wide Copilot principles available as a repo-local overlay that can be loaded
+  manually for contract-relevant files
 
 ### Changed
 
