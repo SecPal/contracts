@@ -513,47 +513,56 @@ components:
         challenge:
           $ref: '#/components/schemas/MfaChallenge'
 
-    MfaChallengeVerificationRequest:
-      type: object
-      required:
-        - method
-        - code
-      properties:
-        method:
-          type: string
-          enum: [totp, recovery_code]
-          example: totp
-        code:
-          type: string
-          description: TOTP code or recovery code for the pending login challenge.
-          example: '123456'
-
     CompletedLoginResponse:
-      type: object
       description: Final authenticated login result returned after a pending MFA challenge is verified.
-      required:
-        - user
-        - authentication
-      properties:
-        token:
-          type: string
-          description: Present only when the verified challenge completes a token-based login.
-          example: '1|abcdefghijklmnopqrstuvwxyz1234567890'
-        user:
-          $ref: '#/components/schemas/AuthenticatedUser'
-        authentication:
+      oneOf:
+        - title: SessionCompletion
           type: object
           required:
-            - mode
-            - mfa_completed
+            - user
+            - authentication
           properties:
-            mode:
+            user:
+              $ref: '#/components/schemas/AuthenticatedUser'
+            authentication:
+              type: object
+              required:
+                - mode
+                - mfa_completed
+              properties:
+                mode:
+                  type: string
+                  enum: [session]
+                  example: session
+                mfa_completed:
+                  type: boolean
+                  example: true
+        - title: TokenCompletion
+          type: object
+          required:
+            - user
+            - authentication
+            - token
+          properties:
+            token:
               type: string
-              enum: [session, token]
-              example: token
-            mfa_completed:
-              type: boolean
-              example: true
+              description: Bearer token for the completed token-based login.
+              example: '1|abcdefghijklmnopqrstuvwxyz1234567890'
+            user:
+              $ref: '#/components/schemas/AuthenticatedUser'
+            authentication:
+              type: object
+              required:
+                - mode
+                - mfa_completed
+              properties:
+                mode:
+                  type: string
+                  enum: [token]
+                  example: token
+                mfa_completed:
+                  type: boolean
+                  example: true
 
     MfaStatus:
       type: object
@@ -2337,7 +2346,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MfaChallengeVerificationRequest'
+              $ref: '#/components/schemas/MfaVerificationCodeRequest'
       responses:
         '200':
           description: MFA challenge verified and the login flow completed successfully
