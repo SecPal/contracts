@@ -12,8 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Documented the phase-1 MFA contract in `docs/openapi.yaml`, including pending login challenges for `/auth/login` and `/auth/token`, MFA challenge verification, authenticated TOTP enrollment, self-service disablement, and one-time recovery-code regeneration semantics
+- `.github/instructions/openapi.instructions.md` - targeted OpenAPI contract guidance for `docs/openapi.yaml`
+- `.github/instructions/github-workflows.instructions.md` - targeted workflow and Dependabot guidance for GitHub automation files in this repo
+- `.github/instructions/org-shared.instructions.md` — org-wide Copilot principles available as a repo-local overlay that can be loaded
+  manually for contract-relevant files
+
 ### Fixed
 
+- Introduced repo-local `local-prettier.yml` and `local-openapi-lint.yml` reusable workflows that produce the `Prettier Formatting / Check Code Formatting` and `OpenAPI Lint / Validate OpenAPI Specification` check names required by branch protection, working around a CI failure in the shared `reusable-prettier` and `reusable-openapi-lint` caused by the newly introduced `setup-node-with-deps` composite action (tracked in SecPal/.github#293)
 - Added the missing `chain_link_valid` field to the `GET /v1/activity-logs/{activity}/verify` response schema so generated clients and response validators match the API payload
 
 ### Removed
@@ -24,13 +33,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Scoped the transitive `undici` override to `@redocly/cli` and pinned it to `6.24.0` so contract validation tooling no longer resolves the vulnerable HTTP client release reported by `npm audit`
 - Pinned transitive `brace-expansion` and `yaml` resolutions to patched semver-compatible releases so the contracts toolchain no longer reports the moderate `npm audit` findings surfaced during the Redocly CLI maintenance update
-
-### Added
-
-- `.github/instructions/openapi.instructions.md` - targeted OpenAPI contract guidance for `docs/openapi.yaml`
-- `.github/instructions/github-workflows.instructions.md` - targeted workflow and Dependabot guidance for GitHub automation files in this repo
-- `.github/instructions/org-shared.instructions.md` — org-wide Copilot principles available as a repo-local overlay that can be loaded
-  manually for contract-relevant files
 
 ### Changed
 

@@ -37,7 +37,7 @@ security: []
 
 tags:
   - name: Authentication
-    description: Login and logout endpoints for browser-session and Bearer-token clients.
+    description: Login, logout, and MFA challenge endpoints for browser-session and Bearer-token clients.
   - name: Monitoring
     description: Service health and operational readiness endpoints.
   - name: Activity Logs
@@ -462,6 +462,249 @@ components:
           example: '1|abcdefghijklmnopqrstuvwxyz1234567890'
         user:
           $ref: '#/components/schemas/AuthenticatedUser'
+
+    MfaChallenge:
+      type: object
+      description: Pending MFA login challenge created after primary credentials are accepted.
+      required:
+        - id
+        - purpose
+        - login_context
+        - primary_method
+        - available_methods
+        - expires_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: '550e8400-e29b-41d4-a716-446655440099'
+        purpose:
+          type: string
+          enum: [login]
+          example: login
+        login_context:
+          type: string
+          description: Authentication mode that will be completed once the challenge is verified.
+          enum: [session, token]
+          example: session
+        primary_method:
+          type: string
+          enum: [totp]
+          example: totp
+        available_methods:
+          type: array
+          description: Verification methods accepted for this challenge.
+          minItems: 1
+          items:
+            type: string
+            enum: [totp, recovery_code]
+          example: [totp, recovery_code]
+        expires_at:
+          type: string
+          format: date-time
+          example: '2026-04-01T09:30:00Z'
+
+    LoginMfaChallengeResponse:
+      type: object
+      description: Primary credentials were accepted, but MFA must be completed before an authenticated context is issued.
+      required:
+        - challenge
+      properties:
+        challenge:
+          $ref: '#/components/schemas/MfaChallenge'
+
+    CompletedLoginResponse:
+      description: Final authenticated login result returned after a pending MFA challenge is verified.
+      oneOf:
+        - title: SessionCompletion
+          type: object
+          required:
+            - user
+            - authentication
+          properties:
+            user:
+              $ref: '#/components/schemas/AuthenticatedUser'
+            authentication:
+              type: object
+              required:
+                - mode
+                - mfa_completed
+              properties:
+                mode:
+                  type: string
+                  enum: [session]
+                  example: session
+                mfa_completed:
+                  type: boolean
+                  example: true
+        - title: TokenCompletion
+          type: object
+          required:
+            - user
+            - authentication
+            - token
+          properties:
+            token:
+              type: string
+              description: Bearer token for the completed token-based login.
+              example: '1|abcdefghijklmnopqrstuvwxyz1234567890'
+            user:
+              $ref: '#/components/schemas/AuthenticatedUser'
+            authentication:
+              type: object
+              required:
+                - mode
+                - mfa_completed
+              properties:
+                mode:
+                  type: string
+                  enum: [token]
+                  example: token
+                mfa_completed:
+                  type: boolean
+                  example: true
+
+    MfaStatus:
+      type: object
+      description: Phase-1 MFA state for the authenticated user.
+      required:
+        - enabled
+        - method
+        - recovery_codes_remaining
+        - recovery_codes_generated_at
+        - enrolled_at
+      properties:
+        enabled:
+          type: boolean
+          example: true
+        method:
+          type: [string, 'null']
+          enum: [totp, null]
+          example: totp
+        recovery_codes_remaining:
+          type: integer
+          minimum: 0
+          example: 8
+        recovery_codes_generated_at:
+          type: [string, 'null']
+          format: date-time
+          example: '2026-04-01T09:12:00Z'
+        enrolled_at:
+          type: [string, 'null']
+          format: date-time
+          example: '2026-04-01T09:10:00Z'
+
+    MfaStatusResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/MfaStatus'
+
+    TotpCodeRequest:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          description: Six-digit TOTP verification code.
+          example: '123456'
+
+    MfaVerificationCodeRequest:
+      type: object
+      required:
+        - method
+        - code
+      properties:
+        method:
+          type: string
+          enum: [totp, recovery_code]
+          example: recovery_code
+        code:
+          type: string
+          description: Current TOTP code or one unused recovery code.
+          example: 'B6F4-2Q8P'
+
+    TotpEnrollmentPreparation:
+      type: object
+      description: Pending TOTP enrollment material returned to the authenticated user before confirmation.
+      required:
+        - issuer
+        - account_name
+        - manual_entry_key
+        - otpauth_uri
+        - expires_at
+      properties:
+        issuer:
+          type: string
+          example: SecPal
+        account_name:
+          type: string
+          example: john.doe@secpal.app
+        manual_entry_key:
+          type: string
+          description: Base32 secret for manual authenticator setup.
+          example: 'JBSWY3DPEHPK3PXP'
+        otpauth_uri:
+          type: string
+          description: otpauth URI that clients can encode as a QR code.
+          example: 'otpauth://totp/SecPal:john.doe@secpal.app?secret=JBSWY3DPEHPK3PXP&issuer=SecPal'
+        expires_at:
+          type: string
+          format: date-time
+          example: '2026-04-01T09:25:00Z'
+
+    MfaTotpEnrollmentResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/TotpEnrollmentPreparation'
+
+    MfaRecoveryCodeReveal:
+      type: object
+      description: Plaintext recovery codes returned only immediately after activation or regeneration.
+      required:
+        - codes
+        - generated_at
+      properties:
+        codes:
+          type: array
+          minItems: 8
+          items:
+            type: string
+          example:
+            - 'B6F4-2Q8P'
+            - 'F9LM-7N2R'
+            - 'HT4V-3KQ1'
+            - 'J8PW-6CX5'
+            - 'M2TR-9DZ7'
+            - 'Q4YS-8LB2'
+            - 'V7NK-5HF9'
+            - 'X3CE-1RM6'
+        generated_at:
+          type: string
+          format: date-time
+          example: '2026-04-01T09:12:00Z'
+
+    MfaRecoveryCodeRevealResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          required:
+            - status
+            - recovery_codes
+          properties:
+            status:
+              $ref: '#/components/schemas/MfaStatus'
+            recovery_codes:
+              $ref: '#/components/schemas/MfaRecoveryCodeReveal'
 
     LogoutMessageResponse:
       type: object
@@ -1856,6 +2099,16 @@ components:
             message: Invalid request parameters
             code: BAD_REQUEST
 
+    Conflict:
+      description: Conflict - Request cannot be completed in the current resource state
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: MFA is already enabled for this account.
+            code: CONFLICT
+
     Unauthorized:
       description: Unauthorized - Authentication required
       content:
@@ -1911,6 +2164,16 @@ components:
                   email: ['The email has already been taken.']
                   date_of_birth:
                     ['The date of birth must be a date before today.']
+
+    TooManyRequests:
+      description: Too Many Requests - Request throttled
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Too many attempts. Please try again later.
+            code: TOO_MANY_REQUESTS
 
     InternalServerError:
       description: Internal Server Error
@@ -1979,6 +2242,8 @@ paths:
 
         This endpoint is reserved for session-based login flows that completed the Sanctum CSRF/cookie bootstrap via `/sanctum/csrf-cookie`.
         Stateless API clients must use `/auth/token` instead.
+
+        If the supplied credentials are valid for an MFA-enabled account, the API returns a pending login challenge instead of establishing the session immediately.
       operationId: loginWithSession
       tags:
         - Authentication
@@ -1996,6 +2261,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SessionLoginResponse'
+        '202':
+          description: Primary credentials accepted, but MFA challenge verification is required before the session is established
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginMfaChallengeResponse'
         '400':
           description: Wrong login context for the endpoint
           content:
@@ -2005,6 +2276,8 @@ paths:
               example:
                 message: This endpoint requires a browser session context. Use /auth/token for API clients.
                 code: BAD_REQUEST
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '422':
           $ref: '#/components/responses/ValidationError'
         '500':
@@ -2017,6 +2290,8 @@ paths:
         Authenticate a non-browser client and return a Laravel Sanctum personal access token.
 
         Use this endpoint for Android, native, CLI, and integration clients. Browser SPAs should use `/auth/login` instead.
+
+        If the supplied credentials are valid for an MFA-enabled account, the API returns a pending login challenge and issues no token until the challenge is verified.
       operationId: createAuthToken
       tags:
         - Authentication
@@ -2034,8 +2309,59 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TokenLoginResponse'
+        '202':
+          description: Primary credentials accepted, but MFA challenge verification is required before the token is issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginMfaChallengeResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/mfa-challenges/{challengeId}/verify:
+    post:
+      summary: Verify Pending MFA Login Challenge
+      description: |
+        Complete a pending login challenge after the caller already passed the primary email/password step.
+
+        No authenticated session or bearer token is issued until this verification succeeds. The challenge carries the original login context, so successful verification either finalizes the browser session or returns the pending personal access token.
+      operationId: verifyLoginMfaChallenge
+      tags:
+        - Authentication
+      security: []
+      parameters:
+        - name: challengeId
+          in: path
+          required: true
+          description: MFA challenge identifier returned by `/auth/login` or `/auth/token`.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaVerificationCodeRequest'
+      responses:
+        '200':
+          description: MFA challenge verified and the login flow completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompletedLoginResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -2165,6 +2491,173 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /me/mfa:
+    get:
+      summary: Get My MFA Status
+      description: |
+        Retrieve the authenticated user's phase-1 MFA status.
+
+        Plaintext recovery codes are intentionally never returned by this endpoint. They are revealed only immediately after MFA activation or explicit regeneration.
+      operationId: getMyMfaStatus
+      tags:
+        - Me
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      responses:
+        '200':
+          description: MFA status returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      summary: Disable My MFA
+      description: |
+        Disable TOTP-based MFA for the authenticated user.
+
+        The caller must confirm the action with either a current TOTP code or one unused recovery code. Successful disablement invalidates all remaining recovery codes.
+      operationId: disableMyMfa
+      tags:
+        - Me
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaVerificationCodeRequest'
+      responses:
+        '200':
+          description: MFA disabled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /me/mfa/totp/enrollment:
+    post:
+      summary: Start My TOTP Enrollment
+      description: |
+        Create or replace the authenticated user's pending TOTP enrollment material.
+
+        Starting a new enrollment invalidates any previous unconfirmed setup material. MFA remains disabled until `/me/mfa/totp/enrollment/confirm` succeeds.
+      operationId: createMyTotpEnrollment
+      tags:
+        - Me
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      responses:
+        '201':
+          description: Pending TOTP enrollment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaTotpEnrollmentResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /me/mfa/totp/enrollment/confirm:
+    post:
+      summary: Confirm My TOTP Enrollment
+      description: |
+        Confirm the pending TOTP enrollment with a current authenticator code.
+
+        Successful confirmation enables MFA immediately and returns the initial recovery-code set for one-time display.
+      operationId: confirmMyTotpEnrollment
+      tags:
+        - Me
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TotpCodeRequest'
+      responses:
+        '200':
+          description: TOTP enrollment confirmed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaRecoveryCodeRevealResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /me/mfa/recovery-codes/regenerate:
+    post:
+      summary: Regenerate My Recovery Codes
+      description: |
+        Replace every existing recovery code for the authenticated user.
+
+        The caller must confirm with either a current TOTP code or one unused recovery code. The new plaintext recovery codes are returned only once in this response.
+      operationId: regenerateMyRecoveryCodes
+      tags:
+        - Me
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaVerificationCodeRequest'
+      responses:
+        '200':
+          description: Recovery codes regenerated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaRecoveryCodeRevealResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
 

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2025 SecPal
+# SPDX-FileCopyrightText: 2025-2026 SecPal
 # SPDX-License-Identifier: CC0-1.0
 
 name: Code Quality
@@ -22,7 +22,7 @@ jobs:
 
   prettier:
     name: Prettier Formatting
-    uses: SecPal/.github/.github/workflows/reusable-prettier.yml@main
+    uses: ./.github/workflows/local-prettier.yml
 
   markdown-lint:
     name: Markdown Lint
@@ -30,9 +30,7 @@ jobs:
 
   openapi-lint:
     name: OpenAPI Lint
-    uses: SecPal/.github/.github/workflows/reusable-openapi-lint.yml@main
-    with:
-      openapi-file: 'docs/openapi.yaml'
+    uses: ./.github/workflows/local-openapi-lint.yml
 
   actionlint:
     name: Actionlint
