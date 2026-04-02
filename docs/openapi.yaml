@@ -3385,6 +3385,20 @@ paths:
           description: Filter employees by the official lifecycle status.
           schema:
             $ref: '#/components/schemas/EmployeeStatus'
+        - name: search
+          in: query
+          required: false
+          description: Search employees by name or email.
+          schema:
+            type: string
+            maxLength: 255
+        - name: organizational_unit_id
+          in: query
+          required: false
+          description: Filter employees by organizational unit.
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
           description: List of employees
