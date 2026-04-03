@@ -3367,6 +3367,7 @@ paths:
       parameters:
         - name: page
           in: query
+          required: false
           description: Page number for pagination
           schema:
             type: integer
@@ -3374,6 +3375,7 @@ paths:
             default: 1
         - name: per_page
           in: query
+          required: false
           description: Number of items per page (max 100)
           schema:
             type: integer
@@ -3382,9 +3384,24 @@ paths:
             default: 15
         - name: status
           in: query
+          required: false
           description: Filter employees by the official lifecycle status.
           schema:
             $ref: '#/components/schemas/EmployeeStatus'
+        - name: search
+          in: query
+          required: false
+          description: Search employees by name or email.
+          schema:
+            type: string
+            maxLength: 255
+        - name: organizational_unit_id
+          in: query
+          required: false
+          description: Filter employees by organizational unit.
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
           description: List of employees
