@@ -24,7 +24,7 @@ Do not assume instructions from sibling repositories or comment-based inheritanc
 - Keep `SPDX-FileCopyrightText` years current in edited files or companion `.license` sidecars.
 - Domain policy is strict: `secpal.app` for the public homepage and real email addresses,
   `api.secpal.dev` for the API, `app.secpal.dev` for the PWA/frontend, `secpal.dev` for dev,
-  staging, testing, and examples, and `app.secpal.app` only as the Android application identifier.
+  staging, testing, and examples, and `app.secpal` only as the Android application identifier.
 
 ## Required Validation
 
