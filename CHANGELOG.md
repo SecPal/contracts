@@ -43,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced the remaining inline activity-log pagination schema with shared `PaginationLinks` and `PaginationMeta` component references so paginated responses use the contract's canonical pagination building blocks
 - Updated `@redocly/cli` from `2.25.2` to `2.25.3` so `npm run validate` no longer emits the current upgrade banner tracked in #156
 
-- Aligned the contract repo's domain guidance and the OpenAPI base/server URLs with the active host split: `api.secpal.dev` for the API, `app.secpal.dev` for the PWA, `secpal.app` for the public homepage and real email addresses, and the Android application identifier only for Android packaging
+- Aligned the contract repo's domain guidance and the OpenAPI base/server URLs with the active host split: `api.secpal.dev` for the API, `app.secpal.dev` for the PWA, `secpal.app` for the public homepage and real email addresses, and `app.secpal` as the Android application identifier used only for Android packaging
 - Extended the authenticated-user schema with explicit `hasCustomerAccess` and `hasSiteAccess` flags so clients can distinguish scoped collection access from pure role/permission metadata and keep customer/site route gating consistent with the API's fail-closed collection behavior
 - Clarified the employee lifecycle contract by centralizing the official status set (`applicant`, `pre_contract`, `active`, `on_leave`, `terminated`), documenting that onboarding invitations are only allowed for `pre_contract`, and exposing invitation-eligibility metadata in employee response schemas
 
