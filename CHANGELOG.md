@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added a repo-local `license/cla` workflow that replaces the flaky hosted CLA status with a deterministic GitHub Actions gate, stores signature metadata on the `cla-signatures` branch, and lets missing contributors sign by posting the documented pull-request comment
 - Documented the phase-1 MFA contract in `docs/openapi.yaml`, including pending login challenges for `/auth/login` and `/auth/token`, MFA challenge verification, authenticated TOTP enrollment, self-service disablement, and one-time recovery-code regeneration semantics
 - `.github/instructions/openapi.instructions.md` - targeted OpenAPI contract guidance for `docs/openapi.yaml`
 - `.github/instructions/github-workflows.instructions.md` - targeted workflow and Dependabot guidance for GitHub automation files in this repo
