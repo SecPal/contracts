@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- restored explicit repo-local Copilot governance by making contract-first and test-first work, quality-first, one-topic-per-PR, immediate issue creation for out-of-scope findings, and EPIC-plus-sub-issue requirements always-on again; the contracts runtime overlay now auto-loads repo-wide so these rules remain present while working
+- clarified the repo-local PR workflow so finished contract work must be self-reviewed, committed, and pushed before any PR exists, and the first PR state must always be draft until the final PR-view self-review is clean
 - Updated the repo-local domain guidance and validation script for the renamed Android application identifier `app.secpal`, removing the old identifier-only exception from current policy text
 - Reduced the repo-local Copilot always-on context by replacing the long runtime baseline and removing the auto-loaded overlay fallback, which lowers request size in large VS Code workspaces without dropping the contract-specific governance rules
 
