@@ -370,6 +370,7 @@ components:
         - id
         - name
         - email
+        - emailVerified
         - roles
         - permissions
         - hasOrganizationalScopes
@@ -386,6 +387,10 @@ components:
           type: string
           format: email
           example: 'john.doe@secpal.app'
+        emailVerified:
+          type: boolean
+          description: Whether the authenticated user's email address has been verified.
+          example: true
         roles:
           type: array
           items:

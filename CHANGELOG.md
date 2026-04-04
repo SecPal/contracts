@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Extended the authenticated-user schema with an explicit `emailVerified` flag so browser and native clients can gate unverified accounts consistently without inferring verification state from downstream `403` route errors
 - Documented the previously implemented `search` and `organizational_unit_id` query filters for `GET /v1/employees` so the OpenAPI contract matches the frontend and API behavior
 - Introduced repo-local `local-prettier.yml` and `local-openapi-lint.yml` reusable workflows that produce the `Prettier Formatting / Check Code Formatting` and `OpenAPI Lint / Validate OpenAPI Specification` check names required by branch protection, working around a CI failure in the shared `reusable-prettier` and `reusable-openapi-lint` caused by the newly introduced `setup-node-with-deps` composite action (tracked in SecPal/.github#293)
 - Added the missing `chain_link_valid` field to the `GET /v1/activity-logs/{activity}/verify` response schema so generated clients and response validators match the API payload
@@ -37,8 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Restored explicit repo-local Copilot governance by making contract-first and test-first work, quality-first, one-topic-per-PR, immediate issue creation for out-of-scope findings, and EPIC-plus-sub-issue requirements always-on again; the contracts runtime overlay now auto-loads repo-wide so these rules remain present while working
+- Clarified the repo-local PR workflow so finished contract work must be self-reviewed, committed, and pushed before any PR exists, and the first PR state must always be draft until the final PR-view self-review is clean
 - Updated the repo-local domain guidance and validation script for the renamed Android application identifier `app.secpal`, removing the old identifier-only exception from current policy text
-- Reduced the repo-local Copilot always-on context by replacing the long runtime baseline and removing the auto-loaded overlay fallback, which lowers request size in large VS Code workspaces without dropping the contract-specific governance rules
 
 - Replaced the remaining inline activity-log pagination schema with shared `PaginationLinks` and `PaginationMeta` component references so paginated responses use the contract's canonical pagination building blocks
 - Updated `@redocly/cli` from `2.25.2` to `2.25.3` so `npm run validate` no longer emits the current upgrade banner tracked in #156
