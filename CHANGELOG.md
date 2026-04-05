@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Added the missing `403 Forbidden` response to `GET /v1/onboarding/completion-status` so the onboarding contract matches the verified-auth runtime behavior for authenticated but not fully eligible callers
 - Aligned MFA recovery-code request and response examples with the canonical API payload shape of raw 8-character uppercase alphanumeric strings, and clarified that any visual grouping is a client-side presentation concern rather than part of the contract
 - Extended the authenticated-user schema with an explicit `emailVerified` flag so browser and native clients can gate unverified accounts consistently without inferring verification state from downstream `403` route errors
 - Documented the previously implemented `search` and `organizational_unit_id` query filters for `GET /v1/employees` so the OpenAPI contract matches the frontend and API behavior
