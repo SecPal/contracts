@@ -10,8 +10,11 @@ Do not assume instructions from sibling repositories or comment-based inheritanc
 
 ## Always-On Rules
 
-- Run `git status --short --branch` before any write action. Never start implementation on local `main`,
-  and stop if a dirty non-`main` branch contains unrelated work.
+- Run `git status --short --branch` before any write action. New work must
+  start from a clean, up-to-date local `main`: switch to `main`, pull with
+  fast-forward only, verify a clean state, then create the dedicated topic
+  branch. Never start implementation on local `main`, and stop if a dirty
+  non-`main` branch contains unrelated work.
 - TDD and contract-first discipline are mandatory. Update the smallest relevant failing contract, example,
   or validation FIRST, then implement downstream changes and refactor with validation green.
 - Quality first. Do not trade correctness, review depth, validation depth, or issue tracking for speed.
@@ -32,6 +35,11 @@ Do not assume instructions from sibling repositories or comment-based inheritanc
 - Domain policy is strict: `secpal.app` for the public homepage and real email addresses,
   `api.secpal.dev` for the API, `app.secpal.dev` for the PWA/frontend, `secpal.dev` for dev,
   staging, testing, and examples, and `app.secpal` only as the Android application identifier.
+- After every merge, immediately return the local repo to a ready state:
+  switch to `main`, pull with fast-forward only, delete the merged topic
+  branch, prune remotes, refresh Node dependencies with `npm ci` where
+  applicable, run `npm run build` when available, and confirm the working tree
+  is clean.
 
 ## Design Principles
 
