@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Aligned MFA recovery-code request and response examples with the canonical API payload shape of raw 8-character uppercase alphanumeric strings, and clarified that any visual grouping is a client-side presentation concern rather than part of the contract
 - Extended the authenticated-user schema with an explicit `emailVerified` flag so browser and native clients can gate unverified accounts consistently without inferring verification state from downstream `403` route errors
 - Documented the previously implemented `search` and `organizational_unit_id` query filters for `GET /v1/employees` so the OpenAPI contract matches the frontend and API behavior
 - Introduced repo-local `local-prettier.yml` and `local-openapi-lint.yml` reusable workflows that produce the `Prettier Formatting / Check Code Formatting` and `OpenAPI Lint / Validate OpenAPI Specification` check names required by branch protection, working around a CI failure in the shared `reusable-prettier` and `reusable-openapi-lint` caused by the newly introduced `setup-node-with-deps` composite action (tracked in SecPal/.github#293)
