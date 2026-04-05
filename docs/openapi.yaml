@@ -80,6 +80,26 @@ components:
           description: Additional error details
           additionalProperties: true
 
+    ValidationProblem:
+      type: object
+      required:
+        - message
+        - errors
+      properties:
+        message:
+          type: string
+          description: General validation failure message.
+          example: The given data was invalid.
+        errors:
+          type: object
+          description: Field-specific validation errors keyed by request field name.
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            email: ['The email field must be a valid email address.']
+
     Activity:
       type: object
       required:
@@ -2131,8 +2151,10 @@ components:
           format: date-time
         onboarding_completed:
           type: boolean
+          description: Whether all required onboarding dossier artifacts have been completed. This is not the same as activation readiness.
         onboarding_steps:
           type: [object, 'null']
+          description: Client-facing onboarding progress payload stored on the employee record.
         onboarding_started_at:
           type: [string, 'null']
           format: date-time
@@ -2377,6 +2399,13 @@ components:
         - `rejected`: HR requested changes; employee must revise and resubmit.
       enum: [draft, submitted, approved, rejected]
 
+    OnboardingFormSubmissionWriteStatus:
+      type: string
+      description: Employee-writable onboarding form submission state accepted by `POST /onboarding/submissions`.
+      enum:
+        - draft
+        - submitted
+
     OnboardingFormSubmission:
       type: object
       description: A single form submission within the onboarding dossier.
@@ -2471,7 +2500,7 @@ components:
           description: Submission data conforming to the template's `form_schema`.
           additionalProperties: true
         status:
-          $ref: '#/components/schemas/OnboardingSubmissionStatus'
+          $ref: '#/components/schemas/OnboardingFormSubmissionWriteStatus'
 
     OnboardingSubmissionRejectRequest:
       type: object
@@ -2593,6 +2622,55 @@ components:
       properties:
         data:
           $ref: '#/components/schemas/OnboardingFormSubmission'
+
+    OnboardingSubmissionUploadDocumentType:
+      type: string
+      description: Supported onboarding dossier attachment type.
+      enum:
+        - contract
+        - id_document
+        - banking_details
+
+    UploadOnboardingSubmissionFileRequest:
+      type: object
+      required:
+        - file
+        - document_type
+      properties:
+        file:
+          type: string
+          format: binary
+          description: Binary attachment payload for the onboarding dossier.
+        document_type:
+          $ref: '#/components/schemas/OnboardingSubmissionUploadDocumentType'
+
+    OnboardingSubmissionFileUpload:
+      type: object
+      required:
+        - id
+        - filename
+      properties:
+        id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+          description: Persisted original filename returned after a successful upload.
+
+    OnboardingSubmissionFileUploadResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/OnboardingSubmissionFileUpload'
+
+    OnboardingConfirmationRequest:
+      type: object
+      properties:
+        notes:
+          type: [string, 'null']
+          maxLength: 1000
 
     # =============================================================================
     # Customer & Site Management Schemas (Epic #210)
@@ -3075,26 +3153,19 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            required:
-              - message
-              - errors
-            properties:
-              message:
-                type: string
-                description: General validation error message
-                example: 'The given data was invalid.'
-              errors:
-                type: object
-                description: Field-specific validation errors
-                additionalProperties:
-                  type: array
-                  items:
-                    type: string
-                example:
-                  email: ['The email has already been taken.']
-                  date_of_birth:
-                    ['The date of birth must be a date before today.']
+            $ref: '#/components/schemas/ValidationProblem'
+
+    UnprocessableEntity:
+      description: Unprocessable Entity - Input validation or workflow preconditions failed
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/Error'
+              - $ref: '#/components/schemas/ValidationProblem'
+          example:
+            message: Employee onboarding dossier must be complete before confirmation.
+            code: UNPROCESSABLE_ENTITY
 
     TooManyRequests:
       description: Too Many Requests - Request throttled
@@ -6485,8 +6556,53 @@ paths:
                 $ref: '#/components/schemas/OnboardingCompletionStatusResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /onboarding/submissions/{submission}/files:
+    post:
+      summary: Upload Onboarding Submission Attachment
+      description: Upload a binary attachment for an existing onboarding form submission owned by the authenticated pre-contract employee.
+      operationId: uploadOnboardingSubmissionFile
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - name: submission
+          in: path
+          required: true
+          description: Submission UUID.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadOnboardingSubmissionFileRequest'
+      responses:
+        '201':
+          description: Onboarding submission attachment uploaded successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingSubmissionFileUploadResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -6575,5 +6691,51 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/onboarding/employees/{employee}/confirm:
+    post:
+      summary: Confirm Onboarding Dossier And Contract State
+      description: |
+        Perform the explicit HR/compliance confirmation step for a pre-contract employee after dossier review.
+
+        This action advances the employee workflow to `contract_confirmed` and may immediately promote the workflow to `ready_for_activation` when the contract start date gate is already satisfied.
+      operationId: confirmEmployeeOnboarding
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - name: employee
+          in: path
+          required: true
+          description: Employee UUID.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingConfirmationRequest'
+      responses:
+        '200':
+          description: Employee onboarding dossier confirmed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
         '500':
           $ref: '#/components/responses/InternalServerError'
