@@ -38,8 +38,8 @@ Do not assume instructions from sibling repositories or comment-based inheritanc
 - After every merge, immediately return the local repo to a ready state:
   switch to `main`, pull with fast-forward only, delete the merged topic
   branch, prune remotes, refresh Node dependencies with `npm ci` where
-  applicable, run `npm run build` when available, and confirm the working tree
-  is clean.
+  applicable, run `npm run validate`, run `npm run build` if present, and
+  confirm the working tree is clean.
 
 ## Design Principles
 
