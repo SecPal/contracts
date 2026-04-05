@@ -571,7 +571,7 @@ components:
 
     MfaStatus:
       type: object
-      description: Phase-1 MFA state for the authenticated user.
+      description: Phase-1 MFA state for a user.
       required:
         - enabled
         - method
@@ -710,6 +710,29 @@ components:
               $ref: '#/components/schemas/MfaStatus'
             recovery_codes:
               $ref: '#/components/schemas/MfaRecoveryCodeReveal'
+
+    AdminMfaResetRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+          description: Human-readable reason recorded in the audit trail for the administrative MFA reset.
+          example: 'Lost authenticator device'
+
+    AdminMfaResetResponse:
+      type: object
+      required:
+        - message
+        - data
+      properties:
+        message:
+          type: string
+          example: 'Two-factor authentication has been reset for the user.'
+        data:
+          $ref: '#/components/schemas/MfaStatus'
 
     LogoutMessageResponse:
       type: object
@@ -2657,6 +2680,61 @@ paths:
                 $ref: '#/components/schemas/MfaRecoveryCodeRevealResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /users/{user}/mfa:
+    delete:
+      summary: Reset User MFA
+      description: |
+        Administratively reset the target user's MFA enrollment.
+
+        This endpoint is intended for same-tenant support or security staff who hold the dedicated `users.reset_mfa` permission. It clears an enabled MFA enrollment or an unconfirmed pending enrollment and records the supplied reason in the authentication audit trail.
+
+        The endpoint cannot be used for self-service MFA removal. Callers must use `/me/mfa` to disable their own MFA.
+
+        **Note on request body:** This `DELETE` operation requires a JSON body carrying the audit `reason`. Some HTTP clients and middleware drop bodies on `DELETE` requests. Integrators must ensure the `Content-Type: application/json` header is set and the body is transmitted; verify behaviour with your HTTP client before deploying.
+      operationId: resetUserMfa
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - name: user
+          in: path
+          required: true
+          description: Target user identifier.
+          schema:
+            type: string
+            format: uuid
+            example: '550e8400-e29b-41d4-a716-446655440099'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminMfaResetRequest'
+      responses:
+        '200':
+          description: MFA reset completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMfaResetResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
         '422':
