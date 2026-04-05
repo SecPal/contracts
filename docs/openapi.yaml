@@ -2230,7 +2230,7 @@ components:
         email:
           type: string
           format: email
-          example: 'max.mustermann@example.secpal.dev'
+          example: 'max.mustermann@secpal.dev'
         first_name:
           type: [string, 'null']
           example: 'Max'
@@ -6328,7 +6328,7 @@ paths:
         Updates an existing form submission (PATCH semantics — all request fields optional).
         Passing `submit: true` transitions the submission from `draft` to `submitted`.
 
-        Only submissions in `draft` or `changes_requested` status may be updated.
+        Only submissions in `draft` or `rejected` status may be updated.
       operationId: updateOnboardingSubmission
       tags:
         - Onboarding
@@ -6378,7 +6378,7 @@ paths:
       summary: Upload Onboarding Submission File
       description: |
         Uploads a file attachment to an existing onboarding submission.
-        Only submissions in `draft` or `changes_requested` status accept new file uploads.
+        Only submissions in `draft` or `rejected` status accept new file uploads.
       operationId: uploadOnboardingSubmissionFile
       tags:
         - Onboarding
