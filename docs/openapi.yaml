@@ -1920,6 +1920,7 @@ components:
         - contract_type
         - user_account_active
         - onboarding_completed
+        - onboarding_workflow
         - onboarding_invitation
         - created_at
         - updated_at
@@ -2278,8 +2279,7 @@ components:
               format: uuid
               example: '550e8400-e29b-41d4-a716-446655440000'
             status:
-              type: string
-              example: pre_contract
+              $ref: '#/components/schemas/EmployeeStatus'
             onboarding_steps:
               type: [object, 'null']
               additionalProperties: true
@@ -2574,8 +2574,25 @@ components:
                 last_name:
                   type: string
                 status:
-                  type: string
-                  example: pre_contract
+                  $ref: '#/components/schemas/EmployeeStatus'
+
+    OnboardingFormTemplateResponse:
+      type: object
+      description: Single onboarding form template wrapped in a data envelope.
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/OnboardingFormTemplate'
+
+    OnboardingFormSubmissionResponse:
+      type: object
+      description: Single onboarding form submission wrapped in a data envelope.
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/OnboardingFormSubmission'
 
     # =============================================================================
     # Customer & Site Management Schemas (Epic #210)
@@ -6250,7 +6267,7 @@ paths:
 
   /onboarding/complete:
     post:
-      summary: Complete Onboarding Dossier
+      summary: Complete Onboarding Account Setup
       description: |
         Public bootstrap endpoint. Finalizes account bootstrap for an invited pre-contract employee,
         persists the supplied name and password, marks the invitation token as completed,
@@ -6265,9 +6282,6 @@ paths:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/OnboardingCompleteRequest'
-          multipart/form-data:
             schema:
               $ref: '#/components/schemas/OnboardingCompleteRequest'
       responses:
@@ -6370,12 +6384,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - data
-                properties:
-                  data:
-                    $ref: '#/components/schemas/OnboardingFormTemplate'
+                $ref: '#/components/schemas/OnboardingFormTemplateResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -6436,23 +6445,13 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - data
-                properties:
-                  data:
-                    $ref: '#/components/schemas/OnboardingFormSubmission'
+                $ref: '#/components/schemas/OnboardingFormSubmissionResponse'
         '201':
           description: Submission draft created successfully.
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - data
-                properties:
-                  data:
-                    $ref: '#/components/schemas/OnboardingFormSubmission'
+                $ref: '#/components/schemas/OnboardingFormSubmissionResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -6520,12 +6519,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - data
-                properties:
-                  data:
-                    $ref: '#/components/schemas/OnboardingFormSubmission'
+                $ref: '#/components/schemas/OnboardingFormSubmissionResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -6561,7 +6555,7 @@ paths:
             type: string
             format: uuid
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
@@ -6572,12 +6566,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - data
-                properties:
-                  data:
-                    $ref: '#/components/schemas/OnboardingFormSubmission'
+                $ref: '#/components/schemas/OnboardingFormSubmissionResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
