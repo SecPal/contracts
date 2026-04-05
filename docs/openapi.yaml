@@ -54,6 +54,10 @@ tags:
     description: Canonical self-service endpoints for the authenticated caller under the `/me` namespace.
   - name: Cost Centers
     description: Site-scoped cost center management endpoints.
+  - name: Onboarding
+    description: >-
+      Public bootstrap and authenticated onboarding workflow endpoints used by the pre-contract employee
+      dossier flow, HR review actions, and onboarding confirmation.
 
 components:
   schemas:
@@ -2134,6 +2138,13 @@ components:
         onboarding_completed_at:
           type: [string, 'null']
           format: date-time
+        onboarding_workflow:
+          anyOf:
+            - $ref: '#/components/schemas/OnboardingWorkflow'
+            - type: 'null'
+          description: >-
+            Explicit workflow state block. `onboarding_completed` signals dossier completeness;
+            `onboarding_workflow.status = ready_for_activation` signals activation readiness.
         onboarding_invitation:
           $ref: '#/components/schemas/EmployeeOnboardingInvitation'
         organizational_unit_id:
@@ -2156,6 +2167,321 @@ components:
         deleted_at:
           type: [string, 'null']
           format: date-time
+
+    # =============================================================================
+    # Onboarding Runtime Surface Schemas (Issue #180)
+    # =============================================================================
+
+    OnboardingWorkflowStatus:
+      type: string
+      description: |
+        Canonical onboarding workflow state for a pre-contract employee.
+
+        - `invited`: invitation sent, account not yet initialized.
+        - `account_initialized`: employee completed account bootstrap.
+        - `in_progress`: employee is actively filling out the dossier.
+        - `submitted_for_review`: dossier submitted and awaiting HR review.
+        - `changes_requested`: HR requested changes before the dossier can be approved.
+        - `contract_confirmed`: HR confirmed the contract; the employee is cleared for activation.
+        - `ready_for_activation`: all prerequisites met; awaiting final activation by HR or system.
+        - `active`: employee is fully active.
+      enum:
+        - invited
+        - account_initialized
+        - in_progress
+        - submitted_for_review
+        - changes_requested
+        - contract_confirmed
+        - ready_for_activation
+        - active
+
+    OnboardingWorkflow:
+      type: object
+      description: >-
+        Aggregated onboarding workflow state block embedded in the employee resource.
+        `onboarding_completed` signals dossier completeness; `status = ready_for_activation`
+        signals activation readiness — the two concepts are intentionally separate.
+      required:
+        - status
+      properties:
+        status:
+          $ref: '#/components/schemas/OnboardingWorkflowStatus'
+        updated_at:
+          type: [string, 'null']
+          format: date-time
+          description: Timestamp of the last workflow state transition.
+          example: '2025-03-10T09:00:00Z'
+
+    OnboardingTokenValidationResponse:
+      type: object
+      description: Response returned when a valid onboarding token is presented.
+      required:
+        - valid
+        - employee_id
+        - email
+      properties:
+        valid:
+          type: boolean
+          example: true
+        employee_id:
+          type: string
+          format: uuid
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        email:
+          type: string
+          format: email
+          example: 'max.mustermann@example.secpal.dev'
+        first_name:
+          type: [string, 'null']
+          example: 'Max'
+        last_name:
+          type: [string, 'null']
+          example: 'Mustermann'
+        expires_at:
+          type: [string, 'null']
+          format: date-time
+          example: '2025-04-15T23:59:59Z'
+
+    OnboardingStep:
+      type: object
+      description: A single step in the onboarding process.
+      required:
+        - key
+        - label
+        - completed
+      properties:
+        key:
+          type: string
+          example: personal_data
+        label:
+          type: string
+          example: Personal Data
+        completed:
+          type: boolean
+          example: false
+        required:
+          type: boolean
+          example: true
+        sort_order:
+          type: integer
+          example: 1
+
+    OnboardingStepsResponse:
+      type: object
+      description: Ordered list of onboarding steps for the authenticated employee's dossier.
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/OnboardingStep'
+
+    OnboardingFormTemplate:
+      type: object
+      description: >-
+        Form template definition used to render an onboarding dossier section.
+        `form_schema` is a JSON Schema object that clients use to render the dynamic form.
+      required:
+        - id
+        - name
+        - form_schema
+        - is_required
+        - is_system_template
+        - sort_order
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 'aab14c00-e29b-41d4-a716-446655440001'
+        name:
+          type: string
+          example: Personal Data
+        description:
+          type: [string, 'null']
+          example: Basic personal information required for onboarding.
+        form_schema:
+          type: object
+          description: JSON Schema definition used to render the dynamic form.
+          additionalProperties: true
+        is_required:
+          type: boolean
+          example: true
+        is_system_template:
+          type: boolean
+          description: If true, the template is managed by the system and cannot be deleted.
+          example: true
+        sort_order:
+          type: integer
+          example: 1
+
+    OnboardingSubmissionStatus:
+      type: string
+      description: >-
+        Review lifecycle status of a single form submission within the onboarding dossier.
+
+        - `draft`: employee is still editing.
+        - `submitted`: submitted for HR review.
+        - `approved`: HR approved this submission.
+        - `rejected`: HR requested changes; employee must revise and resubmit.
+      enum: [draft, submitted, approved, rejected]
+
+    OnboardingFormSubmission:
+      type: object
+      description: A single form submission within the onboarding dossier.
+      required:
+        - id
+        - employee_id
+        - form_template_id
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 'ccf25d00-e29b-41d4-a716-446655440002'
+        employee_id:
+          type: string
+          format: uuid
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        form_template_id:
+          type: string
+          format: uuid
+          example: 'aab14c00-e29b-41d4-a716-446655440001'
+        status:
+          $ref: '#/components/schemas/OnboardingSubmissionStatus'
+        data:
+          type: [object, 'null']
+          description: Employee-submitted form data conforming to the template's `form_schema`.
+          additionalProperties: true
+        reviewed_by:
+          type: [string, 'null']
+          format: uuid
+          description: UUID of the HR reviewer who last acted on this submission.
+          example: null
+        reviewed_at:
+          type: [string, 'null']
+          format: date-time
+          example: null
+        review_notes:
+          type: [string, 'null']
+          description: Free-text notes left by the HR reviewer.
+          example: null
+        form_template:
+          anyOf:
+            - $ref: '#/components/schemas/OnboardingFormTemplate'
+            - type: 'null'
+          description: Optionally embedded template resource.
+        reviewer:
+          anyOf:
+            - $ref: '#/components/schemas/EmployeeUserSummary'
+            - type: 'null'
+          description: Optionally embedded reviewer user summary.
+        created_at:
+          type: string
+          format: date-time
+          example: '2025-03-08T10:00:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          example: '2025-03-08T10:00:00Z'
+
+    OnboardingSubmissionCollection:
+      type: object
+      description: Collection of onboarding form submissions for the authenticated employee.
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/OnboardingFormSubmission'
+
+    OnboardingSubmissionCreateRequest:
+      type: object
+      description: Payload for creating a new form submission draft.
+      required:
+        - form_template_id
+      properties:
+        form_template_id:
+          type: string
+          format: uuid
+          example: 'aab14c00-e29b-41d4-a716-446655440001'
+        data:
+          type: object
+          description: Initial submission data conforming to the template's `form_schema`.
+          additionalProperties: true
+
+    OnboardingSubmissionUpdateRequest:
+      type: object
+      description: >-
+        Payload for updating an existing submission (PATCH semantics — all fields optional).
+        Submitting with `submit: true` transitions the submission from `draft` to `submitted`.
+      properties:
+        data:
+          type: object
+          description: Updated submission data conforming to the template's `form_schema`.
+          additionalProperties: true
+        submit:
+          type: boolean
+          description: If true, transitions the submission to `submitted` status.
+          example: false
+
+    OnboardingSubmissionFileUploadResponse:
+      type: object
+      description: Metadata returned after a file is uploaded to a submission.
+      required:
+        - id
+        - filename
+        - size
+        - mime_type
+        - uploaded_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 'eef36e00-e29b-41d4-a716-446655440003'
+        filename:
+          type: string
+          example: 'contract_signed.pdf'
+        size:
+          type: integer
+          description: File size in bytes.
+          example: 204800
+        mime_type:
+          type: string
+          example: 'application/pdf'
+        uploaded_at:
+          type: string
+          format: date-time
+          example: '2025-03-08T10:15:00Z'
+
+    OnboardingReviewActionRequest:
+      type: object
+      description: Payload for an HR review action (approve or reject) on a submission.
+      properties:
+        review_notes:
+          type: [string, 'null']
+          description: Optional free-text notes to accompany the review decision.
+          example: 'Please re-upload a clearer scan of your ID document.'
+
+    OnboardingConfirmationResponse:
+      type: object
+      description: Response returned when the onboarding dossier is marked as complete.
+      required:
+        - completed
+        - onboarding_workflow
+      properties:
+        completed:
+          type: boolean
+          example: true
+        onboarding_workflow:
+          $ref: '#/components/schemas/OnboardingWorkflow'
+        completed_at:
+          type: [string, 'null']
+          format: date-time
+          example: '2025-03-10T09:00:00Z'
 
     # =============================================================================
     # Customer & Site Management Schemas (Epic #210)
@@ -5778,5 +6104,429 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # =============================================================================
+  # Onboarding Runtime Surface Endpoints (Issue #180)
+  # =============================================================================
+
+  /onboarding/validate-token:
+    get:
+      summary: Validate Onboarding Token
+      description: |
+        Public bootstrap endpoint. Validates the one-time onboarding token that was delivered
+        in the invitation email before the employee creates their account.
+
+        This endpoint is unauthenticated. Clients must present the token as a query parameter.
+        An invalid or expired token returns `422`.
+      operationId: validateOnboardingToken
+      tags:
+        - Onboarding
+      security: []
+      parameters:
+        - name: token
+          in: query
+          required: true
+          description: One-time onboarding token from the invitation email.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Token is valid; returns minimal employee bootstrap data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingTokenValidationResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /onboarding/complete:
+    post:
+      summary: Complete Onboarding Dossier
+      description: |
+        Public bootstrap endpoint. Marks the employee's onboarding dossier as complete and
+        transitions the workflow state to `submitted_for_review`.
+
+        The caller must present a valid onboarding token. This endpoint is the final action
+        the employee takes before handing off the dossier to HR for review.
+      operationId: completeOnboarding
+      tags:
+        - Onboarding
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  description: One-time onboarding token from the invitation email.
+      responses:
+        '200':
+          description: Dossier marked as complete; workflow transitioned to `submitted_for_review`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingConfirmationResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /onboarding/steps:
+    get:
+      summary: List Onboarding Steps
+      description: |
+        Returns the ordered list of onboarding steps for the authenticated employee's dossier,
+        including completion status for each step.
+
+        Requires the caller to be authenticated as the employee whose dossier is being accessed.
+      operationId: getOnboardingSteps
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      responses:
+        '200':
+          description: Ordered onboarding step list with completion flags.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingStepsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /onboarding/forms/{templateId}:
+    get:
+      summary: Get Onboarding Form Template
+      description: |
+        Returns the form template definition for a specific onboarding step, including the
+        `form_schema` JSON Schema used to render the dynamic form in the frontend.
+      operationId: getOnboardingFormTemplate
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          description: Form template UUID.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Form template retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/OnboardingFormTemplate'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /onboarding/submissions:
+    get:
+      summary: List Onboarding Submissions
+      description: |
+        Returns all form submissions for the authenticated employee's onboarding dossier,
+        optionally with embedded template and reviewer resources.
+      operationId: listOnboardingSubmissions
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      responses:
+        '200':
+          description: Onboarding submission list retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingSubmissionCollection'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create Onboarding Submission
+      description: |
+        Creates a new form submission draft for the authenticated employee's dossier.
+        The submission is created in `draft` status and can be updated before being submitted.
+      operationId: createOnboardingSubmission
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingSubmissionCreateRequest'
+      responses:
+        '201':
+          description: Submission draft created successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/OnboardingFormSubmission'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /onboarding/submissions/{submissionId}:
+    patch:
+      summary: Update Onboarding Submission
+      description: |
+        Updates an existing form submission (PATCH semantics — all request fields optional).
+        Passing `submit: true` transitions the submission from `draft` to `submitted`.
+
+        Only submissions in `draft` or `changes_requested` status may be updated.
+      operationId: updateOnboardingSubmission
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          description: Submission UUID.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingSubmissionUpdateRequest'
+      responses:
+        '200':
+          description: Submission updated successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/OnboardingFormSubmission'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /onboarding/submissions/{submissionId}/files:
+    post:
+      summary: Upload Onboarding Submission File
+      description: |
+        Uploads a file attachment to an existing onboarding submission.
+        Only submissions in `draft` or `changes_requested` status accept new file uploads.
+      operationId: uploadOnboardingSubmissionFile
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          description: Submission UUID.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The file to upload.
+      responses:
+        '201':
+          description: File uploaded successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/OnboardingSubmissionFileUploadResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/onboarding/submissions/{submissionId}/approve:
+    post:
+      summary: Approve Onboarding Submission
+      description: |
+        HR review action. Approves a submitted onboarding form submission, transitioning
+        its status to `approved`.
+
+        Requires an HR or admin role. Only submissions in `submitted` status may be approved.
+      operationId: approveOnboardingSubmission
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          description: Submission UUID.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingReviewActionRequest'
+      responses:
+        '200':
+          description: Submission approved successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/OnboardingFormSubmission'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/onboarding/submissions/{submissionId}/reject:
+    post:
+      summary: Reject Onboarding Submission
+      description: |
+        HR review action. Rejects a submitted onboarding form submission and requests changes,
+        transitioning its status to `rejected`.
+
+        Requires an HR or admin role. Only submissions in `submitted` status may be rejected.
+        The optional `review_notes` field should describe what the employee needs to correct.
+      operationId: rejectOnboardingSubmission
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          description: Submission UUID.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingReviewActionRequest'
+      responses:
+        '200':
+          description: Submission rejected and changes requested from the employee.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/OnboardingFormSubmission'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
         '500':
           $ref: '#/components/responses/InternalServerError'
