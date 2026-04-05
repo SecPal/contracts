@@ -987,34 +987,55 @@ components:
             $ref: '#/components/schemas/PasskeyTransport'
           example: [internal]
 
+    PasskeyCredentialWrapperBase:
+      type: object
+      description: Common WebAuthn credential wrapper fields shared by registration and authentication verification requests.
+      required:
+        - id
+        - raw_id
+        - type
+      properties:
+        id:
+          type: string
+          example: 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE'
+        raw_id:
+          type: string
+          example: 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE'
+        type:
+          type: string
+          enum: [public-key]
+          example: public-key
+        client_extension_results:
+          type: object
+          additionalProperties: true
+
+    PasskeyRegistrationCredential:
+      allOf:
+        - $ref: '#/components/schemas/PasskeyCredentialWrapperBase'
+        - type: object
+          required:
+            - response
+          properties:
+            response:
+              $ref: '#/components/schemas/PasskeyAttestationResponse'
+
+    PasskeyAuthenticationCredential:
+      allOf:
+        - $ref: '#/components/schemas/PasskeyCredentialWrapperBase'
+        - type: object
+          required:
+            - response
+          properties:
+            response:
+              $ref: '#/components/schemas/PasskeyAssertionResponse'
+
     PasskeyRegistrationVerificationRequest:
       type: object
       required:
         - credential
       properties:
         credential:
-          type: object
-          required:
-            - id
-            - raw_id
-            - type
-            - response
-          properties:
-            id:
-              type: string
-              example: 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE'
-            raw_id:
-              type: string
-              example: 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE'
-            type:
-              type: string
-              enum: [public-key]
-              example: public-key
-            response:
-              $ref: '#/components/schemas/PasskeyAttestationResponse'
-            client_extension_results:
-              type: object
-              additionalProperties: true
+          $ref: '#/components/schemas/PasskeyRegistrationCredential'
         label:
           type: [string, 'null']
           maxLength: 100
@@ -1127,28 +1148,7 @@ components:
         - credential
       properties:
         credential:
-          type: object
-          required:
-            - id
-            - raw_id
-            - type
-            - response
-          properties:
-            id:
-              type: string
-              example: 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE'
-            raw_id:
-              type: string
-              example: 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE'
-            type:
-              type: string
-              enum: [public-key]
-              example: public-key
-            response:
-              $ref: '#/components/schemas/PasskeyAssertionResponse'
-            client_extension_results:
-              type: object
-              additionalProperties: true
+          $ref: '#/components/schemas/PasskeyAuthenticationCredential'
 
     PasskeySessionLoginResponse:
       type: object
@@ -1189,7 +1189,7 @@ components:
       properties:
         message:
           type: string
-          example: Passkey removed successfully.
+          example: Passkey deleted successfully.
         data:
           type: object
           required:
@@ -2600,7 +2600,7 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
           example:
-            message: MFA is already enabled for this account.
+            message: The request cannot be completed in the current resource state.
             code: CONFLICT
 
     Unauthorized:
