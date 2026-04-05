@@ -689,6 +689,9 @@ components:
           minItems: 8
           items:
             type: string
+            minLength: 8
+            maxLength: 8
+            pattern: '^[A-Z0-9]{8}$'
           example:
             - 'B6F42Q8P'
             - 'F9LM7N2R'
