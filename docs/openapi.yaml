@@ -629,8 +629,12 @@ components:
           example: recovery_code
         code:
           type: string
-          description: Current TOTP code or one unused recovery code.
-          example: 'B6F4-2Q8P'
+          description: >-
+            Current TOTP code or one unused recovery code. Recovery codes are
+            issued in canonical API form as 8-character uppercase alphanumeric
+            strings without separators; grouped or spaced input may still be
+            normalized during verification.
+          example: 'B6F42Q8P'
 
     TotpEnrollmentPreparation:
       type: object
@@ -671,7 +675,11 @@ components:
 
     MfaRecoveryCodeReveal:
       type: object
-      description: Plaintext recovery codes returned only immediately after activation or regeneration.
+      description: >-
+        Plaintext recovery codes returned only immediately after activation or
+        regeneration. The API emits them in canonical form as 8-character
+        uppercase alphanumeric strings without separators; clients may group
+        them for display if desired.
       required:
         - codes
         - generated_at
@@ -682,14 +690,14 @@ components:
           items:
             type: string
           example:
-            - 'B6F4-2Q8P'
-            - 'F9LM-7N2R'
-            - 'HT4V-3KQ1'
-            - 'J8PW-6CX5'
-            - 'M2TR-9DZ7'
-            - 'Q4YS-8LB2'
-            - 'V7NK-5HF9'
-            - 'X3CE-1RM6'
+            - 'B6F42Q8P'
+            - 'F9LM7N2R'
+            - 'HT4V3KQ1'
+            - 'J8PW6CX5'
+            - 'M2TR9DZ7'
+            - 'Q4YS8LB2'
+            - 'V7NK5HF9'
+            - 'X3CE1RM6'
         generated_at:
           type: string
           format: date-time
