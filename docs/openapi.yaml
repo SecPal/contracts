@@ -38,6 +38,8 @@ security: []
 tags:
   - name: Authentication
     description: Login, logout, and MFA challenge endpoints for browser-session and Bearer-token clients.
+  - name: Onboarding
+    description: Pre-contract onboarding bootstrap, dossier, and HR review workflow endpoints.
   - name: Monitoring
     description: Service health and operational readiness endpoints.
   - name: Activity Logs
@@ -75,6 +77,26 @@ components:
           type: object
           description: Additional error details
           additionalProperties: true
+
+    ValidationProblem:
+      type: object
+      required:
+        - message
+        - errors
+      properties:
+        message:
+          type: string
+          description: General validation failure message.
+          example: The given data was invalid.
+        errors:
+          type: object
+          description: Field-specific validation errors keyed by request field name.
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            email: ['The email field must be a valid email address.']
 
     Activity:
       type: object
@@ -1916,6 +1938,7 @@ components:
         - contract_type
         - user_account_active
         - onboarding_completed
+        - onboarding_workflow
         - onboarding_invitation
         - created_at
         - updated_at
@@ -2126,14 +2149,18 @@ components:
           format: date-time
         onboarding_completed:
           type: boolean
+          description: Whether all required onboarding dossier artifacts have been completed. This is not the same as activation readiness.
         onboarding_steps:
           type: [object, 'null']
+          description: Client-facing onboarding progress payload stored on the employee record.
         onboarding_started_at:
           type: [string, 'null']
           format: date-time
         onboarding_completed_at:
           type: [string, 'null']
           format: date-time
+        onboarding_workflow:
+          $ref: '#/components/schemas/OnboardingWorkflow'
         onboarding_invitation:
           $ref: '#/components/schemas/EmployeeOnboardingInvitation'
         organizational_unit_id:
@@ -2156,6 +2183,374 @@ components:
         deleted_at:
           type: [string, 'null']
           format: date-time
+
+    OnboardingWorkflowStatus:
+      type: string
+      description: Canonical onboarding workflow state used to distinguish dossier completeness from activation readiness.
+      enum:
+        - invited
+        - account_initialized
+        - in_progress
+        - submitted_for_review
+        - changes_requested
+        - contract_confirmed
+        - ready_for_activation
+        - active
+
+    OnboardingWorkflow:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          anyOf:
+            - $ref: '#/components/schemas/OnboardingWorkflowStatus'
+            - type: 'null'
+          description: Current onboarding workflow state. `ready_for_activation` signals activation readiness; `onboarding_completed` alone does not.
+
+    OnboardingValidatedEmployee:
+      type: object
+      required:
+        - first_name
+        - last_name
+        - email
+      properties:
+        first_name:
+          type: string
+          example: Max
+        last_name:
+          type: string
+          example: Mustermann
+        email:
+          type: string
+          format: email
+          example: max.mustermann@secpal.app
+
+    OnboardingTokenValidationResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/OnboardingValidatedEmployee'
+
+    OnboardingCompletionRequest:
+      type: object
+      required:
+        - token
+        - email
+        - password
+        - first_name
+        - last_name
+      properties:
+        token:
+          type: string
+          description: Plain onboarding invitation token from the employee's magic link.
+        email:
+          type: string
+          format: email
+          description: Employee email address that must match the invitation.
+        password:
+          type: string
+          format: password
+          description: Initial account password that satisfies the backend's default password rules.
+        first_name:
+          type: string
+          maxLength: 255
+        last_name:
+          type: string
+          maxLength: 255
+
+    OnboardingCompletionEmployeeSummary:
+      type: object
+      required:
+        - id
+        - first_name
+        - last_name
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        first_name:
+          type: string
+          example: Max
+        last_name:
+          type: string
+          example: Mustermann
+        status:
+          $ref: '#/components/schemas/EmployeeStatus'
+
+    OnboardingCompletionPayload:
+      type: object
+      required:
+        - user
+        - employee
+      properties:
+        user:
+          $ref: '#/components/schemas/EmployeeUserSummary'
+        employee:
+          $ref: '#/components/schemas/OnboardingCompletionEmployeeSummary'
+
+    OnboardingCompletionResponse:
+      type: object
+      required:
+        - message
+        - data
+      properties:
+        message:
+          type: string
+          example: Onboarding completed successfully. Welcome to SecPal!
+        data:
+          $ref: '#/components/schemas/OnboardingCompletionPayload'
+
+    OnboardingStepsData:
+      type: object
+      required:
+        - employee_id
+        - status
+        - onboarding_completed
+      properties:
+        employee_id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/EmployeeStatus'
+        onboarding_steps:
+          type: [object, 'null']
+          additionalProperties: true
+        onboarding_started_at:
+          type: [string, 'null']
+          format: date-time
+        onboarding_completed:
+          type: boolean
+        onboarding_completed_at:
+          type: [string, 'null']
+          format: date-time
+
+    OnboardingStepsResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/OnboardingStepsData'
+
+    OnboardingFormTemplate:
+      type: object
+      required:
+        - id
+        - name
+        - form_schema
+        - is_required
+        - is_system_template
+        - sort_order
+        - can_be_deleted
+        - can_be_edited
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: [integer, 'null']
+          example: 42
+        name:
+          type: string
+          example: Personalfragebogen
+        description:
+          type: [string, 'null']
+          example: Personal details and emergency contact information.
+        form_schema:
+          type: object
+          additionalProperties: true
+          description: JSON schema-like payload used by the frontend to render the form.
+        is_required:
+          type: boolean
+        is_system_template:
+          type: boolean
+        sort_order:
+          type: integer
+          example: 10
+        can_be_deleted:
+          type: boolean
+        can_be_edited:
+          type: boolean
+        created_at:
+          type: [string, 'null']
+          format: date-time
+        updated_at:
+          type: [string, 'null']
+          format: date-time
+
+    OnboardingFormTemplateResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/OnboardingFormTemplate'
+
+    OnboardingFormTemplateCollectionResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/OnboardingFormTemplate'
+
+    OnboardingFormSubmissionStatus:
+      type: string
+      enum:
+        - draft
+        - submitted
+        - approved
+        - rejected
+
+    SubmitOnboardingFormRequest:
+      type: object
+      required:
+        - form_template_id
+        - form_data
+        - status
+      properties:
+        form_template_id:
+          type: string
+          format: uuid
+        form_data:
+          type: object
+          additionalProperties: true
+        status:
+          $ref: '#/components/schemas/OnboardingFormSubmissionStatus'
+
+    OnboardingFormSubmission:
+      type: object
+      required:
+        - id
+        - employee_id
+        - form_template_id
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        employee_id:
+          type: string
+          format: uuid
+        form_template_id:
+          type: string
+          format: uuid
+        form_data:
+          type: [object, 'null']
+          additionalProperties: true
+        status:
+          $ref: '#/components/schemas/OnboardingFormSubmissionStatus'
+        submitted_at:
+          type: [string, 'null']
+          format: date-time
+        reviewed_by:
+          type: [string, 'null']
+          format: uuid
+        reviewed_at:
+          type: [string, 'null']
+          format: date-time
+        review_notes:
+          type: [string, 'null']
+        form_template:
+          anyOf:
+            - $ref: '#/components/schemas/OnboardingFormTemplate'
+            - type: 'null'
+        reviewer:
+          anyOf:
+            - $ref: '#/components/schemas/EmployeeUserSummary'
+            - type: 'null'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    OnboardingFormSubmissionResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/OnboardingFormSubmission'
+
+    OnboardingFormSubmissionCollectionResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/OnboardingFormSubmission'
+
+    OnboardingMissingTemplate:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: [string, 'null']
+
+    OnboardingCompletionStatusData:
+      type: object
+      required:
+        - is_completed
+        - total_required
+        - completed_required
+        - missing_templates
+      properties:
+        is_completed:
+          type: boolean
+        total_required:
+          type: integer
+          minimum: 0
+        completed_required:
+          type: integer
+          minimum: 0
+        missing_templates:
+          type: array
+          items:
+            $ref: '#/components/schemas/OnboardingMissingTemplate'
+
+    OnboardingCompletionStatusResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/OnboardingCompletionStatusData'
+
+    OnboardingRejectionRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          maxLength: 1000
+
+    OnboardingConfirmationRequest:
+      type: object
+      properties:
+        notes:
+          type: [string, 'null']
+          maxLength: 1000
 
     # =============================================================================
     # Customer & Site Management Schemas (Epic #210)
@@ -2582,6 +2977,51 @@ components:
           description: Soft deletion timestamp
           example: null
 
+  parameters:
+    OnboardingToken:
+      name: token
+      in: query
+      required: true
+      description: Plain onboarding invitation token from the employee magic link.
+      schema:
+        type: string
+
+    OnboardingEmail:
+      name: email
+      in: query
+      required: true
+      description: Email address that must match the invitation and employee record.
+      schema:
+        type: string
+        format: email
+
+    OnboardingTemplateId:
+      name: template
+      in: path
+      required: true
+      description: Onboarding form template identifier.
+      schema:
+        type: string
+        format: uuid
+
+    OnboardingSubmissionId:
+      name: submission
+      in: path
+      required: true
+      description: Onboarding form submission identifier.
+      schema:
+        type: string
+        format: uuid
+
+    OnboardingEmployeeId:
+      name: employee
+      in: path
+      required: true
+      description: Employee identifier.
+      schema:
+        type: string
+        format: uuid
+
   responses:
     BadRequest:
       description: Bad Request - Invalid input parameters
@@ -2638,26 +3078,19 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            required:
-              - message
-              - errors
-            properties:
-              message:
-                type: string
-                description: General validation error message
-                example: 'The given data was invalid.'
-              errors:
-                type: object
-                description: Field-specific validation errors
-                additionalProperties:
-                  type: array
-                  items:
-                    type: string
-                example:
-                  email: ['The email has already been taken.']
-                  date_of_birth:
-                    ['The date of birth must be a date before today.']
+            $ref: '#/components/schemas/ValidationProblem'
+
+    UnprocessableEntity:
+      description: Unprocessable Entity - Input validation or workflow preconditions failed
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/Error'
+              - $ref: '#/components/schemas/ValidationProblem'
+          example:
+            message: Employee onboarding dossier must be complete before confirmation.
+            code: UNPROCESSABLE_ENTITY
 
     TooManyRequests:
       description: Too Many Requests - Request throttled
@@ -2928,6 +3361,323 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+
+  /onboarding/validate-token:
+    get:
+      summary: Validate Onboarding Invitation Token
+      description: Validate a pre-contract onboarding invitation token and return the employee data needed to prefill the bootstrap form.
+      operationId: validateOnboardingToken
+      tags:
+        - Onboarding
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/OnboardingToken'
+        - $ref: '#/components/parameters/OnboardingEmail'
+      responses:
+        '200':
+          description: Onboarding invitation token is valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingTokenValidationResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /onboarding/complete:
+    post:
+      summary: Complete Public Onboarding Bootstrap
+      description: |
+        Complete the public onboarding bootstrap with the invitation token, initial password, and optional name corrections.
+
+        On success the backend establishes a first-party browser session for the new employee and returns minimal user and employee summaries.
+      operationId: completeOnboarding
+      tags:
+        - Onboarding
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingCompletionRequest'
+      responses:
+        '200':
+          description: Onboarding bootstrap completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingCompletionResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /onboarding/steps:
+    get:
+      summary: Get Onboarding Progress Steps
+      description: Return the authenticated employee's stored onboarding step state.
+      operationId: getOnboardingSteps
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      responses:
+        '200':
+          description: Onboarding step state returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingStepsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /onboarding/templates:
+    get:
+      summary: List Available Onboarding Form Templates
+      description: Return the system and tenant-specific onboarding form templates visible to the authenticated caller.
+      operationId: listOnboardingTemplates
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      responses:
+        '200':
+          description: Onboarding form templates returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingFormTemplateCollectionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /onboarding/templates/{template}:
+    get:
+      summary: Get Onboarding Form Template
+      description: Return a single onboarding form template with its dynamic form schema.
+      operationId: getOnboardingTemplate
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OnboardingTemplateId'
+      responses:
+        '200':
+          description: Onboarding form template returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingFormTemplateResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /onboarding/submissions:
+    get:
+      summary: List My Onboarding Form Submissions
+      description: Return the authenticated employee's onboarding form submissions, including loaded template metadata.
+      operationId: listOnboardingSubmissions
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      responses:
+        '200':
+          description: Onboarding form submissions returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingFormSubmissionCollectionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      summary: Create Or Update Onboarding Form Submission
+      description: Create or update an onboarding form submission as a draft or final submission.
+      operationId: submitOnboardingForm
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitOnboardingFormRequest'
+      responses:
+        '200':
+          description: Existing onboarding form submission updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingFormSubmissionResponse'
+        '201':
+          description: New onboarding form submission created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingFormSubmissionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /onboarding/completion-status:
+    get:
+      summary: Get Onboarding Completion Status
+      description: Return aggregated completion progress for the authenticated employee's required onboarding templates.
+      operationId: getOnboardingCompletionStatus
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      responses:
+        '200':
+          description: Onboarding completion status returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingCompletionStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/onboarding/submissions/{submission}/approve:
+    post:
+      summary: Approve Onboarding Form Submission
+      description: Approve a submitted onboarding form submission as an HR/compliance reviewer.
+      operationId: approveOnboardingSubmission
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/OnboardingSubmissionId'
+      responses:
+        '200':
+          description: Onboarding form submission approved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingFormSubmissionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /admin/onboarding/submissions/{submission}/reject:
+    post:
+      summary: Reject Onboarding Form Submission
+      description: Reject a submitted onboarding form submission and return it to the employee correction loop.
+      operationId: rejectOnboardingSubmission
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/OnboardingSubmissionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingRejectionRequest'
+      responses:
+        '200':
+          description: Onboarding form submission rejected successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingFormSubmissionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /admin/onboarding/employees/{employee}/confirm:
+    post:
+      summary: Confirm Onboarding Dossier And Contract State
+      description: |
+        Perform the explicit HR/compliance confirmation step for a pre-contract employee after dossier review.
+
+        This action advances the employee workflow to `contract_confirmed` and may immediately promote the workflow to `ready_for_activation` when the contract start date gate is already satisfied.
+      operationId: confirmEmployeeOnboarding
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/OnboardingEmployeeId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingConfirmationRequest'
+      responses:
+        '200':
+          description: Employee onboarding dossier confirmed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
 
   /auth/logout:
     post:

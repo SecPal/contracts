@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Documented the current onboarding runtime surface in `docs/openapi.yaml`, including the public bootstrap endpoints, authenticated dossier/template/submission endpoints, HR review and dossier-confirmation actions, and the explicit `onboarding_workflow.status` field on employee resources
 - Documented the phase-2 passkey/WebAuthn contract starter surface in `docs/openapi.yaml`, including browser-session passkey sign-in challenges, authenticated passkey enrollment ceremonies, and self-service passkey metadata/listing endpoints so backend and frontend implementation can proceed contract-first
 - Documented the phase-1 MFA contract in `docs/openapi.yaml`, including pending login challenges for `/auth/login` and `/auth/token`, MFA challenge verification, authenticated TOTP enrollment, self-service disablement, and one-time recovery-code regeneration semantics
 - Documented the administrative MFA reset contract surface at `DELETE /users/{user}/mfa`, including the audit reason payload, success response, and authorization-sensitive error states so the OpenAPI spec now matches the shipped API behavior
