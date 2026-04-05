@@ -571,7 +571,7 @@ components:
 
     MfaStatus:
       type: object
-      description: Phase-1 MFA state for the authenticated user.
+      description: Phase-1 MFA state for a user.
       required:
         - enabled
         - method
@@ -2698,6 +2698,8 @@ paths:
         This endpoint is intended for same-tenant support or security staff who hold the dedicated `users.reset_mfa` permission. It clears an enabled MFA enrollment or an unconfirmed pending enrollment and records the supplied reason in the authentication audit trail.
 
         The endpoint cannot be used for self-service MFA removal. Callers must use `/me/mfa` to disable their own MFA.
+
+        **Note on request body:** This `DELETE` operation requires a JSON body carrying the audit `reason`. Some HTTP clients and middleware drop bodies on `DELETE` requests. Integrators must ensure the `Content-Type: application/json` header is set and the body is transmitted; verify behaviour with your HTTP client before deploying.
       operationId: resetUserMfa
       tags:
         - Authentication
