@@ -2403,11 +2403,19 @@ components:
 
     OnboardingFormSubmissionStatus:
       type: string
+      description: Persisted onboarding form submission state across employee drafting and HR review.
       enum:
         - draft
         - submitted
         - approved
         - rejected
+
+    OnboardingFormSubmissionWriteStatus:
+      type: string
+      description: Employee-writable onboarding form submission state accepted by `POST /v1/onboarding/submissions`.
+      enum:
+        - draft
+        - submitted
 
     SubmitOnboardingFormRequest:
       type: object
@@ -2423,7 +2431,7 @@ components:
           type: object
           additionalProperties: true
         status:
-          $ref: '#/components/schemas/OnboardingFormSubmissionStatus'
+          $ref: '#/components/schemas/OnboardingFormSubmissionWriteStatus'
 
     OnboardingFormSubmission:
       type: object
@@ -3413,6 +3421,8 @@ paths:
                 $ref: '#/components/schemas/OnboardingCompletionResponse'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
         '429':
