@@ -2501,6 +2501,48 @@ components:
           items:
             $ref: '#/components/schemas/OnboardingFormSubmission'
 
+    OnboardingSubmissionUploadDocumentType:
+      type: string
+      description: Supported onboarding dossier attachment type.
+      enum:
+        - contract
+        - id_document
+        - banking_details
+
+    UploadOnboardingSubmissionFileRequest:
+      type: object
+      required:
+        - file
+        - document_type
+      properties:
+        file:
+          type: string
+          format: binary
+          description: Binary attachment payload for the onboarding dossier.
+        document_type:
+          $ref: '#/components/schemas/OnboardingSubmissionUploadDocumentType'
+
+    OnboardingSubmissionFileUpload:
+      type: object
+      required:
+        - id
+        - filename
+      properties:
+        id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+          description: Persisted original filename returned after a successful upload.
+
+    OnboardingSubmissionFileUploadResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/OnboardingSubmissionFileUpload'
+
     OnboardingMissingTemplate:
       type: object
       required:
@@ -3562,6 +3604,41 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /onboarding/submissions/{submission}/files:
+    post:
+      summary: Upload Onboarding Submission Attachment
+      description: Upload a binary attachment for an existing onboarding form submission owned by the authenticated pre-contract employee.
+      operationId: uploadOnboardingSubmissionFile
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/OnboardingSubmissionId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadOnboardingSubmissionFileRequest'
+      responses:
+        '201':
+          description: Onboarding submission attachment uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingSubmissionFileUploadResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
 
