@@ -58,6 +58,10 @@ tags:
     description: >-
       Public bootstrap and authenticated onboarding workflow endpoints used by the pre-contract employee
       dossier flow, HR review actions, and onboarding confirmation.
+  - name: Android Provisioning
+    description: >-
+      Admin enrollment-session management, public bootstrap-token exchange, and channel-aware
+      release metadata for SecPal's single-app Android distribution model.
 
 components:
   schemas:
@@ -2671,6 +2675,426 @@ components:
         notes:
           type: [string, 'null']
           maxLength: 1000
+
+    # =============================================================================
+    # Android Enrollment & Distribution Schemas (Issue #183)
+    # =============================================================================
+
+    AndroidEnrollmentMode:
+      type: string
+      description: Supported Android enterprise enrollment mode for the generated provisioning session.
+      enum:
+        - device_owner
+
+    AndroidReleaseChannel:
+      type: string
+      description: Non-Play Android distribution channel used for update metadata and managed enrollment.
+      enum:
+        - managed_device
+        - direct_apk
+        - github_release
+        - obtainium
+
+    AndroidEnrollmentSessionStatus:
+      type: string
+      description: >-
+        Lifecycle state of an Android enrollment session.
+
+        - `pending`: bootstrap token is active and has not been exchanged yet.
+        - `exchanged`: bootstrap token was consumed and the device received its configuration.
+        - `revoked`: an authorized user invalidated the session before exchange.
+        - `expired`: the short-lived bootstrap token expired before use.
+      enum:
+        - pending
+        - exchanged
+        - revoked
+        - expired
+
+    AndroidProvisioningProfile:
+      type: object
+      description: Managed-device policy flags that the enrolled SecPal Android app should apply after bootstrap exchange.
+      required:
+        - kiosk_mode_enabled
+        - lock_task_enabled
+        - allow_phone
+        - allow_sms
+        - prefer_gesture_navigation
+        - allowed_packages
+      properties:
+        kiosk_mode_enabled:
+          type: boolean
+          description: Whether dedicated-device kiosk enforcement should be enabled after provisioning.
+          example: true
+        lock_task_enabled:
+          type: boolean
+          description: Whether Android lock task should remain active while the device is managed.
+          example: true
+        allow_phone:
+          type: boolean
+          description: Whether a compatible phone app may be launched from the managed home screen.
+          example: false
+        allow_sms:
+          type: boolean
+          description: Whether a compatible SMS app may be launched from the managed home screen.
+          example: false
+        prefer_gesture_navigation:
+          type: boolean
+          description: Whether provisioning should prefer gesture navigation when the device supports it.
+          example: true
+        allowed_packages:
+          type: array
+          description: Additional package names allowlisted for launch from the managed home screen.
+          items:
+            type: string
+            pattern: '^[A-Za-z0-9_.]+$'
+          uniqueItems: true
+          example: ['com.example.approvedapp']
+
+    AndroidEnrollmentSession:
+      type: object
+      description: Audit-friendly metadata for a short-lived Android enrollment session.
+      required:
+        - id
+        - status
+        - enrollment_mode
+        - update_channel
+        - release_metadata_url
+        - provisioning_profile
+        - bootstrap_token_expires_at
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 'd6d5b7c8-56a9-49de-8f1f-7e8d0f5c4d2a'
+        device_label:
+          type: [string, 'null']
+          maxLength: 120
+          description: Optional operator-facing label for the target device.
+          example: Front desk kiosk
+        status:
+          $ref: '#/components/schemas/AndroidEnrollmentSessionStatus'
+        enrollment_mode:
+          $ref: '#/components/schemas/AndroidEnrollmentMode'
+        update_channel:
+          $ref: '#/components/schemas/AndroidReleaseChannel'
+        release_metadata_url:
+          type: string
+          format: uri
+          description: Canonical metadata URL for the configured non-Play release channel.
+          example: 'https://api.secpal.dev/v1/android/releases/channels/managed_device/latest'
+        provisioning_profile:
+          $ref: '#/components/schemas/AndroidProvisioningProfile'
+        bootstrap_token_expires_at:
+          type: string
+          format: date-time
+          description: Expiry timestamp for the one-time bootstrap token embedded in the private provisioning QR payload.
+          example: '2026-04-06T12:15:00Z'
+        bootstrap_token_last_eight:
+          type: [string, 'null']
+          description: Last eight characters of the bootstrap token for audit and support workflows.
+          pattern: '^[A-Z0-9]{8}$'
+          example: 7K2P9Q4M
+        exchanged_at:
+          type: [string, 'null']
+          format: date-time
+          example: null
+        revoked_at:
+          type: [string, 'null']
+          format: date-time
+          example: null
+        revocation_reason:
+          type: [string, 'null']
+          maxLength: 1000
+          example: null
+        notes:
+          type: [string, 'null']
+          maxLength: 1000
+          example: Dedicated tablet for the customer reception desk.
+        created_at:
+          type: string
+          format: date-time
+          example: '2026-04-06T12:00:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          example: '2026-04-06T12:00:00Z'
+
+    AndroidProvisioningAdminExtras:
+      type: object
+      description: Minimal admin extras embedded in the provisioning QR payload and exchanged once by the Android app.
+      required:
+        - bootstrap_token
+        - enrollment_session_id
+      properties:
+        bootstrap_token:
+          type: string
+          minLength: 32
+          maxLength: 255
+          description: Short-lived bootstrap token minted for exactly one enrollment session.
+          example: BTP_8N6S4T2R0Q9P7M5K3J1H8G6F4D2S0A7C
+        enrollment_session_id:
+          type: string
+          format: uuid
+          example: 'd6d5b7c8-56a9-49de-8f1f-7e8d0f5c4d2a'
+
+    AndroidProvisioningQrPayload:
+      type: object
+      description: Android Enterprise provisioning payload that authorized SecPal users encode as a private QR code.
+      required:
+        - android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME
+        - android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION
+        - android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM
+        - android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE
+      properties:
+        android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME:
+          type: string
+          example: 'app.secpal/.SecPalDeviceAdminReceiver'
+        android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION:
+          type: string
+          format: uri
+          example: 'https://apk.secpal.app/releases/app.secpal-latest.apk'
+        android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM:
+          type: string
+          description: Base64-encoded SHA-256 checksum of the signing certificate required by Android provisioning.
+          example: 'm2N7N0F4Q2ZwS0V0bDhlWlU4a1pMRTNwckE3WlJtWm9Kc2J0S2x2dz0='
+        android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE:
+          $ref: '#/components/schemas/AndroidProvisioningAdminExtras'
+
+    AndroidEnrollmentSessionCreateRequest:
+      type: object
+      description: Request body for minting a short-lived Android enrollment session and QR payload.
+      required:
+        - update_channel
+        - provisioning_profile
+      properties:
+        device_label:
+          type: string
+          maxLength: 120
+          example: Front desk kiosk
+        enrollment_mode:
+          allOf:
+            - $ref: '#/components/schemas/AndroidEnrollmentMode'
+          default: device_owner
+        update_channel:
+          $ref: '#/components/schemas/AndroidReleaseChannel'
+        expires_in_minutes:
+          type: integer
+          minimum: 5
+          maximum: 60
+          default: 15
+          description: Lifetime of the bootstrap token before it becomes unusable.
+        provisioning_profile:
+          $ref: '#/components/schemas/AndroidProvisioningProfile'
+        notes:
+          type: string
+          maxLength: 1000
+          example: Provision during customer-site tablet handoff.
+
+    AndroidEnrollmentSessionResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/AndroidEnrollmentSession'
+
+    AndroidEnrollmentSessionCreateResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          required:
+            - session
+            - provisioning_qr_payload
+          properties:
+            session:
+              $ref: '#/components/schemas/AndroidEnrollmentSession'
+            provisioning_qr_payload:
+              $ref: '#/components/schemas/AndroidProvisioningQrPayload'
+
+    AndroidEnrollmentSessionCollectionResponse:
+      type: object
+      required:
+        - data
+        - links
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AndroidEnrollmentSession'
+        links:
+          $ref: '#/components/schemas/PaginationLinks'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    AndroidEnrollmentSessionRevokeRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          maxLength: 1000
+          description: Human-readable audit reason for invalidating the pending enrollment session.
+          example: Device handoff canceled before setup completed.
+
+    AndroidBootstrapExchangeRequest:
+      type: object
+      description: Payload exchanged by the Android app after Device Owner provisioning hands control to SecPal.
+      required:
+        - bootstrap_token
+        - package_name
+      properties:
+        bootstrap_token:
+          type: string
+          minLength: 32
+          maxLength: 255
+          description: Short-lived bootstrap token previously embedded in the private provisioning QR code.
+          example: BTP_8N6S4T2R0Q9P7M5K3J1H8G6F4D2S0A7C
+        package_name:
+          type: string
+          enum: [app.secpal]
+          description: Package name reported by the bootstrapping Android app.
+        package_version_name:
+          type: [string, 'null']
+          maxLength: 50
+          example: 1.4.0
+        package_version_code:
+          type: [integer, 'null']
+          minimum: 1
+          example: 10400
+        device_name:
+          type: [string, 'null']
+          maxLength: 120
+          example: SM-G556B reception tablet
+        device:
+          type: [object, 'null']
+          additionalProperties: false
+          properties:
+            manufacturer:
+              type: string
+              maxLength: 120
+              example: Samsung
+            model:
+              type: string
+              maxLength: 120
+              example: SM-G556B
+            android_version:
+              type: string
+              maxLength: 30
+              example: '16'
+
+    AndroidBootstrapExchangeResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          required:
+            - enrollment_session_id
+            - tenant_id
+            - tenant_name
+            - api_base_url
+            - update_channel
+            - release_metadata_url
+            - provisioning_profile
+          properties:
+            enrollment_session_id:
+              type: string
+              format: uuid
+              example: 'd6d5b7c8-56a9-49de-8f1f-7e8d0f5c4d2a'
+            tenant_id:
+              type: integer
+              example: 1
+            tenant_name:
+              type: string
+              example: SecPal Demo Tenant
+            api_base_url:
+              type: string
+              format: uri
+              example: 'https://api.secpal.dev/v1'
+            update_channel:
+              $ref: '#/components/schemas/AndroidReleaseChannel'
+            release_metadata_url:
+              type: string
+              format: uri
+              example: 'https://api.secpal.dev/v1/android/releases/channels/managed_device/latest'
+            provisioning_profile:
+              $ref: '#/components/schemas/AndroidProvisioningProfile'
+
+    AndroidReleaseMetadata:
+      type: object
+      description: Latest release metadata for a non-Play Android distribution channel.
+      required:
+        - channel
+        - package_name
+        - version_name
+        - version_code
+        - published_at
+        - artifact_url
+        - artifact_sha256
+        - checksum_url
+        - signing_certificate_sha256
+      properties:
+        channel:
+          $ref: '#/components/schemas/AndroidReleaseChannel'
+        package_name:
+          type: string
+          enum: [app.secpal]
+        version_name:
+          type: string
+          maxLength: 50
+          example: 1.4.0
+        version_code:
+          type: integer
+          minimum: 1
+          example: 10400
+        published_at:
+          type: string
+          format: date-time
+          example: '2026-04-06T11:55:00Z'
+        artifact_url:
+          type: string
+          format: uri
+          example: 'https://apk.secpal.app/releases/app.secpal-1.4.0.apk'
+        artifact_sha256:
+          type: string
+          pattern: '^[A-Fa-f0-9]{64}$'
+          example: '4f8a3c9d5e7b2a1c0d9f8e7b6a5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b6c'
+        checksum_url:
+          type: string
+          format: uri
+          example: 'https://apk.secpal.app/releases/app.secpal-1.4.0.apk.sha256'
+        signing_certificate_sha256:
+          type: string
+          pattern: '^[A-Fa-f0-9]{64}$'
+          example: 'b8a7f6e5d4c3b2a1908f7e6d5c4b3a291817161514131211100f0e0d0c0b0a09'
+        release_notes_url:
+          type: [string, 'null']
+          format: uri
+          example: 'https://secpal.app/android#release-1-4-0'
+        file_size_bytes:
+          type: [integer, 'null']
+          minimum: 1
+          example: 58432109
+        minimum_supported_sdk:
+          type: [integer, 'null']
+          minimum: 1
+          example: 26
+
+    AndroidReleaseMetadataResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/AndroidReleaseMetadata'
 
     # =============================================================================
     # Customer & Site Management Schemas (Epic #210)
@@ -6737,5 +7161,242 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # =============================================================================
+  # Android Enrollment & Distribution Endpoints (Issue #183)
+  # =============================================================================
+
+  /admin/android-enrollment-sessions:
+    get:
+      summary: List Android Enrollment Sessions
+      description: |
+        Returns paginated Android enrollment sessions for the authenticated tenant.
+
+        The list includes active and historical sessions for audit visibility, but never returns the raw bootstrap token after creation.
+      operationId: listAndroidEnrollmentSessions
+      tags:
+        - Android Provisioning
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number for pagination.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          required: false
+          description: Number of items per page (max 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 15
+        - name: status
+          in: query
+          required: false
+          description: Filter sessions by lifecycle state.
+          schema:
+            $ref: '#/components/schemas/AndroidEnrollmentSessionStatus'
+      responses:
+        '200':
+          description: Android enrollment sessions returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AndroidEnrollmentSessionCollectionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create Android Enrollment Session
+      description: |
+        Creates a short-lived Android enrollment session and returns the minimal provisioning payload that authorized SecPal users can encode as a private QR code.
+
+        The bootstrap token is returned only at creation time through the provisioning payload and must not be exposed again by list or read endpoints.
+      operationId: createAndroidEnrollmentSession
+      tags:
+        - Android Provisioning
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AndroidEnrollmentSessionCreateRequest'
+      responses:
+        '201':
+          description: Android enrollment session created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AndroidEnrollmentSessionCreateResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/android-enrollment-sessions/{session}:
+    get:
+      summary: Get Android Enrollment Session
+      description: Returns one Android enrollment session without exposing the raw bootstrap token.
+      operationId: getAndroidEnrollmentSession
+      tags:
+        - Android Provisioning
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      parameters:
+        - name: session
+          in: path
+          required: true
+          description: Android enrollment session UUID.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Android enrollment session returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AndroidEnrollmentSessionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/android-enrollment-sessions/{session}/revoke:
+    post:
+      summary: Revoke Android Enrollment Session
+      description: |
+        Revokes a pending Android enrollment session before the bootstrap token is exchanged.
+
+        Revoked, expired, or already exchanged sessions must not be reactivated.
+      operationId: revokeAndroidEnrollmentSession
+      tags:
+        - Android Provisioning
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - name: session
+          in: path
+          required: true
+          description: Android enrollment session UUID.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AndroidEnrollmentSessionRevokeRequest'
+      responses:
+        '200':
+          description: Android enrollment session revoked successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AndroidEnrollmentSessionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /android/bootstrap/exchange:
+    post:
+      summary: Exchange Android Bootstrap Token
+      description: |
+        Public bootstrap endpoint for the managed Android app after Device Owner provisioning hands control to SecPal.
+
+        The Android client presents the short-lived bootstrap token from the private QR payload exactly once and receives tenant-scoped bootstrap configuration, including managed policy flags and the release-metadata URL for its configured non-Play channel.
+      operationId: exchangeAndroidBootstrapToken
+      tags:
+        - Android Provisioning
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AndroidBootstrapExchangeRequest'
+      responses:
+        '200':
+          description: Bootstrap token exchanged successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AndroidBootstrapExchangeResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /android/releases/channels/{channel}/latest:
+    get:
+      summary: Get Latest Android Release Metadata
+      description: |
+        Returns the latest release metadata for a non-Play Android distribution channel.
+
+        Play Store updates remain store-native and are intentionally not represented by this endpoint.
+      operationId: getLatestAndroidReleaseMetadata
+      tags:
+        - Android Provisioning
+      security: []
+      parameters:
+        - name: channel
+          in: path
+          required: true
+          description: Non-Play Android release channel.
+          schema:
+            $ref: '#/components/schemas/AndroidReleaseChannel'
+      responses:
+        '200':
+          description: Latest Android release metadata returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AndroidReleaseMetadataResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'

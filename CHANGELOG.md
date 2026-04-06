@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Documented the Android enrollment and non-Play distribution contract starter surface in `docs/openapi.yaml`, including admin enrollment-session create/list/read/revoke endpoints, the public bootstrap-token exchange endpoint, and the latest channel-aware Android release metadata endpoint for the single-app `app.secpal` distribution model
 - Documented the current onboarding runtime surface in `docs/openapi.yaml` (closes #180), including the public bootstrap endpoints (`GET /onboarding/validate-token`, `POST /onboarding/complete`), the authenticated employee dossier endpoints (`GET /onboarding/steps`, `GET /onboarding/templates`, `GET /onboarding/templates/{template}`, `GET /onboarding/submissions`, `POST /onboarding/submissions`, `GET /onboarding/completion-status`), the HR review actions (`POST /admin/onboarding/submissions/{submission}/approve`, `POST /admin/onboarding/submissions/{submission}/reject`), and the explicit `onboarding_workflow.status` field on employee resources so clients can distinguish dossier completeness from activation readiness; relates to route-drift follow-up SecPal/frontend#731
 - Documented the phase-2 passkey/WebAuthn contract starter surface in `docs/openapi.yaml`, including browser-session passkey sign-in challenges, authenticated passkey enrollment ceremonies, and self-service passkey metadata/listing endpoints so backend and frontend implementation can proceed contract-first
 - Documented the phase-1 MFA contract in `docs/openapi.yaml`, including pending login challenges for `/auth/login` and `/auth/token`, MFA challenge verification, authenticated TOTP enrollment, self-service disablement, and one-time recovery-code regeneration semantics
@@ -45,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Updated the contracts repo's local domain guidance and validation script so `apk.secpal.app` is accepted as the canonical Android artifact/download host alongside the existing `api.secpal.dev`, `app.secpal.dev`, `secpal.app`, and `app.secpal` policy split
 - Strengthened Copilot governance: require contract-impact analysis when contract changes alter required fields, response shapes, error codes, or security schemes, and mandate `--body-file` for programmatic PR creation to prevent shell escaping issues.
 - Clarified the repo-local branch-start and post-merge readiness workflow so new contract work must start from a clean, updated local `main`, and post-merge cleanup now explicitly returns the repo to `main`, refreshes dependencies with `npm ci` where applicable, runs `npm run validate`, and confirms a clean working tree
 - Restored explicit repo-local Copilot governance by making contract-first and test-first work, quality-first, one-topic-per-PR, immediate issue creation for out-of-scope findings, and EPIC-plus-sub-issue requirements always-on again; the contracts runtime overlay now auto-loads repo-wide so these rules remain present while working
