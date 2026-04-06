@@ -2783,7 +2783,7 @@ components:
           type: string
           format: uri
           description: Canonical metadata URL for the configured non-Play release channel.
-          example: 'https://apk.secpal.app/android/channels/managed_device/latest.json'
+          example: 'https://api.secpal.dev/v1/android/releases/channels/managed_device/latest'
         provisioning_profile:
           $ref: '#/components/schemas/AndroidProvisioningProfile'
         bootstrap_token_expires_at:
@@ -3024,7 +3024,7 @@ components:
             release_metadata_url:
               type: string
               format: uri
-              example: 'https://apk.secpal.app/android/channels/managed_device/latest.json'
+              example: 'https://api.secpal.dev/v1/android/releases/channels/managed_device/latest'
             provisioning_profile:
               $ref: '#/components/schemas/AndroidProvisioningProfile'
 
