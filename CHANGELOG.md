@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Strengthened Copilot governance: require contract-impact analysis when schema changes alter response shapes, error codes, or security schemes, and mandate `--body-file` for programmatic PR creation to prevent shell escaping issues.
+
 ### Added
 
 - Documented the current onboarding runtime surface in `docs/openapi.yaml` (closes #180), including the public bootstrap endpoints (`GET /onboarding/validate-token`, `POST /onboarding/complete`), the authenticated employee dossier endpoints (`GET /onboarding/steps`, `GET /onboarding/templates`, `GET /onboarding/templates/{template}`, `GET /onboarding/submissions`, `POST /onboarding/submissions`, `GET /onboarding/completion-status`), the HR review actions (`POST /admin/onboarding/submissions/{submission}/approve`, `POST /admin/onboarding/submissions/{submission}/reject`), and the explicit `onboarding_workflow.status` field on employee resources so clients can distinguish dossier completeness from activation readiness; relates to route-drift follow-up SecPal/frontend#731
