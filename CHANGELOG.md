@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Updated the contracts repo's local domain guidance and validation script so `apk.secpal.app` is accepted as the canonical Android artifact/download host alongside the existing `api.secpal.dev`, `app.secpal.dev`, `secpal.app`, and `app.secpal` policy split
 - Strengthened Copilot governance: require contract-impact analysis when contract changes alter required fields, response shapes, error codes, or security schemes, and mandate `--body-file` for programmatic PR creation to prevent shell escaping issues.
 - Clarified the repo-local branch-start and post-merge readiness workflow so new contract work must start from a clean, updated local `main`, and post-merge cleanup now explicitly returns the repo to `main`, refreshes dependencies with `npm ci` where applicable, runs `npm run validate`, and confirms a clean working tree
 - Restored explicit repo-local Copilot governance by making contract-first and test-first work, quality-first, one-topic-per-PR, immediate issue creation for out-of-scope findings, and EPIC-plus-sub-issue requirements always-on again; the contracts runtime overlay now auto-loads repo-wide so these rules remain present while working
