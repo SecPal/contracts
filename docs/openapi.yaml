@@ -2783,7 +2783,7 @@ components:
           type: string
           format: uri
           description: Canonical metadata URL for the configured non-Play release channel.
-          example: 'https://api.secpal.dev/v1/android/releases/channels/managed_device/latest'
+          example: 'https://apk.secpal.app/android/channels/managed_device/latest.json'
         provisioning_profile:
           $ref: '#/components/schemas/AndroidProvisioningProfile'
         bootstrap_token_expires_at:
@@ -2854,7 +2854,7 @@ components:
         android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION:
           type: string
           format: uri
-          example: 'https://apk.secpal.app/releases/app.secpal-latest.apk'
+          example: 'https://apk.secpal.app/android/channels/managed_device/app.secpal-latest.apk'
         android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM:
           type: string
           description: Base64-encoded SHA-256 checksum of the signing certificate required by Android provisioning.
@@ -3024,77 +3024,143 @@ components:
             release_metadata_url:
               type: string
               format: uri
-              example: 'https://api.secpal.dev/v1/android/releases/channels/managed_device/latest'
+              example: 'https://apk.secpal.app/android/channels/managed_device/latest.json'
             provisioning_profile:
               $ref: '#/components/schemas/AndroidProvisioningProfile'
 
-    AndroidReleaseMetadata:
+    AndroidMetadataNotes:
+      type: array
+      description: Human-readable notes about release readiness and endpoint stability.
+      items:
+        type: string
+      minItems: 1
+      example:
+        - The URL structure is stable even before the first public Android release ships.
+        - Binary storage backing for apk.secpal.app remains an explicit release-time infrastructure decision.
+
+    AndroidStorageBackendStatus:
+      type: string
+      description: Deployment readiness state for the artifact backing behind the public metadata contract.
+      enum:
+        - pending_release_decision
+
+    AndroidLatestReleaseMetadata:
       type: object
-      description: Latest release metadata for a non-Play Android distribution channel.
+      description: Stable latest-channel metadata contract for a non-Play Android distribution channel on apk.secpal.app.
       required:
         - channel
         - package_name
-        - version_name
-        - version_code
-        - published_at
-        - artifact_url
-        - artifact_sha256
+        - human_landing_url
+        - metadata_url
+        - latest_apk_url
         - checksum_url
-        - signing_certificate_sha256
+        - artifact_host
+        - release_available
+        - storage_backend_status
+        - notes
       properties:
         channel:
           $ref: '#/components/schemas/AndroidReleaseChannel'
         package_name:
           type: string
           enum: [app.secpal]
-        version_name:
-          type: string
-          maxLength: 50
-          example: 1.4.0
-        version_code:
-          type: integer
-          minimum: 1
-          example: 10400
-        published_at:
-          type: string
-          format: date-time
-          example: '2026-04-06T11:55:00Z'
-        artifact_url:
+        human_landing_url:
           type: string
           format: uri
-          example: 'https://apk.secpal.app/releases/app.secpal-1.4.0.apk'
-        artifact_sha256:
+          example: 'https://secpal.app/android/'
+        metadata_url:
           type: string
-          pattern: '^[A-Fa-f0-9]{64}$'
-          example: '4f8a3c9d5e7b2a1c0d9f8e7b6a5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b6c'
+          format: uri
+          example: 'https://apk.secpal.app/android/channels/managed_device/latest.json'
+        latest_apk_url:
+          type: string
+          format: uri
+          example: 'https://apk.secpal.app/android/channels/managed_device/app.secpal-latest.apk'
         checksum_url:
           type: string
           format: uri
-          example: 'https://apk.secpal.app/releases/app.secpal-1.4.0.apk.sha256'
-        signing_certificate_sha256:
+          example: 'https://apk.secpal.app/android/channels/managed_device/SHA256SUMS.txt'
+        artifact_host:
           type: string
-          pattern: '^[A-Fa-f0-9]{64}$'
-          example: 'b8a7f6e5d4c3b2a1908f7e6d5c4b3a291817161514131211100f0e0d0c0b0a09'
-        release_notes_url:
-          type: [string, 'null']
           format: uri
-          example: 'https://secpal.app/android#release-1-4-0'
-        file_size_bytes:
-          type: [integer, 'null']
-          minimum: 1
-          example: 58432109
-        minimum_supported_sdk:
-          type: [integer, 'null']
-          minimum: 1
-          example: 26
+          description: Canonical Android artifact origin base URL including scheme (for example `https://apk.secpal.app`); not just a bare hostname.
+          example: 'https://apk.secpal.app'
+        release_available:
+          type: boolean
+          description: Whether a public Android artifact is already published behind the stable endpoint pattern.
+          example: false
+        storage_backend_status:
+          $ref: '#/components/schemas/AndroidStorageBackendStatus'
+        notes:
+          $ref: '#/components/schemas/AndroidMetadataNotes'
 
-    AndroidReleaseMetadataResponse:
+    AndroidVersionedReleaseMetadata:
+      type: object
+      description: Stable versioned Android release metadata contract on apk.secpal.app.
+      required:
+        - version
+        - package_name
+        - human_landing_url
+        - metadata_url
+        - versioned_apk_url
+        - checksum_url
+        - artifact_host
+        - release_available
+        - storage_backend_status
+        - notes
+      properties:
+        version:
+          type: string
+          maxLength: 50
+          example: 1.4.0
+        package_name:
+          type: string
+          enum: [app.secpal]
+        human_landing_url:
+          type: string
+          format: uri
+          example: 'https://secpal.app/android/'
+        metadata_url:
+          type: string
+          format: uri
+          example: 'https://apk.secpal.app/android/releases/1.4.0/metadata.json'
+        versioned_apk_url:
+          type: string
+          format: uri
+          example: 'https://apk.secpal.app/android/releases/1.4.0/app.secpal-1.4.0.apk'
+        checksum_url:
+          type: string
+          format: uri
+          example: 'https://apk.secpal.app/android/releases/1.4.0/SHA256SUMS.txt'
+        artifact_host:
+          type: string
+          format: uri
+          description: Canonical Android artifact origin base URL including scheme (for example `https://apk.secpal.app`); not just a bare hostname.
+          example: 'https://apk.secpal.app'
+        release_available:
+          type: boolean
+          description: Whether a public Android artifact is already published behind the stable endpoint pattern.
+          example: false
+        storage_backend_status:
+          $ref: '#/components/schemas/AndroidStorageBackendStatus'
+        notes:
+          $ref: '#/components/schemas/AndroidMetadataNotes'
+
+    AndroidLatestReleaseMetadataResponse:
       type: object
       required:
         - data
       properties:
         data:
-          $ref: '#/components/schemas/AndroidReleaseMetadata'
+          $ref: '#/components/schemas/AndroidLatestReleaseMetadata'
+
+    AndroidVersionedReleaseMetadataResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/AndroidVersionedReleaseMetadata'
 
     # =============================================================================
     # Customer & Site Management Schemas (Epic #210)
@@ -7369,11 +7435,11 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /android/releases/channels/{channel}/latest:
+  /android/channels/{channel}/latest.json:
     get:
       summary: Get Latest Android Release Metadata
       description: |
-        Returns the latest release metadata for a non-Play Android distribution channel.
+        Returns the stable latest release metadata contract for a non-Play Android distribution channel.
 
         Play Store updates remain store-native and are intentionally not represented by this endpoint.
       operationId: getLatestAndroidReleaseMetadata
@@ -7393,7 +7459,40 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AndroidReleaseMetadataResponse'
+                $ref: '#/components/schemas/AndroidLatestReleaseMetadataResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /android/releases/{version}/metadata.json:
+    get:
+      summary: Get Versioned Android Release Metadata
+      description: |
+        Returns the stable versioned release metadata contract for one Android release identifier.
+
+        The endpoint shape is fixed before public APK hosting is wired, so clients and release automation can target one canonical URL model on apk.secpal.app.
+      operationId: getVersionedAndroidReleaseMetadata
+      tags:
+        - Android Provisioning
+      security: []
+      parameters:
+        - name: version
+          in: path
+          required: true
+          description: Version identifier for one Android release.
+          schema:
+            type: string
+            maxLength: 50
+      responses:
+        '200':
+          description: Versioned Android release metadata returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AndroidVersionedReleaseMetadataResponse'
         '404':
           $ref: '#/components/responses/NotFound'
         '429':
