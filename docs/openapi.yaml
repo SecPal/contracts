@@ -3083,6 +3083,7 @@ components:
         artifact_host:
           type: string
           format: uri
+          description: Canonical Android artifact origin base URL including scheme (for example `https://apk.secpal.app`); not just a bare hostname.
           example: 'https://apk.secpal.app'
         release_available:
           type: boolean
@@ -3134,6 +3135,7 @@ components:
         artifact_host:
           type: string
           format: uri
+          description: Canonical Android artifact origin base URL including scheme (for example `https://apk.secpal.app`); not just a bare hostname.
           example: 'https://apk.secpal.app'
         release_available:
           type: boolean
