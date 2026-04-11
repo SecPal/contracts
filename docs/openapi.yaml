@@ -931,6 +931,7 @@ components:
           example: preferred
         require_resident_key:
           type: boolean
+          deprecated: true
           description: >-
             Deprecated compatibility flag. Omitted unless the server requires a
             discoverable credential for enrollment.
@@ -3864,6 +3865,8 @@ paths:
                 $ref: '#/components/schemas/PasskeyAuthenticationChallengeResponse'
         '409':
           $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
