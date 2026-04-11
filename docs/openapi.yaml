@@ -923,9 +923,17 @@ components:
         resident_key:
           type: string
           enum: [discouraged, preferred, required]
+          description: >-
+            Passkey enrollment defaults to `preferred` for broader browser and
+            authenticator compatibility. The sign-in flow can request an
+            `allow_credentials` list for email-scoped fallbacks when
+            discoverable credentials are unavailable.
           example: preferred
         require_resident_key:
           type: boolean
+          description: >-
+            Deprecated compatibility flag. Omitted unless the server requires a
+            discoverable credential for enrollment.
           example: false
         user_verification:
           type: string
@@ -1145,6 +1153,18 @@ components:
               type: string
               format: date-time
               example: '2026-04-05T13:45:00Z'
+
+    PasskeyAuthenticationChallengeRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: >-
+            Optional email address used to scope the challenge to that
+            account's enrolled passkeys when the browser cannot complete a
+            discoverable passkey flow.
+          example: user@secpal.dev
 
     PasskeyAssertionResponse:
       type: object
@@ -3822,11 +3842,19 @@ paths:
 
         This phase-2 endpoint is intended for browsers that support `PublicKeyCredential` and the WebAuthn ceremony APIs. Clients that do not support passkeys should continue to use `/auth/login` plus the existing phase-1 MFA challenge flow.
 
+        Clients may optionally provide an email address to receive an `allow_credentials` list for that account when discoverable passkey sign-in is unavailable in the browser or authenticator.
+
         Successful verification of this challenge returns an authenticated browser-session context directly and does not emit a separate phase-1 TOTP challenge.
       operationId: createPasskeyAuthenticationChallenge
       tags:
         - Authentication
       security: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyAuthenticationChallengeRequest'
       responses:
         '201':
           description: Browser passkey sign-in challenge created successfully

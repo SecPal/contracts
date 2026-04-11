@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Clarified the passkey contract so registration examples remain compatibility-friendly (`resident_key: preferred`) while `require_resident_key` stays optional and omitted unless discoverable credentials are required, and `/auth/passkeys/challenges` now documents the optional email-scoped request body used to obtain `allow_credentials` for non-discoverable browser sign-in fallback.
 - Extended the onboarding runtime contract with `POST /v1/onboarding/submissions/{submission}/files`, including the multipart upload payload and returned attachment metadata, so the OpenAPI spec now covers the existing frontend dossier-upload call surface.
 - Narrowed the onboarding submission request contract to the employee-writable states `draft` and `submitted`, and added the explicit `404 Not Found` edge-case response for `POST /v1/onboarding/complete`, so the documented onboarding runtime surface no longer overstates accepted request states or omits the linked-user lookup path
 - Added the missing `403 Forbidden` response to `GET /v1/onboarding/completion-status` so the onboarding contract matches the verified-auth runtime behavior for authenticated but not fully eligible callers
