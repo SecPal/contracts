@@ -2527,6 +2527,25 @@ components:
         status:
           $ref: '#/components/schemas/OnboardingFormSubmissionWriteStatus'
 
+    OnboardingSubmissionPatchRequest:
+      type: object
+      description: >-
+        Runtime payload accepted by `PATCH /onboarding/submissions/{submission}`.
+        Allows editing an existing `draft` or `rejected` submission owned by the authenticated
+        pre-contract employee.
+      properties:
+        form_data:
+          type: object
+          description: Submission data conforming to the template's `form_schema`.
+          additionalProperties: true
+        status:
+          $ref: '#/components/schemas/OnboardingFormSubmissionWriteStatus'
+      anyOf:
+        - required:
+            - form_data
+        - required:
+            - status
+
     OnboardingSubmissionRejectRequest:
       type: object
       description: Payload for rejecting a submitted onboarding form.
@@ -7054,6 +7073,91 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /onboarding/submissions/{submission}:
+    patch:
+      summary: Update Onboarding Submission
+      description: |
+        Updates an existing editable onboarding form submission owned by the authenticated pre-contract employee.
+
+        Only submissions in `draft` or `rejected` status may be edited. A successful update may keep the
+        submission in `draft` or transition it to `submitted` for HR review.
+      operationId: updateOnboardingSubmission
+      tags:
+        - Onboarding
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - name: submission
+          in: path
+          required: true
+          description: Submission UUID.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingSubmissionPatchRequest'
+      responses:
+        '200':
+          description: Onboarding submission updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingFormSubmissionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Conflict - Submission is no longer editable in its current review state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                submittedAwaitingReview:
+                  summary: Submission already awaiting HR review
+                  value:
+                    message: Form has already been submitted and is awaiting review
+                    code: CONFLICT
+                approvedAlreadyReviewed:
+                  summary: Submission already approved by HR
+                  value:
+                    message: Form has already been reviewed and approved
+                    code: CONFLICT
+        '422':
+          description: Validation Error - Update payload invalid or onboarding workflow state disallows the change
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblem'
+              examples:
+                missingEditablePayload:
+                  summary: Neither editable field provided
+                  value:
+                    message: The given data was invalid.
+                    errors:
+                      form_data:
+                        - The form data field is required when status is not present.
+                      status:
+                        - The status field is required when form data is not present.
+                invalidWorkflowState:
+                  summary: Employee workflow not in a state that allows submission
+                  value:
+                    message: The given data was invalid.
+                    errors:
+                      onboarding_workflow_status:
+                        - 'Cannot submit: onboarding workflow is not in an expected state for this action'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
