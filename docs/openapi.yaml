@@ -5,8 +5,8 @@ openapi: 3.1.0
 info:
   title: SecPal API
   description: |
-    This is the official API for SecPal, a digital guard book and security operations platform.
-    It provides endpoints for managing guards, shifts, reports, and other security-related resources.
+    SecPal is the operations software for German private security services.
+    This API is the backend powering guard book, shift planning, and operational workflows.
 
     ## Security
 
