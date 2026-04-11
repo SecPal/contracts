@@ -2426,7 +2426,7 @@ components:
 
     OnboardingFormSubmissionWriteStatus:
       type: string
-      description: Employee-writable onboarding form submission state accepted by `POST /onboarding/submissions`.
+      description: Employee-writable onboarding form submission state accepted by `POST /onboarding/submissions` and `PATCH /onboarding/submissions/{submission}`.
       enum:
         - draft
         - submitted
@@ -7034,9 +7034,13 @@ paths:
     post:
       summary: Create Onboarding Submission
       description: |
-        Creates a new form submission or updates an existing draft/rejected submission for the same template.
+        Creates a new onboarding form submission for the given template.
 
-        The runtime currently uses this single `POST` endpoint for both create and update semantics.
+        Pre-contract employees with an active onboarding workflow may submit a new draft or
+        directly submit for HR review.
+
+        To update an existing draft or rejected submission, use
+        `PATCH /onboarding/submissions/{submission}`.
       operationId: createOnboardingSubmission
       tags:
         - Onboarding
