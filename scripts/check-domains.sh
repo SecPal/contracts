@@ -58,15 +58,10 @@ violations=$(printf '%s\n' "$matches" | \
 
 deprecated_web_hosts=$(printf '%s\n' "$matches" | \
     grep -E 'api\.secpal\.app' | \
-    # Exclude Android/package identifier contexts (not deployable web host usage)
     grep -Ev -- 'appId|applicationId|package name|package/application ID|application ID|Android application identifier|Android identifier|Android package ID|identifier-only' | \
-    # Exclude internal policy/config metadata tokens
     grep -Ev -- 'active web hosts|Deprecated Web Hosts|deprecated_web_hosts|android_application_identifier|validation_rule|package_name|custom_url_scheme' | \
-    # Exclude known instruction/config file references
     grep -Ev -- '\./\.github/copilot-instructions\.md:|\./\.github/copilot-config\.yaml:|\./\.github/instructions/' | \
-    # Exclude code examples that use app.secpal.app as an application/package identifier
     grep -Ev -- 'namespace "app\.secpal\.app"|package app\.secpal\.app;|getPackageName\(\)|adb shell monkey -p app\.secpal\.app' | \
-    # Exclude explanatory policy prose
     grep -Ev -- 'must not appear as active web hosts|not treated as a deployable web domain' || true)
 
 if [[ -z "$violations" && -z "$deprecated_web_hosts" ]]; then
