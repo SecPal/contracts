@@ -58,31 +58,7 @@ violations=$(printf '%s\n' "$matches" | \
 
 deprecated_web_hosts=$(printf '%s\n' "$matches" | \
     grep -E 'api\.secpal\.app' | \
-    grep -v -- "appId" | \
-    grep -v -- "applicationId" | \
-    grep -v -- "package name" | \
-    grep -v -- "package/application ID" | \
-    grep -v -- "application ID" | \
-    grep -v -- "Android application identifier" | \
-    grep -v -- "Android identifier" | \
-    grep -v -- "Android package ID" | \
-    grep -v -- "identifier-only" | \
-    grep -v -- "active web hosts" | \
-    grep -v -- "Deprecated Web Hosts" | \
-    grep -v -- "deprecated_web_hosts" | \
-    grep -v -- "android_application_identifier" | \
-    grep -v -- "validation_rule" | \
-    grep -v -- './.github/copilot-instructions.md:' | \
-    grep -v -- './.github/copilot-config.yaml:' | \
-    grep -v -- './.github/instructions/' | \
-    grep -v -- 'namespace "app\.secpal\.app"' | \
-    grep -v -- 'package app\.secpal\.app;' | \
-    grep -v -- 'package_name' | \
-    grep -v -- 'custom_url_scheme' | \
-    grep -v -- 'getPackageName()' | \
-    grep -v -- 'adb shell monkey -p app\.secpal\.app' | \
-    grep -v -- 'must not appear as active web hosts' | \
-    grep -v -- 'not treated as a deployable web domain' || true)
+    grep -Ev -- 'appId|applicationId|package name|package/application ID|application ID|Android application identifier|Android identifier|Android package ID|identifier-only|active web hosts|Deprecated Web Hosts|deprecated_web_hosts|android_application_identifier|validation_rule|\./\.github/copilot-instructions\.md:|\./\.github/copilot-config\.yaml:|\./\.github/instructions/|namespace "app\.secpal\.app"|package app\.secpal\.app;|package_name|custom_url_scheme|getPackageName\(\)|adb shell monkey -p app\.secpal\.app|must not appear as active web hosts|not treated as a deployable web domain' || true)
 
 if [[ -z "$violations" && -z "$deprecated_web_hosts" ]]; then
     echo -e "${GREEN}✅ Domain Policy Check PASSED${NC}"
