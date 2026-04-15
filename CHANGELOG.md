@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- aligned `EmployeeCreateRequest` with the live employee-create runtime by making `management_level` optional for non-management hires and by documenting `position` as free-text plus the `0`/`1-255` management-rank semantics
+- Aligned `EmployeeCreateRequest` with the live employee-create runtime by making `management_level` optional for non-management hires and by documenting `position` as free-text plus the `0`/`1-255` management-rank semantics
 - Clarified the OpenAPI security overview with the shipped Sanctum session lifetime, non-rotating 24-hour bearer-token policy, and category-specific route throttles so the published contract no longer overstates a flat `100 requests per minute per API key` model
 - Documented the existing `PATCH /v1/onboarding/submissions/{submission}` runtime contract, including the editable submission payload, the returned submission resource, and the state-specific `409 Conflict` / workflow-sensitive `422 Validation Error` cases so the OpenAPI spec now matches the shipped onboarding update endpoint
 - Clarified the passkey contract so registration examples remain compatibility-friendly (`resident_key: preferred`) while `require_resident_key` stays optional and omitted unless discoverable credentials are required, and `/auth/passkeys/challenges` now documents the optional email-scoped request body used to obtain `allow_credentials` for non-discoverable browser sign-in fallback.
