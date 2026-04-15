@@ -81,6 +81,17 @@ At minimum verify:
   quality-first, and issue-management checks
 - no bypass was used
 
+## AI Findings Triage
+
+- Treat AI findings and AI-generated fix PRs as hints, not proof.
+- Before merge, prove the defect with a failing test, a reproducible defect,
+  or a stated invariant and why the current code violates it.
+- Green CI alone is not enough for AI-generated changes, especially test,
+  lifecycle, shell, regex, or refactor diffs; review the semantic risk
+  explicitly.
+- Reject AI-generated shell or regex cleanups that widen discovery patterns or
+  collapse allowlists without positive and negative evidence.
+
 ## Repository Conventions
 
 - This repository is the contract-first source of truth for the SecPal API.
@@ -88,6 +99,7 @@ At minimum verify:
   unless there is an explicit reason to split it.
 - Reuse schemas with `$ref`, keep security schemes and error responses consistent,
   and treat breaking changes as versioned API changes.
+- For policy scripts, keep discovery patterns narrow and verify both allowed and rejected examples after grep or regex changes.
 - Run the relevant validation for every change and keep examples, naming, and reusable components coherent.
 
 ## Scope Notes
