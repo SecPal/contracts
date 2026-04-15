@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@redocly/cli": "^2.26.0",
-    "prettier": "^3.8.2"
+    "prettier": "^3.8.3"
   },
   "overrides": {
     "@redocly/cli": {
