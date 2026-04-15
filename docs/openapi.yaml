@@ -1465,7 +1465,6 @@ components:
         - email
         - status
         - position
-        - management_level
         - contract_start_date
         - contract_type
         - organizational_unit_id
@@ -1590,10 +1589,12 @@ components:
         position:
           type: string
           maxLength: 255
+          description: Free-text job title or position.
         management_level:
           type: integer
           minimum: 0
           maximum: 255
+          description: Optional leadership rank. Omit or use `0` for non-management employees; `1-255` represent leadership ranks.
         hire_date:
           type: [string, 'null']
           format: date
@@ -1806,10 +1807,12 @@ components:
         position:
           type: [string, 'null']
           maxLength: 255
+          description: Free-text job title or position.
         management_level:
           type: integer
           minimum: 0
           maximum: 255
+          description: Optional leadership rank update. Use `0` for non-management employees; `1-255` represent leadership ranks.
         hire_date:
           type: [string, 'null']
           format: date
