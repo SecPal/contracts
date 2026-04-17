@@ -11,6 +11,10 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   reuse:
     name: REUSE Compliance
@@ -27,6 +31,10 @@ jobs:
   markdown-lint:
     name: Markdown Lint
     uses: SecPal/.github/.github/workflows/reusable-markdown-lint.yml@main
+
+  copilot-instructions:
+    name: Copilot Instructions
+    uses: SecPal/.github/.github/workflows/reusable-copilot-instructions.yml@main
 
   openapi-lint:
     name: OpenAPI Lint

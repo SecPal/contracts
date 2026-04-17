@@ -91,6 +91,9 @@ At minimum verify:
   explicitly.
 - Reject AI-generated shell or regex cleanups that widen discovery patterns or
   collapse allowlists without positive and negative evidence.
+- Reject AI-generated contract cleanups that widen allowlists, relax regex or
+  discovery patterns, or change required fields, enums, or security schemes
+  without positive and negative examples plus validation evidence.
 
 ## Repository Conventions
 
