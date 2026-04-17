@@ -55,8 +55,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Scoped the transitive `undici` override to `@redocly/cli` and pinned it to `6.24.0` so contract validation tooling no longer resolves the vulnerable HTTP client release reported by `npm audit`
 - Pinned transitive `brace-expansion` and `yaml` resolutions to patched semver-compatible releases so the contracts toolchain no longer reports the moderate `npm audit` findings surfaced during the Redocly CLI maintenance update
 
-### Changed
-
 - Renamed the latest Android release metadata endpoint from `/android/releases/channels/{channel}/latest` to `/android/channels/{channel}/latest.json` and replaced `AndroidReleaseMetadata` / `AndroidReleaseMetadataResponse` with dedicated `AndroidLatestReleaseMetadata` and `AndroidVersionedReleaseMetadata` schemas; consumers generated from earlier spec versions must update to the new endpoint paths and schemas (breaking change)
 - Updated the contracts repo's local domain guidance and validation script so `apk.secpal.app` is accepted as the canonical Android artifact/download host alongside the existing `api.secpal.dev`, `app.secpal.dev`, `secpal.app`, and `app.secpal` policy split
 - Strengthened Copilot governance: require contract-impact analysis when contract changes alter required fields, response shapes, error codes, or security schemes, and mandate `--body-file` for programmatic PR creation to prevent shell escaping issues.
@@ -112,8 +110,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - git fetch: Cache for 5 minutes with 30s timeout to prevent hanging on slow networks
   - Expected improvement: 60s → 10s for doc fixes, 90s → 25s for API changes without dependency updates
   - All quality gates remain enforced: Pint, PHPStan, Prettier, Markdownlint, OpenAPI validation, REUSE
-
-### Added
 
 - **Customer & Site Management API Specification** (#71, Phase 5 of Epic SecPal/.github#210): Complete OpenAPI 3.1 spec for Customer, Site, Assignment, and CostCenter management
   - **6 Customer endpoints**: `GET /customers` (list with filters), `POST /customers` (create with auto-generated KD-YYYY-####), `GET /customers/{customer}` (show with relationships), `PATCH /customers/{customer}` (update), `DELETE /customers/{customer}` (soft delete), `GET /customers/{customer}/sites` (list customer's sites)
