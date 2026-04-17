@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.github/instructions/org-shared.instructions.md` — org-wide Copilot principles available as a repo-local overlay that can be loaded
   manually for contract-relevant files
 
+### Changed
+
+- wired the central Copilot-instructions validator into `quality.yml` so contract pull requests now fail automatically when known OpenAPI AI-risk guardrails or generic AI-triage guidance are missing from the runtime baseline
+
 ### Fixed
 
 - Aligned `EmployeeCreateRequest` with the live employee-create runtime by making `management_level` optional for non-management hires and by documenting `position` as free-text plus the `0`/`1-255` management-rank semantics
