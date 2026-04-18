@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Updated `@redocly/cli` from `2.28.0` to `2.28.1` so the contracts toolchain stays aligned with the current Redocly CLI release tracked in #213
 - Aligned `EmployeeCreateRequest` with the live employee-create runtime by making `management_level` optional for non-management hires and by documenting `position` as free-text plus the `0`/`1-255` management-rank semantics
 - Clarified the OpenAPI security overview with the shipped Sanctum session lifetime, non-rotating 24-hour bearer-token policy, and category-specific route throttles so the published contract no longer overstates a flat `100 requests per minute per API key` model
 - Documented the existing `PATCH /v1/onboarding/submissions/{submission}` runtime contract, including the editable submission payload, the returned submission resource, and the state-specific `409 Conflict` / workflow-sensitive `422 Validation Error` cases so the OpenAPI spec now matches the shipped onboarding update endpoint
