@@ -55,6 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Scoped the transitive `undici` override to `@redocly/cli` and pinned it to `6.24.0` so contract validation tooling no longer resolves the vulnerable HTTP client release reported by `npm audit`
 - Pinned transitive `brace-expansion` and `yaml` resolutions to patched semver-compatible releases so the contracts toolchain no longer reports the moderate `npm audit` findings surfaced during the Redocly CLI maintenance update
 
+### Changed
+
 - Renamed the latest Android release metadata endpoint from `/android/releases/channels/{channel}/latest` to `/android/channels/{channel}/latest.json` and replaced `AndroidReleaseMetadata` / `AndroidReleaseMetadataResponse` with dedicated `AndroidLatestReleaseMetadata` and `AndroidVersionedReleaseMetadata` schemas; consumers generated from earlier spec versions must update to the new endpoint paths and schemas (breaking change)
 - Updated the contracts repo's local domain guidance and validation script so `apk.secpal.app` is accepted as the canonical Android artifact/download host alongside the existing `api.secpal.dev`, `app.secpal.dev`, `secpal.app`, and `app.secpal` policy split
 - Strengthened Copilot governance: require contract-impact analysis when contract changes alter required fields, response shapes, error codes, or security schemes, and mandate `--body-file` for programmatic PR creation to prevent shell escaping issues.
@@ -86,6 +88,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.github/instructions/org-shared.instructions.md` - reduced to a short repo-local overlay that reinforces the runtime baseline instead of duplicating org documents
 
 - `.github/copilot-instructions.md` — removed dead org-banner HTML comment block (replaced by `org-shared.instructions.md`)
+
+### Added
 
 - **Enhanced Activity Logs API Documentation** (#462): Comprehensive improvements to OpenAPI specification
   - **Realistic Examples**: Added detailed request/response examples for all 3 endpoints
