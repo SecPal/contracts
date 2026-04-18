@@ -89,6 +89,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `.github/copilot-instructions.md` — removed dead org-banner HTML comment block (replaced by `org-shared.instructions.md`)
 
+### Added
+
 - **Enhanced Activity Logs API Documentation** (#462): Comprehensive improvements to OpenAPI specification
   - **Realistic Examples**: Added detailed request/response examples for all 3 endpoints
     - `GET /activity-logs`: Paginated list with 3 activities showing hash chains, Merkle proofs, and OTS data
@@ -112,8 +114,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - git fetch: Cache for 5 minutes with 30s timeout to prevent hanging on slow networks
   - Expected improvement: 60s → 10s for doc fixes, 90s → 25s for API changes without dependency updates
   - All quality gates remain enforced: Pint, PHPStan, Prettier, Markdownlint, OpenAPI validation, REUSE
-
-### Added
 
 - **Customer & Site Management API Specification** (#71, Phase 5 of Epic SecPal/.github#210): Complete OpenAPI 3.1 spec for Customer, Site, Assignment, and CostCenter management
   - **6 Customer endpoints**: `GET /customers` (list with filters), `POST /customers` (create with auto-generated KD-YYYY-####), `GET /customers/{customer}` (show with relationships), `PATCH /customers/{customer}` (update), `DELETE /customers/{customer}` (soft delete), `GET /customers/{customer}/sites` (list customer's sites)
