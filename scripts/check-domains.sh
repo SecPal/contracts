@@ -25,6 +25,8 @@ echo "Deprecated web hosts: api.secpal.app"
 echo "Forbidden: secpal.com, secpal.org, secpal.net, secpal.io, secpal.example, ANY other"
 echo ""
 
+# Match secpal.<label>[.<label>...] domain-like strings.
+# Each label must start/end with an alphanumeric character; hyphens are allowed only inside labels.
 matches=$(grep -r -n -E "secpal\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)*" \
     --include="*.md" \
     --include="*.yaml" \
