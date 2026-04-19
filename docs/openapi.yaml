@@ -3940,6 +3940,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PasskeyAuthenticationChallengeResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
         '429':
@@ -3981,6 +3983,8 @@ paths:
                 $ref: '#/components/schemas/PasskeyTokenLoginResponse'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
         '429':
