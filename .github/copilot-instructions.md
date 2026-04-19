@@ -94,6 +94,11 @@ At minimum verify:
 - Reject AI-generated contract cleanups that widen allowlists, relax regex or
   discovery patterns, or change required fields, enums, or security schemes
   without positive and negative examples plus validation evidence.
+- Reject AI-generated compatibility keep-alives that preserve obsolete schema
+  aliases, deprecated request fields, or legacy contract variants without a
+  proven live caller. Because the SecPal project is still under `1.x`, prefer
+  removing unnecessary compatibility paths over carrying them forward when
+  they weaken security, correctness, or contract clarity.
 
 ## Repository Conventions
 
@@ -107,4 +112,8 @@ At minimum verify:
 
 ## Scope Notes
 
-- Prefer minimal schema changes that preserve backwards compatibility.
+- Prefer minimal schema changes that preserve backwards compatibility unless an
+  under-`1.x` cleanup is intentionally removing an insecure or obsolete
+  compatibility layer. When taking that route, update examples, validation,
+  and `CHANGELOG.md` in the same change set and treat external API breakage as
+  a deliberate contract decision rather than an incidental refactor.
