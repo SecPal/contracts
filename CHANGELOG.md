@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- clarified the repo-local under-`1.x` policy in Copilot governance so contract work explicitly prefers removing obsolete compatibility paths over preserving them without a proven live caller
 - wired the central Copilot-instructions validator into `quality.yml` so contract pull requests now fail automatically when known OpenAPI AI-risk guardrails or generic AI-triage guidance are missing from the runtime baseline
 
 ### Fixed
