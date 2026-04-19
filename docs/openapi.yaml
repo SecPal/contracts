@@ -1169,6 +1169,18 @@ components:
             discoverable passkey flow.
           example: user@secpal.dev
 
+    PasskeyTokenAuthenticationChallengeRequest:
+      allOf:
+        - $ref: '#/components/schemas/PasskeyAuthenticationChallengeRequest'
+        - type: object
+          required:
+            - device_name
+          properties:
+            device_name:
+              type: string
+              description: Friendly client identifier for the personal access token created after successful passkey verification.
+              example: android-phone
+
     PasskeyAssertionResponse:
       type: object
       required:
@@ -1201,6 +1213,49 @@ components:
         credential:
           $ref: '#/components/schemas/PasskeyAuthenticationCredential'
 
+    PasskeyAuthenticationResult:
+      type: object
+      description: Authentication metadata returned after successful passkey verification.
+      required:
+        - method
+        - mfa_completed
+      properties:
+        method:
+          type: string
+          enum: [passkey]
+          example: passkey
+        mfa_completed:
+          type: boolean
+          description: >-
+            Passkey verification satisfies the phishing-resistant sign-in path
+            directly, so no additional phase-1 MFA challenge is returned from
+            these endpoints.
+          example: true
+
+    PasskeySessionAuthenticationResult:
+      allOf:
+        - $ref: '#/components/schemas/PasskeyAuthenticationResult'
+        - type: object
+          required:
+            - mode
+          properties:
+            mode:
+              type: string
+              enum: [session]
+              example: session
+
+    PasskeyTokenAuthenticationResult:
+      allOf:
+        - $ref: '#/components/schemas/PasskeyAuthenticationResult'
+        - type: object
+          required:
+            - mode
+          properties:
+            mode:
+              type: string
+              enum: [token]
+              example: token
+
     PasskeySessionLoginResponse:
       type: object
       required:
@@ -1210,27 +1265,23 @@ components:
         user:
           $ref: '#/components/schemas/AuthenticatedUser'
         authentication:
-          type: object
-          required:
-            - mode
-            - method
-            - mfa_completed
-          properties:
-            mode:
-              type: string
-              enum: [session]
-              example: session
-            method:
-              type: string
-              enum: [passkey]
-              example: passkey
-            mfa_completed:
-              type: boolean
-              description: >-
-                Passkey verification satisfies the phase-2 phishing-resistant
-                sign-in path directly, so no additional phase-1 MFA challenge is
-                returned from this endpoint.
-              example: true
+          $ref: '#/components/schemas/PasskeySessionAuthenticationResult'
+
+    PasskeyTokenLoginResponse:
+      type: object
+      required:
+        - token
+        - user
+        - authentication
+      properties:
+        token:
+          type: string
+          description: Bearer token for the completed token-based passkey login.
+          example: '1|abcdefghijklmnopqrstuvwxyz1234567890'
+        user:
+          $ref: '#/components/schemas/AuthenticatedUser'
+        authentication:
+          $ref: '#/components/schemas/PasskeyTokenAuthenticationResult'
 
     PasskeyDeleteResponse:
       type: object
@@ -3856,6 +3907,88 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/token/passkeys/challenges:
+    post:
+      summary: Start Token Passkey Sign-In Challenge
+      description: |
+        Create a native-client WebAuthn authentication challenge for passkey sign-in that will complete the bearer-token login flow.
+
+        This endpoint is intended for Android and other native clients that complete the passkey ceremony outside the browser, such as with Credential Manager.
+
+        Clients must provide `device_name` so the resulting personal access token can be labeled consistently with `/auth/token`.
+
+        Clients may optionally provide an email address to receive an `allow_credentials` list for that account when discoverable passkey sign-in is unavailable on the platform authenticator.
+
+        Successful verification of this challenge returns a bearer token directly and does not emit a separate phase-1 TOTP challenge.
+      operationId: createTokenPasskeyAuthenticationChallenge
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyTokenAuthenticationChallengeRequest'
+      responses:
+        '201':
+          description: Token passkey sign-in challenge created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasskeyAuthenticationChallengeResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/token/passkeys/challenges/{challengeId}/verify:
+    post:
+      summary: Verify Token Passkey Sign-In Challenge
+      description: |
+        Complete a token-mode passkey sign-in challenge after the caller already obtained WebAuthn assertion data from a native passkey provider.
+
+        This flow is the phishing-resistant alternative to `/auth/token` for supported native clients. It does not consume or rotate phase-1 recovery codes, and it does not replace the `/auth/token` plus `/auth/mfa-challenges/{challengeId}/verify` flow for clients that still rely on passwords.
+      operationId: verifyTokenPasskeyAuthenticationChallenge
+      tags:
+        - Authentication
+      security: []
+      parameters:
+        - name: challengeId
+          in: path
+          required: true
+          description: Passkey challenge identifier returned by `/auth/token/passkeys/challenges`.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyAuthenticationVerificationRequest'
+      responses:
+        '200':
+          description: Passkey sign-in verified and bearer token created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasskeyTokenLoginResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
 

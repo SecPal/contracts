@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Documented the native token-mode passkey authentication contract in `docs/openapi.yaml`, including dedicated `/auth/token/passkeys/challenges` start and verify endpoints plus the explicit bearer-token completion response needed by Android Credential Manager clients
 - Added `changelog.secpal.app` to the contracts repo domain policy baseline and `scripts/check-domains.sh` allowlist/output so the public changelog host matches the approved SecPal domain split enforced elsewhere
 - Documented the stable `apk.secpal.app` Android metadata contracts in `docs/openapi.yaml`, including the concrete latest-channel path `/android/channels/{channel}/latest.json`, the versioned path `/android/releases/{version}/metadata.json`, and response schemas aligned with the merged public website metadata model
 
