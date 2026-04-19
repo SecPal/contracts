@@ -62,7 +62,33 @@ violations=$(printf '%s\n' "$matches" | \
     } | \
     grep -E 'secpal\.' || true)
 
-deprecated_exclude_regex='appId|applicationId|package name|package/application ID|application ID|Android application identifier|Android identifier|Android package ID|identifier-only|active web hosts|Deprecated Web Hosts|deprecated_web_hosts|android_application_identifier|validation_rule|package_name|custom_url_scheme|\./\.github/.*(copilot|instructions)|namespace "app\.secpal\.app"|package app\.secpal\.app;|getPackageName\(\)|adb shell monkey -p app\.secpal\.app|must not appear as active web hosts|not treated as a deployable web domain'
+deprecated_exclude_patterns=(
+    'appId'
+    'applicationId'
+    'package name'
+    'package/application ID'
+    'application ID'
+    'Android application identifier'
+    'Android identifier'
+    'Android package ID'
+    'identifier-only'
+    'active web hosts'
+    'Deprecated Web Hosts'
+    'deprecated_web_hosts'
+    'android_application_identifier'
+    'validation_rule'
+    'package_name'
+    'custom_url_scheme'
+    '\./\.github/.*(copilot|instructions)'
+    'namespace "app\.secpal\.app"'
+    'package app\.secpal\.app;'
+    'getPackageName\(\)'
+    'adb shell monkey -p app\.secpal\.app'
+    'must not appear as active web hosts'
+    'not treated as a deployable web domain'
+)
+IFS='|' read -r -a _unused <<< ""
+deprecated_exclude_regex="$(IFS='|'; echo "${deprecated_exclude_patterns[*]}")"
 deprecated_web_hosts=$(printf '%s\n' "$matches" | \
     grep -E 'api\.secpal\.app' | \
     grep -Ev -- "$deprecated_exclude_regex" || true)
