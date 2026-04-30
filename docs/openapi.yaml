@@ -13,7 +13,7 @@ info:
     - **Authentication Modes:** Browser clients use Laravel Sanctum's first-party session flow from approved SPA origins, while native and mobile clients use Personal Access Tokens limited to the `api-access` ability.
     - **Session Lifetime and Re-authentication:** Stateful browser sessions expire after 120 minutes of inactivity. SPA logins also set a remember-me cookie, but explicit logout and password reset flows revoke the active browser session and require a fresh login.
     - **Bearer Token Lifetime and Rotation:** Personal Access Tokens are stored hashed at rest, expire after 1440 minutes (24 hours), and are not rotated automatically on use. SecPal also uses `sec_`-prefixed secret identifiers for secret-scanning and credential-handling workflows. New token logins mint an additional device-scoped token, so clients must re-authenticate after expiry or explicit revocation.
-    - **Rate Limiting:** The default authenticated API bucket is 60 requests per minute keyed by authenticated user ID, falling back to client IP when no authenticated principal is available. Higher-risk endpoints use stricter route categories: login failures are limited to 5 attempts per 5 minutes per account and per IP-plus-account pair, password reset requests to 5 per 60 minutes per IP, MFA and passkey verification/challenge endpoints to 5 per 10 minutes, and onboarding completion/validation plus administrative MFA resets to 3 per 10 minutes, with a few additional route-specific bootstrap and verification caps.
+    - **Rate Limiting:** The default authenticated API bucket is 60 requests per minute keyed by authenticated user ID, falling back to client IP when no authenticated principal is available. Higher-risk endpoints use stricter route categories: login failures are limited to 5 attempts per 5 minutes per account and per IP-plus-account pair, password reset requests to 5 per 60 minutes per IP, MFA and passkey verification/challenge endpoints to 5 per 10 minutes, and onboarding completion/validation plus privileged MFA resets to 3 per 10 minutes, with a few additional route-specific bootstrap and verification caps.
     - **CORS:** Allowed origins must be configured in application settings
     - **Security Headers:** HSTS, CSP, X-Frame-Options enforced
 
@@ -62,7 +62,7 @@ tags:
       dossier flow, HR review actions, and onboarding confirmation.
   - name: Android Provisioning
     description: >-
-      Admin enrollment-session management, public bootstrap-token exchange, and channel-aware
+      Authorized enrollment-session management, public bootstrap-token exchange, and channel-aware
       release metadata for SecPal's single-app Android distribution model.
 
 components:
@@ -425,7 +425,7 @@ components:
           type: array
           items:
             type: string
-          example: ['Admin']
+          example: ['Employee']
         permissions:
           type: array
           items:
@@ -756,7 +756,7 @@ components:
             recovery_codes:
               $ref: '#/components/schemas/MfaRecoveryCodeReveal'
 
-    AdminMfaResetRequest:
+    UserMfaResetRequest:
       type: object
       required:
         - reason
@@ -764,10 +764,10 @@ components:
         reason:
           type: string
           maxLength: 500
-          description: Human-readable reason recorded in the audit trail for the administrative MFA reset.
+          description: Human-readable reason recorded in the audit trail for the privileged MFA reset.
           example: 'Lost authenticator device'
 
-    AdminMfaResetResponse:
+    UserMfaResetResponse:
       type: object
       required:
         - message
@@ -1364,7 +1364,8 @@ components:
           example: '550e8400-e29b-41d4-a716-446655440010'
         access_level:
           type: string
-          example: 'admin'
+          enum: [none, read, write, manage]
+          example: 'manage'
         include_descendants:
           type: boolean
           example: true
@@ -4556,7 +4557,7 @@ paths:
     delete:
       summary: Reset User MFA
       description: |
-        Administratively reset the target user's MFA enrollment.
+        Reset the target user's MFA enrollment as a privileged support or security action.
 
         This endpoint is intended for same-tenant support or security staff who hold the dedicated `users.reset_mfa` permission. It clears an enabled MFA enrollment or an unconfirmed pending enrollment and records the supplied reason in the authentication audit trail.
 
@@ -4584,14 +4585,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AdminMfaResetRequest'
+              $ref: '#/components/schemas/UserMfaResetRequest'
       responses:
         '200':
           description: MFA reset completed successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminMfaResetResponse'
+                $ref: '#/components/schemas/UserMfaResetResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -7380,7 +7381,7 @@ paths:
         HR review action. Approves a submitted onboarding form submission, transitioning
         its status to `approved`.
 
-        Requires an HR or admin role. Only submissions in `submitted` status may be approved.
+        Requires the explicit `onboarding.approve` permission. Only submissions in `submitted` status may be approved.
       operationId: approveOnboardingSubmission
       tags:
         - Onboarding
@@ -7421,7 +7422,7 @@ paths:
         HR review action. Rejects a submitted onboarding form submission and requests changes,
         transitioning its status to `rejected`.
 
-        Requires an HR or admin role. Only submissions in `submitted` status may be rejected.
+        Requires the explicit `onboarding.approve` permission. Only submissions in `submitted` status may be rejected.
       operationId: rejectOnboardingSubmission
       tags:
         - Onboarding
