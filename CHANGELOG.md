@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed the obsolete `Admin` role example and `admin` organizational-scope access level from `docs/openapi.yaml`, renamed the MFA reset payload schemas to `UserMfaResetRequest` / `UserMfaResetResponse`, and clarified that the remaining `/admin/...` onboarding and Android provisioning surfaces are authorized by explicit permissions rather than a runtime Admin role; generated clients and consumers must update to the new schema names and scope enum values (breaking change, closes #228)
 - clarified the repo-local under-`1.x` policy in Copilot governance so contract work explicitly prefers removing obsolete compatibility paths over preserving them without a proven live caller
 - wired the central Copilot-instructions validator into `quality.yml` so contract pull requests now fail automatically when known OpenAPI AI-risk guardrails or generic AI-triage guidance are missing from the runtime baseline
 
