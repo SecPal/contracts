@@ -14,6 +14,7 @@
     "url": "https://github.com/SecPal/contracts/issues"
   },
   "scripts": {
+    "prevalidate": "bash scripts/check-redocly-cli-sync.sh",
     "lint": "redocly lint docs/openapi.yaml --config .redocly.yaml",
     "format": "prettier --write '**/*.{md,yml,yaml,json}'",
     "format:check": "prettier --check '**/*.{md,yml,yaml,json}'",
