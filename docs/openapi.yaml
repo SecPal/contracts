@@ -2957,6 +2957,12 @@ components:
           description: Base64-encoded SHA-256 checksum of the signing certificate required by Android provisioning.
           example: 'm2N7N0F4Q2ZwS0V0bDhlWlU4a1pMRTNwckE3WlJtWm9Kc2J0S2x2dz0='
         android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE:
+          description: >
+            The bootstrap payload exchanged with the Android app.
+            Note: `PROVISIONING_ADMIN_EXTRAS_BUNDLE` is Android's fixed
+            system constant name and cannot be changed; the schema it
+            references has been renamed to `AndroidProvisioningOperatorExtras`
+            to reflect SecPal's authorization model.
           $ref: '#/components/schemas/AndroidProvisioningOperatorExtras'
 
     AndroidEnrollmentSessionCreateRequest:
