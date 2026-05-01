@@ -37,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Added a fail-fast `prevalidate` guard that blocks `npm run validate` when local `node_modules` still resolve a stale `@redocly/cli` version instead of the lockfile-pinned release, so the follow-up tracked in #223 now reports an actionable `npm ci` requirement instead of a misleading Redocly upgrade banner
+- Updated `@redocly/cli` from `2.29.2` to `2.30.3` across the follow-up maintenance bumps tracked from #223 so the contracts validation toolchain now stays on the current compatible Redocly CLI release line already recorded in `package.json` and `package-lock.json`
 - Updated `@redocly/cli` from `2.28.0` to `2.28.1` so the contracts toolchain stays aligned with the current Redocly CLI release tracked in #213
 - Aligned `EmployeeCreateRequest` with the live employee-create runtime by making `management_level` optional for non-management hires and by documenting `position` as free-text plus the `0`/`1-255` management-rank semantics
 - Clarified the OpenAPI security overview with the shipped Sanctum session lifetime, non-rotating 24-hour bearer-token policy, and category-specific route throttles so the published contract no longer overstates a flat `100 requests per minute per API key` model
