@@ -654,25 +654,22 @@ components:
           format: date
           description: Optional; must be strictly after `obtained_date` when provided.
         certificate_number:
-          type: string
+          type: ['string', 'null']
           maxLength: 255
-          nullable: true
         issuing_authority:
-          type: string
+          type: ['string', 'null']
           maxLength: 255
-          nullable: true
         notes:
-          type: string
+          type: ['string', 'null']
           maxLength: 1000
-          nullable: true
         document_path:
-          type: string
+          type: ['string', 'null']
           maxLength: 255
-          nullable: true
         status:
-          $ref: '#/components/schemas/EmployeeQualificationStatus'
-          nullable: true
           description: Optional; server defaults to `valid` when omitted (`EmployeeQualificationController::store`).
+          anyOf:
+            - $ref: '#/components/schemas/EmployeeQualificationStatus'
+            - type: 'null'
 
     UpdateEmployeeQualificationRequest:
       type: object
@@ -687,28 +684,24 @@ components:
           type: string
           format: date
         expiry_date:
-          type: string
+          type: ['string', 'null']
           format: date
-          nullable: true
         certificate_number:
-          type: string
+          type: ['string', 'null']
           maxLength: 255
-          nullable: true
         issuing_authority:
-          type: string
+          type: ['string', 'null']
           maxLength: 255
-          nullable: true
         notes:
-          type: string
+          type: ['string', 'null']
           maxLength: 1000
-          nullable: true
         document_path:
-          type: string
+          type: ['string', 'null']
           maxLength: 255
-          nullable: true
         status:
-          $ref: '#/components/schemas/EmployeeQualificationStatus'
-          nullable: true
+          anyOf:
+            - $ref: '#/components/schemas/EmployeeQualificationStatus'
+            - type: 'null'
 
     EmployeeQualificationResource:
       type: object
@@ -737,31 +730,25 @@ components:
           type: string
           format: date
         expiry_date:
-          type: string
+          type: ['string', 'null']
           format: date
-          nullable: true
         certificate_number:
-          type: string
-          nullable: true
+          type: ['string', 'null']
         issuing_authority:
-          type: string
-          nullable: true
+          type: ['string', 'null']
         notes:
-          type: string
-          nullable: true
+          type: ['string', 'null']
         document_path:
-          type: string
-          nullable: true
+          type: ['string', 'null']
         status:
           $ref: '#/components/schemas/EmployeeQualificationStatus'
         qualification:
           description: Embedded catalog row when the `qualification` relation is loaded.
           $ref: '#/components/schemas/QualificationResource'
         employee:
-          type: object
           description: >
             Full `EmployeeResource` payload when the `employee` relation is eager-loaded (typically list and show responses).
-          additionalProperties: true
+          $ref: '#/components/schemas/Employee'
 
     EmployeeQualificationCollectionResponse:
       type: object

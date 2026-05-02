@@ -78,6 +78,6 @@ if (missing.length) {
   process.exit(1);
 }
 
-console.error(
+console.log(
   `Verified-endpoint presence guard OK (${REQUIRED_OPERATIONS.length} operations).`,
 );
