@@ -395,6 +395,149 @@ components:
           format: email
           example: 'max.mustermann@secpal.app'
 
+    EmployeeDocumentType:
+      type: string
+      description: Document category (validated by `UploadEmployeeDocumentRequest`).
+      enum:
+        - contract
+        - id_copy
+        - criminal_record
+        - qualification
+        - reference
+        - health_certificate
+        - work_permit
+        - other
+
+    EmployeeDocumentStatus:
+      type: string
+      description: Lifecycle status derived from expiry and policy (persisted on the model).
+      enum:
+        - valid
+        - expiring_soon
+        - expired
+
+    EmployeeDocumentResource:
+      type: object
+      description: |
+        Employee document metadata (`EmployeeDocumentResource`). Responses never include raw storage paths (`file_path` is omitted).
+
+        `download_url` is an absolute URL to `GET /employees/{employee}/documents/{document}/download` for this record.
+      required:
+        - id
+        - employee_id
+        - uploaded_by
+        - title
+        - document_type
+        - file_name
+        - mime_type
+        - file_size
+        - download_url
+        - status
+        - visible_to_employee
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        employee_id:
+          type: string
+          format: uuid
+        uploaded_by:
+          type: string
+          format: uuid
+          description: UUID of the uploading user (`users.id`).
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: [string, 'null']
+          maxLength: 1000
+        document_type:
+          $ref: '#/components/schemas/EmployeeDocumentType'
+        file_name:
+          type: string
+          description: Sanitized original filename suitable for display and download headers.
+        mime_type:
+          type: string
+          description: Stored MIME type (allowed uploads are PDF, JPEG, or PNG).
+        file_size:
+          type: integer
+          description: Size in bytes.
+        download_url:
+          type: string
+          format: uri
+          description: Absolute URL to download the encrypted document binary.
+        expiry_date:
+          type: [string, 'null']
+          format: date
+          description: Optional calendar expiry date (YYYY-MM-DD), when set.
+        status:
+          $ref: '#/components/schemas/EmployeeDocumentStatus'
+        visible_to_employee:
+          type: boolean
+          description: When false, documents are hidden from the employee self-service view (HR/managers may still see them subject to policy).
+        uploader:
+          $ref: '#/components/schemas/EmployeeUserSummary'
+          description: Present when the `uploader` relationship is loaded (list, show, and create responses load it).
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    EmployeeDocumentCollectionResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmployeeDocumentResource'
+
+    EmployeeDocumentSingleResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/EmployeeDocumentResource'
+
+    UploadEmployeeDocumentRequest:
+      type: object
+      description: |
+        Multipart fields for `POST /employees/{employee}/documents` (matches `UploadEmployeeDocumentRequest`).
+
+        **File rules:** required; max **10240 KiB (10 MB)**; extensions **pdf, jpg, jpeg, png**; MIME types **application/pdf, image/jpeg, image/png** (`mimes` + `mimetypes` validation).
+
+        **Fields:** `title` and `document_type` are required. `visible_to_employee` is required (boolean). `description` and `expiry_date` are optional; when `expiry_date` is present it must be a date **after** today.
+      required:
+        - file
+        - title
+        - document_type
+        - visible_to_employee
+      properties:
+        file:
+          type: string
+          format: binary
+          description: Binary upload (PDF or image).
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
+        document_type:
+          $ref: '#/components/schemas/EmployeeDocumentType'
+        expiry_date:
+          type: string
+          format: date
+          description: Optional; must be strictly after the current calendar day when provided.
+        visible_to_employee:
+          type: boolean
+
     AuthenticatedUser:
       type: object
       description: Authenticated user profile and authorization context returned by auth and self-service endpoints.
@@ -5944,6 +6087,12 @@ paths:
   /employees/{employee}/documents:
     get:
       summary: List Employee Documents
+      description: |
+        Returns metadata for documents belonging to the employee (`EmployeeDocumentPolicy::viewAny` + organizational scope).
+
+        When the authenticated user is the employee (`User` matches `employee.user_id`), the list is filtered to rows with `visible_to_employee` **true**. HR and scoped managers see all documents permitted by policy.
+
+        **Routing:** Lives under the authenticated `verified` middleware group alongside other `/v1` HR APIs; callers need a verified email address when that middleware applies.
       operationId: listEmployeeDocuments
       tags:
         - Employees
@@ -5953,17 +6102,17 @@ paths:
         - name: employee
           in: path
           required: true
+          description: Employee UUID identifier
           schema:
             type: string
             format: uuid
       responses:
         '200':
-          description: Documents returned
+          description: Documents returned (`data` includes `uploader` where loaded).
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/EmployeeDocumentCollectionResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -5975,6 +6124,10 @@ paths:
 
     post:
       summary: Upload Employee Document
+      description: |
+        Multipart upload validated by `UploadEmployeeDocumentRequest` (`EmployeeDocumentController::store`).
+
+        Requires `employee_document.write` (via policy). Files are encrypted at rest; responses mirror `EmployeeDocumentResource` and never expose `file_path`.
       operationId: createEmployeeDocument
       tags:
         - Employees
@@ -5984,6 +6137,7 @@ paths:
         - name: employee
           in: path
           required: true
+          description: Employee UUID identifier
           schema:
             type: string
             format: uuid
@@ -5992,16 +6146,17 @@ paths:
         content:
           multipart/form-data:
             schema:
-              type: object
-              additionalProperties: true
+              $ref: '#/components/schemas/UploadEmployeeDocumentRequest'
+            encoding:
+              file:
+                contentType: application/octet-stream
       responses:
         '201':
-          description: Document stored
+          description: Document stored and metadata returned
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/EmployeeDocumentSingleResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -6016,6 +6171,8 @@ paths:
   /employees/{employee}/documents/{document}:
     get:
       summary: Get Employee Document Metadata
+      description: |
+        Returns a single document row (`EmployeeDocumentPolicy::view`). Route-model binding is scoped: a `{document}` UUID that does not belong to `{employee}` yields **404**.
       operationId: getEmployeeDocument
       tags:
         - Employees
@@ -6025,12 +6182,14 @@ paths:
         - name: employee
           in: path
           required: true
+          description: Employee UUID identifier
           schema:
             type: string
             format: uuid
         - name: document
           in: path
           required: true
+          description: Employee document UUID (`employee_documents.id`)
           schema:
             type: string
             format: uuid
@@ -6040,8 +6199,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/EmployeeDocumentSingleResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -6053,6 +6211,8 @@ paths:
 
     delete:
       summary: Delete Employee Document
+      description: |
+        Soft-deletes the record and removes ciphertext from storage (`EmployeeDocumentPolicy::delete`).
       operationId: deleteEmployeeDocument
       tags:
         - Employees
@@ -6062,30 +6222,36 @@ paths:
         - name: employee
           in: path
           required: true
+          description: Employee UUID identifier
           schema:
             type: string
             format: uuid
         - name: document
           in: path
           required: true
+          description: Employee document UUID
           schema:
             type: string
             format: uuid
       responses:
         '204':
-          description: Deleted
+          description: Deleted (empty body)
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
 
   /employees/{employee}/documents/{document}/download:
     get:
       summary: Download Employee Document File
+      description: |
+        Streams decrypted bytes with `Content-Type` set to the stored MIME type and `Content-Disposition: attachment` using a sanitized filename.
+
+        **404:** Returned when the ciphertext blob is missing from disk (`EmployeeDocumentFileNotFoundException` maps to *File not found*) — see feature tests.
+
+        **500:** Returned when ciphertext exists but cannot be decrypted or parsed (invalid envelope). Covered by `EmployeeDocumentControllerTest` (`returns 500 when encrypted document blob is invalid`).
       operationId: downloadEmployeeDocument
       tags:
         - Employees
@@ -6095,20 +6261,44 @@ paths:
         - name: employee
           in: path
           required: true
+          description: Employee UUID identifier
           schema:
             type: string
             format: uuid
         - name: document
           in: path
           required: true
+          description: Employee document UUID
           schema:
             type: string
             format: uuid
       responses:
         '200':
-          description: File bytes (binary or PDF as configured)
+          description: |
+            Binary document body. Typical `Content-Type` values include `application/pdf`, `image/jpeg`, or `image/png`.
+          headers:
+            Content-Type:
+              schema:
+                type: string
+              description: Mirrors the stored MIME type on the document row.
+            Content-Disposition:
+              schema:
+                type: string
+              description: Attachment disposition with sanitized filename.
           content:
             application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
               schema:
                 type: string
                 format: binary
