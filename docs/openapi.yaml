@@ -510,7 +510,7 @@ components:
       description: |
         Multipart fields for `POST /employees/{employee}/documents` (matches `UploadEmployeeDocumentRequest`).
 
-        **File rules:** required; max **10240 KiB (10 MB)**; extensions **pdf, jpg, jpeg, png**; MIME types **application/pdf, image/jpeg, image/png** (`mimes` + `mimetypes` validation).
+        **File rules:** required; max **10240 KiB (10 MiB)**; extensions **pdf, jpg, jpeg, png**; MIME types **application/pdf, image/jpeg, image/png** (`mimes` + `mimetypes` validation).
 
         **Fields:** `title` and `document_type` are required. `visible_to_employee` is required (boolean). `description` and `expiry_date` are optional; when `expiry_date` is present it must be a date **after** today.
       required:
@@ -715,6 +715,8 @@ components:
         - qualification_id
         - obtained_date
         - status
+        - created_at
+        - updated_at
       properties:
         id:
           type: string
@@ -741,6 +743,12 @@ components:
           type: [string, 'null']
         status:
           $ref: '#/components/schemas/EmployeeQualificationStatus'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
         qualification:
           description: Embedded catalog row when the `qualification` relation is loaded.
           $ref: '#/components/schemas/QualificationResource'

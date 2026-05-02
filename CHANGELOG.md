@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Corrected `QualificationResource` schema: removed `description` from `required` (nullable field, may be absent per spec pattern), made `created_at`/`updated_at` non-nullable (`type: string`) to align with all other resource timestamps, and aligned union-type style from `['string', 'null']` to `[string, 'null']` consistently across all new schemas (`docs/openapi.yaml`)
+- Added `created_at`/`updated_at` (required, non-nullable `type: string, format: date-time`) to `EmployeeQualificationResource`, consistent with all other resource schemas (`docs/openapi.yaml`)
+- Fixed file-size note: `10240 KiB (10 MB)` → `10240 KiB (10 MiB)` in `UploadEmployeeDocumentRequest` description (`docs/openapi.yaml`)
 - Updated `check-openapi-verified-endpoints.mjs` guard comment to accurately describe all operation groups in the allowlist (qualification catalog + employee qualifications were missing from the description)
 
 ### Added
