@@ -19,23 +19,19 @@ SecPal is the operations software for German private security services. This rep
 - **API Version:** `0.0.1` (Initial Development)
 - **Specification File:** `docs/openapi.yaml`
 - **Base URL:** `https://api.secpal.dev/v1`
-- **Last Updated:** 2025-10-25
+- **Last Updated:** 2026-05-02
 
 ### Available Endpoints
 
+The contract file `docs/openapi.yaml` is the source of truth. It documents a large portion of the live `/v1` surface, including authentication and session flows, self-service (`/me`), employees (including nested qualifications and documents), the qualification catalog, customers, sites, assignments, onboarding, activity logs, Android enrollment/release metadata, and more.
+
 **Monitoring:**
 
-- `GET /health` - Health check endpoint for monitoring API status
+- Health-related paths (for example `GET /health`) appear in the spec as deployed.
 
-**Future Endpoints** _(planned)_:
+Some backend-only or admin-heavy routes (for example RBAC role and permission administration under `/v1/roles` and `/v1/permissions`) are described in the API repository ([`SecPal/api` docs](https://github.com/SecPal/api)) and may not yet appear in OpenAPI — compare with `routes/api.php` when auditing coverage.
 
-- Authentication & Authorization
-- Guard Management
-- Shift Scheduling
-- Incident Reporting
-- Client Management
-
-_See `docs/openapi.yaml` for complete specification details._
+_See `docs/openapi.yaml` for paths, operations, and schemas._
 
 ## Usage
 
