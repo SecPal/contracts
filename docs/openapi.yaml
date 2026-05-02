@@ -6038,7 +6038,7 @@ paths:
         **Query filters** (`IndexQualificationRequest`):
 
         - `is_system_qualification` — when **true**, only global system qualifications; when **false**, only tenant custom rows.
-        - `category` — must be one of `QualificationCategory` enum values when provided (empty string coerces to “unset”, matching Laravel `nullable`).
+        - `category` — must be one of `QualificationCategory` enum values when provided; omitting the parameter returns all categories..
         - `is_mandatory` — filter by mandatory flag.
 
         **Authorization:** `QualificationPolicy::viewAny` requires `qualification.read`.
@@ -6760,6 +6760,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /employees/{employee}/documents/{document}/download:
     get:
