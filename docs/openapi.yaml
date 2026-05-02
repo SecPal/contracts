@@ -559,7 +559,6 @@ components:
         - id
         - tenant_id
         - name
-        - description
         - category
         - requires_renewal
         - renewal_period_months
@@ -573,18 +572,18 @@ components:
           type: string
           format: uuid
         tenant_id:
-          type: ['integer', 'null']
+          type: [integer, 'null']
           description: Owning tenant for custom qualifications; `null` for global system qualifications (`tenant_id` column).
         name:
           type: string
         description:
-          type: ['string', 'null']
+          type: [string, 'null']
         category:
           $ref: '#/components/schemas/QualificationCategory'
         requires_renewal:
           type: boolean
         renewal_period_months:
-          type: ['integer', 'null']
+          type: [integer, 'null']
         is_mandatory:
           type: boolean
         is_system_qualification:
@@ -592,10 +591,10 @@ components:
         sort_order:
           type: integer
         created_at:
-          type: ['string', 'null']
+          type: string
           format: date-time
         updated_at:
-          type: ['string', 'null']
+          type: string
           format: date-time
 
     QualificationCollectionResponse:
@@ -654,16 +653,16 @@ components:
           format: date
           description: Optional; must be strictly after `obtained_date` when provided.
         certificate_number:
-          type: ['string', 'null']
+          type: [string, 'null']
           maxLength: 255
         issuing_authority:
-          type: ['string', 'null']
+          type: [string, 'null']
           maxLength: 255
         notes:
-          type: ['string', 'null']
+          type: [string, 'null']
           maxLength: 1000
         document_path:
-          type: ['string', 'null']
+          type: [string, 'null']
           maxLength: 255
         status:
           description: Optional; server defaults to `valid` when omitted (`EmployeeQualificationController::store`).
@@ -684,19 +683,19 @@ components:
           type: string
           format: date
         expiry_date:
-          type: ['string', 'null']
+          type: [string, 'null']
           format: date
         certificate_number:
-          type: ['string', 'null']
+          type: [string, 'null']
           maxLength: 255
         issuing_authority:
-          type: ['string', 'null']
+          type: [string, 'null']
           maxLength: 255
         notes:
-          type: ['string', 'null']
+          type: [string, 'null']
           maxLength: 1000
         document_path:
-          type: ['string', 'null']
+          type: [string, 'null']
           maxLength: 255
         status:
           anyOf:
@@ -730,16 +729,16 @@ components:
           type: string
           format: date
         expiry_date:
-          type: ['string', 'null']
+          type: [string, 'null']
           format: date
         certificate_number:
-          type: ['string', 'null']
+          type: [string, 'null']
         issuing_authority:
-          type: ['string', 'null']
+          type: [string, 'null']
         notes:
-          type: ['string', 'null']
+          type: [string, 'null']
         document_path:
-          type: ['string', 'null']
+          type: [string, 'null']
         status:
           $ref: '#/components/schemas/EmployeeQualificationStatus'
         qualification:
@@ -787,14 +786,14 @@ components:
           type: string
           maxLength: 255
         description:
-          type: ['string', 'null']
+          type: [string, 'null']
           maxLength: 1000
         category:
           $ref: '#/components/schemas/QualificationCategory'
         requires_renewal:
           type: boolean
         renewal_period_months:
-          type: ['integer', 'null']
+          type: [integer, 'null']
           minimum: 1
           maximum: 120
         is_mandatory:
@@ -816,14 +815,14 @@ components:
           type: string
           maxLength: 255
         description:
-          type: ['string', 'null']
+          type: [string, 'null']
           maxLength: 1000
         category:
           $ref: '#/components/schemas/QualificationCategory'
         requires_renewal:
           type: boolean
         renewal_period_months:
-          type: ['integer', 'null']
+          type: [integer, 'null']
           minimum: 1
           maximum: 120
         is_mandatory:

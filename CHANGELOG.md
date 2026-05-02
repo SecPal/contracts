@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Corrected `QualificationResource` schema: removed `description` from `required` (nullable field, may be absent per spec pattern), made `created_at`/`updated_at` non-nullable (`type: string`) to align with all other resource timestamps, and aligned union-type style from `['string', 'null']` to `[string, 'null']` consistently across all new schemas (`docs/openapi.yaml`)
+- Updated `check-openapi-verified-endpoints.mjs` guard comment to accurately describe all operation groups in the allowlist (qualification catalog + employee qualifications were missing from the description)
+
 ### Added
 
 - Documented employee qualification management endpoints in `docs/openapi.yaml` (US-008), including qualification catalog CRUD (`GET/POST /qualifications`, `GET/PATCH/DELETE /qualifications/{qualification}`), per-employee qualification assignment (`GET/POST /employees/{employee}/qualifications`, `GET/PATCH/DELETE /employee-qualifications/{employeeQualification}`), employee document management (`GET/POST /employees/{employee}/documents`, `GET/DELETE /employees/{employee}/documents/{document}`, `GET /employees/{employee}/documents/{document}/download`), email verification resend (`POST /auth/email/verification-notification`), and the `check-openapi-verified-endpoints.mjs` guard that enforces a fixed allowlist of verified operations is present in the spec
