@@ -1759,17 +1759,6 @@ components:
           type: string
           description: Plain JSON message returned by Laravel for some auth and throttle errors (no `code` field).
 
-    EmailVerificationNotificationResponse:
-      type: object
-      required:
-        - message
-      properties:
-        message:
-          type: string
-          description: >
-            Human-readable status from `AuthController::sendVerificationNotification`.
-            English strings match shipped translations.
-
     UpdateLanguagePreferenceRequest:
       type: object
       required:
@@ -4684,7 +4673,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EmailVerificationNotificationResponse'
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
               examples:
                 alreadyVerified:
                   summary: Already verified
@@ -4695,7 +4684,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EmailVerificationNotificationResponse'
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
               examples:
                 queued:
                   summary: Verification mail queued
