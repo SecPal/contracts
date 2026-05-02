@@ -46,6 +46,8 @@ tags:
     description: Tamper-evident audit trail operations and verification flows.
   - name: Employees
     description: Employee lifecycle management endpoints.
+  - name: Qualifications
+    description: Qualification catalog and per-employee qualification assignments.
   - name: Customers
     description: Customer management and related customer-scoped resources.
   - name: Sites
@@ -4195,6 +4197,38 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /auth/email/verification-notification:
+    post:
+      summary: Resend Email Verification
+      description: |
+        Send a fresh email verification notification to the authenticated user when their address is not yet verified.
+      operationId: sendEmailVerificationNotification
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      responses:
+        '200':
+          description: Email was already verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutMessageResponse'
+        '202':
+          description: Verification email queued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutMessageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /me:
     get:
       summary: Get Current User
@@ -5495,6 +5529,531 @@ paths:
       responses:
         '204':
           description: Employee deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # =============================================================================
+  # Qualifications & Employee Documents (verified routes — presence guarded)
+  # =============================================================================
+
+  /qualifications:
+    get:
+      summary: List Qualifications
+      description: |
+        List qualification definitions for the tenant with optional filters (`is_system_qualification`, `category`, `is_mandatory`).
+      operationId: listQualifications
+      tags:
+        - Qualifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: is_system_qualification
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: is_mandatory
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Qualifications retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create Qualification
+      description: Create a tenant qualification definition.
+      operationId: createQualification
+      tags:
+        - Qualifications
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: Qualification created
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /qualifications/{qualification}:
+    get:
+      summary: Get Qualification
+      operationId: getQualification
+      tags:
+        - Qualifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: qualification
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Qualification returned
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      summary: Update Qualification
+      operationId: updateQualification
+      tags:
+        - Qualifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: qualification
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete Qualification
+      operationId: deleteQualification
+      tags:
+        - Qualifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: qualification
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employees/{employee}/qualifications:
+    get:
+      summary: List Employee Qualifications
+      operationId: listEmployeeQualifications
+      tags:
+        - Qualifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employee
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Assignments returned
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Attach Qualification to Employee
+      operationId: attachEmployeeQualification
+      tags:
+        - Qualifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employee
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: Assignment created
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employee-qualifications/{employeeQualification}:
+    get:
+      summary: Get Employee Qualification Assignment
+      operationId: getEmployeeQualification
+      tags:
+        - Qualifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employeeQualification
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Assignment returned
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      summary: Update Employee Qualification Assignment
+      operationId: updateEmployeeQualification
+      tags:
+        - Qualifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employeeQualification
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Remove Employee Qualification Assignment
+      operationId: deleteEmployeeQualification
+      tags:
+        - Qualifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employeeQualification
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employees/{employee}/documents:
+    get:
+      summary: List Employee Documents
+      operationId: listEmployeeDocuments
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employee
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Documents returned
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Upload Employee Document
+      operationId: createEmployeeDocument
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employee
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: Document stored
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employees/{employee}/documents/{document}:
+    get:
+      summary: Get Employee Document Metadata
+      operationId: getEmployeeDocument
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employee
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: document
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Document metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete Employee Document
+      operationId: deleteEmployeeDocument
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employee
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: document
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employees/{employee}/documents/{document}/download:
+    get:
+      summary: Download Employee Document File
+      operationId: downloadEmployeeDocument
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employee
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: document
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: File bytes (binary or PDF as configured)
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
