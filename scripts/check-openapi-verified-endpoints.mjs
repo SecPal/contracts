@@ -53,7 +53,7 @@ try {
 
 let doc;
 try {
-  doc = yaml.load(raw);
+  doc = yaml.load(raw, { schema: yaml.JSON_SCHEMA });
 } catch (e) {
   console.error(`Invalid YAML: ${abs}`);
   console.error(e);

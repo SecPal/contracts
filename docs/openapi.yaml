@@ -6214,7 +6214,7 @@ paths:
             type: string
             format: uuid
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
@@ -6508,7 +6508,7 @@ paths:
             type: string
             format: uuid
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
