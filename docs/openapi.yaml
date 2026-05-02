@@ -527,12 +527,12 @@ components:
           type: string
           maxLength: 255
         description:
-          type: string
+          type: [string, 'null']
           maxLength: 1000
         document_type:
           $ref: '#/components/schemas/EmployeeDocumentType'
         expiry_date:
-          type: string
+          type: [string, 'null']
           format: date
           description: Optional; must be strictly after the current calendar day when provided.
         visible_to_employee:
