@@ -1313,6 +1313,26 @@ components:
           type: string
           example: 'Logged out successfully'
 
+    ApiSimpleMessageResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Plain JSON message returned by Laravel for some auth and throttle errors (no `code` field).
+
+    EmailVerificationNotificationResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: >
+            Human-readable status from `AuthController::sendVerificationNotification`.
+            English strings match shipped translations.
+
     UpdateLanguagePreferenceRequest:
       type: object
       required:
@@ -4201,7 +4221,19 @@ paths:
     post:
       summary: Resend Email Verification
       description: |
-        Send a fresh email verification notification to the authenticated user when their address is not yet verified.
+        Queue a fresh Laravel email verification notification for the authenticated caller.
+
+        **Authentication:** Requires an authenticated Sanctum principal (`auth:sanctum`) with the `api-access`
+        ability for personal access tokens (tokens from `/auth/token` include this ability). Browser SPAs use the
+        first-party cookie session (`SessionAuth`) plus `X-XSRF-TOKEN` on mutating requests; native and CLI clients
+        send `Authorization: Bearer <token>` (`BearerAuth`).
+
+        **Rate limiting:** This route applies Laravel `throttle:6,1` (six requests per rolling minute per throttle
+        key). When exceeded, the framework returns HTTP 429 with a JSON body containing only `message`
+        (`Too Many Attempts.`), without the structured `code` field used elsewhere.
+
+        **Responses:** HTTP 202 means the notification was queued; HTTP 200 means the address was already verified
+        and no mail was sent.
       operationId: sendEmailVerificationNotification
       tags:
         - Authentication
@@ -4211,21 +4243,47 @@ paths:
           CsrfToken: []
       responses:
         '200':
-          description: Email was already verified
+          description: Email address was already verified; no notification was queued.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LogoutMessageResponse'
+                $ref: '#/components/schemas/EmailVerificationNotificationResponse'
+              examples:
+                alreadyVerified:
+                  summary: Already verified
+                  value:
+                    message: Email address is already verified.
         '202':
-          description: Verification email queued successfully
+          description: Verification email notification was queued for delivery.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LogoutMessageResponse'
+                $ref: '#/components/schemas/EmailVerificationNotificationResponse'
+              examples:
+                queued:
+                  summary: Verification mail queued
+                  value:
+                    message: Verification link sent successfully.
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Missing or invalid Sanctum session or bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                unauthenticated:
+                  value:
+                    message: Unauthenticated.
         '429':
-          $ref: '#/components/responses/TooManyRequests'
+          description: Per-route throttle exceeded (`throttle:6,1`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                throttled:
+                  value:
+                    message: Too Many Attempts.
         '500':
           $ref: '#/components/responses/InternalServerError'
 
