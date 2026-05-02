@@ -46,6 +46,8 @@ tags:
     description: Tamper-evident audit trail operations and verification flows.
   - name: Employees
     description: Employee lifecycle management endpoints.
+  - name: Qualifications
+    description: Qualification catalog and per-employee qualification assignments.
   - name: Customers
     description: Customer management and related customer-scoped resources.
   - name: Sites
@@ -392,6 +394,450 @@ components:
           type: string
           format: email
           example: 'max.mustermann@secpal.app'
+
+    EmployeeDocumentType:
+      type: string
+      description: Document category (validated by `UploadEmployeeDocumentRequest`).
+      enum:
+        - contract
+        - id_copy
+        - criminal_record
+        - qualification
+        - reference
+        - health_certificate
+        - work_permit
+        - other
+
+    EmployeeDocumentStatus:
+      type: string
+      description: Lifecycle status derived from expiry and policy (persisted on the model).
+      enum:
+        - valid
+        - expiring_soon
+        - expired
+
+    EmployeeDocumentResource:
+      type: object
+      description: |
+        Employee document metadata (`EmployeeDocumentResource`). Responses never include raw storage paths (`file_path` is omitted).
+
+        `download_url` is an absolute URL to `GET /employees/{employee}/documents/{document}/download` for this record.
+      required:
+        - id
+        - employee_id
+        - uploaded_by
+        - title
+        - document_type
+        - file_name
+        - mime_type
+        - file_size
+        - download_url
+        - status
+        - visible_to_employee
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        employee_id:
+          type: string
+          format: uuid
+        uploaded_by:
+          type: string
+          format: uuid
+          description: UUID of the uploading user (`users.id`).
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: [string, 'null']
+          maxLength: 1000
+        document_type:
+          $ref: '#/components/schemas/EmployeeDocumentType'
+        file_name:
+          type: string
+          description: Sanitized original filename suitable for display and download headers.
+        mime_type:
+          type: string
+          description: Stored MIME type (allowed uploads are PDF, JPEG, or PNG).
+        file_size:
+          type: integer
+          description: Size in bytes.
+        download_url:
+          type: string
+          format: uri
+          description: Absolute URL to download the encrypted document binary.
+        expiry_date:
+          type: [string, 'null']
+          format: date
+          description: Optional calendar expiry date (YYYY-MM-DD), when set.
+        status:
+          $ref: '#/components/schemas/EmployeeDocumentStatus'
+        visible_to_employee:
+          type: boolean
+          description: When false, documents are hidden from the employee self-service view (HR/managers may still see them subject to policy).
+        uploader:
+          $ref: '#/components/schemas/EmployeeUserSummary'
+          description: Present when the `uploader` relationship is loaded (list, show, and create responses load it).
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    EmployeeDocumentCollectionResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmployeeDocumentResource'
+
+    EmployeeDocumentSingleResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/EmployeeDocumentResource'
+
+    UploadEmployeeDocumentRequest:
+      type: object
+      description: |
+        Multipart fields for `POST /employees/{employee}/documents` (matches `UploadEmployeeDocumentRequest`).
+
+        **File rules:** required; max **10240 KiB (10 MiB)**; extensions **pdf, jpg, jpeg, png**; MIME types **application/pdf, image/jpeg, image/png** (`mimes` + `mimetypes` validation).
+
+        **Fields:** `title` and `document_type` are required. `visible_to_employee` is required (boolean). `description` and `expiry_date` are optional; when `expiry_date` is present it must be a date **after** today.
+      required:
+        - file
+        - title
+        - document_type
+        - visible_to_employee
+      properties:
+        file:
+          type: string
+          format: binary
+          description: Binary upload (PDF or image).
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: [string, 'null']
+          maxLength: 1000
+        document_type:
+          $ref: '#/components/schemas/EmployeeDocumentType'
+        expiry_date:
+          type: [string, 'null']
+          format: date
+          description: Optional; must be strictly after the current calendar day when provided.
+        visible_to_employee:
+          type: boolean
+
+    QualificationCategory:
+      type: string
+      enum:
+        - bewachv_34a
+        - first_aid
+        - fire_safety
+        - safety_officer
+        - specialized
+        - education
+        - custom
+      description: >
+        Qualification category (`IndexQualificationRequest`, `StoreQualificationRequest`, `UpdateQualificationRequest`).
+
+    QualificationResource:
+      type: object
+      description: >
+        Qualification catalog row returned by `QualificationResource` (system-wide or tenant custom definitions).
+      required:
+        - id
+        - tenant_id
+        - name
+        - category
+        - requires_renewal
+        - renewal_period_months
+        - is_mandatory
+        - is_system_qualification
+        - sort_order
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: [integer, 'null']
+          description: Owning tenant for custom qualifications; `null` for global system qualifications (`tenant_id` column).
+        name:
+          type: string
+        description:
+          type: [string, 'null']
+        category:
+          $ref: '#/components/schemas/QualificationCategory'
+        requires_renewal:
+          type: boolean
+        renewal_period_months:
+          type: [integer, 'null']
+        is_mandatory:
+          type: boolean
+        is_system_qualification:
+          type: boolean
+        sort_order:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    QualificationCollectionResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/QualificationResource'
+
+    QualificationSingleResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/QualificationResource'
+
+    EmployeeQualificationStatus:
+      type: string
+      enum:
+        - valid
+        - expiring_soon
+        - expired
+      description: >
+        Stored pivot status (`EmployeeQualification`). Aligns with `AttachQualificationRequest` / `UpdateEmployeeQualificationRequest`
+        validation (`valid`, `expiring_soon`, `expired`).
+
+    AttachQualificationRequest:
+      type: object
+      description: |
+        JSON body for `POST /employees/{employee}/qualifications` (`AttachQualificationRequest`).
+
+        `qualification_id` must reference a **non-deleted** catalog row that is either owned by the caller’s tenant or a **global system**
+        qualification (`tenant_id` null, `is_system_qualification` true). Other tenants’ custom qualifications fail validation (**422**).
+
+        **Date rules:** `obtained_date` is required and cannot be after today; when `expiry_date` is sent it must be strictly after `obtained_date`.
+
+        **Authorization:** `EmployeeQualificationPolicy::create` requires `employee_qualification.write`; organizational scope is enforced in the controller for scoped managers.
+      required:
+        - qualification_id
+        - obtained_date
+      properties:
+        qualification_id:
+          type: string
+          format: uuid
+          description: Catalog qualification UUID permitted for the current tenant (see `Qualification` exists rule).
+        obtained_date:
+          type: string
+          format: date
+          description: Certificate obtained date (YYYY-MM-DD), not in the future.
+        expiry_date:
+          type: string
+          format: date
+          description: Optional; must be strictly after `obtained_date` when provided.
+        certificate_number:
+          type: [string, 'null']
+          maxLength: 255
+        issuing_authority:
+          type: [string, 'null']
+          maxLength: 255
+        notes:
+          type: [string, 'null']
+          maxLength: 1000
+        document_path:
+          type: [string, 'null']
+          maxLength: 255
+        status:
+          description: Optional; server defaults to `valid` when omitted (`EmployeeQualificationController::store`).
+          anyOf:
+            - $ref: '#/components/schemas/EmployeeQualificationStatus'
+            - type: 'null'
+
+    UpdateEmployeeQualificationRequest:
+      type: object
+      description: |
+        JSON body for `PATCH /employee-qualifications/{employeeQualification}` (`UpdateEmployeeQualificationRequest`). PATCH semantics — include only fields to change.
+
+        **Date rules:** Same as attach when `obtained_date` / `expiry_date` are present (`obtained_date` not in the future; `expiry_date` after `obtained_date` when set).
+
+        **Authorization:** `employee_qualification.write` plus organizational scope via `EmployeeQualificationPolicy::update`.
+      properties:
+        obtained_date:
+          type: string
+          format: date
+        expiry_date:
+          type: [string, 'null']
+          format: date
+        certificate_number:
+          type: [string, 'null']
+          maxLength: 255
+        issuing_authority:
+          type: [string, 'null']
+          maxLength: 255
+        notes:
+          type: [string, 'null']
+          maxLength: 1000
+        document_path:
+          type: [string, 'null']
+          maxLength: 255
+        status:
+          anyOf:
+            - $ref: '#/components/schemas/EmployeeQualificationStatus'
+            - type: 'null'
+
+    EmployeeQualificationResource:
+      type: object
+      description: |
+        Pivot row returned by `EmployeeQualificationResource`.
+
+        `qualification` is included when that relation is eager-loaded (list, show, create, and update responses load it where applicable).
+        `employee` is included when loaded (list and show paths); create/update responses may omit it when not loaded.
+      required:
+        - id
+        - employee_id
+        - qualification_id
+        - obtained_date
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        employee_id:
+          type: string
+          format: uuid
+        qualification_id:
+          type: string
+          format: uuid
+        obtained_date:
+          type: string
+          format: date
+        expiry_date:
+          type: [string, 'null']
+          format: date
+        certificate_number:
+          type: [string, 'null']
+        issuing_authority:
+          type: [string, 'null']
+        notes:
+          type: [string, 'null']
+        document_path:
+          type: [string, 'null']
+        status:
+          $ref: '#/components/schemas/EmployeeQualificationStatus'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        qualification:
+          description: Embedded catalog row when the `qualification` relation is loaded.
+          $ref: '#/components/schemas/QualificationResource'
+        employee:
+          description: >
+            Full `EmployeeResource` payload when the `employee` relation is eager-loaded (typically list and show responses).
+          $ref: '#/components/schemas/Employee'
+
+    EmployeeQualificationCollectionResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmployeeQualificationResource'
+
+    EmployeeQualificationSingleResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/EmployeeQualificationResource'
+
+    StoreQualificationRequest:
+      type: object
+      description: |
+        JSON body for `POST /qualifications` (`StoreQualificationRequest`).
+
+        Creates **tenant-scoped custom** qualifications only. `is_system_qualification` is always stored as **false**;
+        client-supplied flags are not accepted as validated fields (send only these keys).
+
+        **Authorization:** `QualificationPolicy::create` requires `qualification.write`.
+      required:
+        - name
+        - category
+        - requires_renewal
+        - is_mandatory
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: [string, 'null']
+          maxLength: 1000
+        category:
+          $ref: '#/components/schemas/QualificationCategory'
+        requires_renewal:
+          type: boolean
+        renewal_period_months:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 120
+        is_mandatory:
+          type: boolean
+        sort_order:
+          type: integer
+          minimum: 0
+
+    UpdateQualificationRequest:
+      type: object
+      description: |
+        JSON body for `PATCH /qualifications/{qualification}` (`UpdateQualificationRequest`). PATCH semantics — send only fields to change.
+
+        **System qualifications:** `QualificationPolicy::update` denies changes before the controller runs (HTTP **403**).
+
+        **Authorization:** requires `qualification.write` on non-system rows.
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: [string, 'null']
+          maxLength: 1000
+        category:
+          $ref: '#/components/schemas/QualificationCategory'
+        requires_renewal:
+          type: boolean
+        renewal_period_months:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 120
+        is_mandatory:
+          type: boolean
+        sort_order:
+          type: integer
+          minimum: 0
 
     AuthenticatedUser:
       type: object
@@ -1310,6 +1756,15 @@ components:
         message:
           type: string
           example: 'Logged out successfully'
+
+    ApiSimpleMessageResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Plain JSON message returned by Laravel for some auth and throttle errors (no `code` field).
 
     UpdateLanguagePreferenceRequest:
       type: object
@@ -4195,6 +4650,76 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /auth/email/verification-notification:
+    post:
+      summary: Resend Email Verification
+      description: |
+        Queue a fresh Laravel email verification notification for the authenticated caller.
+
+        **Authentication:** Requires an authenticated Sanctum principal (`auth:sanctum`) with the `api-access`
+        ability for personal access tokens (tokens from `/auth/token` include this ability). Browser SPAs use the
+        first-party cookie session (`SessionAuth`) plus `X-XSRF-TOKEN` on mutating requests; native and CLI clients
+        send `Authorization: Bearer <token>` (`BearerAuth`).
+
+        **Rate limiting:** This route applies Laravel `throttle:6,1` (six requests per rolling minute per throttle
+        key). When exceeded, the framework returns HTTP 429 with a JSON body containing only `message`
+        (`Too Many Attempts.`), without the structured `code` field used elsewhere.
+
+        **Responses:** HTTP 202 means the notification was queued; HTTP 200 means the address was already verified
+        and no mail was sent.
+      operationId: sendEmailVerificationNotification
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      responses:
+        '200':
+          description: Email address was already verified; no notification was queued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                alreadyVerified:
+                  summary: Already verified
+                  value:
+                    message: Email address is already verified.
+        '202':
+          description: Verification email notification was queued for delivery.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                queued:
+                  summary: Verification mail queued
+                  value:
+                    message: Verification link sent successfully.
+        '401':
+          description: Missing or invalid Sanctum session or bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                unauthenticated:
+                  value:
+                    message: Unauthenticated.
+        '429':
+          description: Per-route throttle exceeded (`throttle:6,1`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                throttled:
+                  value:
+                    message: Too Many Attempts.
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /me:
     get:
       summary: Get Current User
@@ -5495,6 +6020,815 @@ paths:
       responses:
         '204':
           description: Employee deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # =============================================================================
+  # Qualifications & Employee Documents (verified routes — presence guarded)
+  # =============================================================================
+
+  /qualifications:
+    get:
+      summary: List Qualifications
+      description: |
+        List qualification definitions visible to the tenant (`QualificationController::index`, middleware `tenant.inject`).
+
+        Results include **global system qualifications** (`tenant_id` null, `is_system_qualification` true) plus **tenant custom**
+        qualifications (`tenant_id` matches the caller). Rows are ordered by `sort_order`, then `name`.
+
+        **Query filters** (`IndexQualificationRequest`):
+
+        - `is_system_qualification` — when **true**, only global system qualifications; when **false**, only tenant custom rows.
+        - `category` — must be one of `QualificationCategory` enum values when provided; omitting the parameter returns all categories.
+        - `is_mandatory` — filter by mandatory flag.
+
+        **Authorization:** `QualificationPolicy::viewAny` requires `qualification.read`.
+      operationId: listQualifications
+      tags:
+        - Qualifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: is_system_qualification
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Filter system vs tenant-custom qualifications (boolean coercion per Laravel query parsing).
+        - name: category
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/QualificationCategory'
+          description: Optional category filter; invalid values yield HTTP **422** validation on `category`.
+        - name: is_mandatory
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Qualifications returned (`data` is a `QualificationResource` collection).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QualificationCollectionResponse'
+        '401':
+          description: Unauthenticated (e.g. `Unauthenticated.`) — **no** `code` field; see `ApiSimpleMessageResponse`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                unauthenticated:
+                  value:
+                    message: Unauthenticated.
+        '403':
+          description: >
+            `qualification.read` missing, or `QualificationPolicy::viewAny` denied. Laravel returns a **message-only** JSON body
+            (commonly `This action is unauthorized.`) without the shared `Error` `code` field.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create Qualification
+      description: |
+        Create a **custom tenant qualification** (`StoreQualificationRequest`, `QualificationController::store`, `tenant.inject`).
+
+        System qualifications are seeded; this endpoint only creates non-system rows (`is_system_qualification` is always **false** server-side).
+
+        **Authorization:** `qualification.write` via `QualificationPolicy::create`.
+      operationId: createQualification
+      tags:
+        - Qualifications
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreQualificationRequest'
+      responses:
+        '201':
+          description: Qualification created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QualificationSingleResponse'
+        '401':
+          description: Unauthenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+        '403':
+          description: Missing `qualification.write` or create denied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /qualifications/{qualification}:
+    get:
+      summary: Get Qualification
+      description: |
+        Return a single catalog row (`QualificationController::show`).
+
+        **Route binding:** `Qualification` uses tenant-aware binding with an exception for **global system qualifications** (see
+        `EnforcesTenantRouteBinding` + `Qualification::routeBindingAllowsGlobalRecords()`). A UUID that is not a valid string,
+        or a row outside the allowed tenant / global rule set, yields **404** with `message: Resource not found.` (see `QualificationControllerTest`).
+
+        **Authorization:** `qualification.read` via `QualificationPolicy::view`.
+      operationId: getQualification
+      tags:
+        - Qualifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: qualification
+          in: path
+          required: true
+          description: Qualification UUID (`qualifications.id`).
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Qualification returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QualificationSingleResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+        '404':
+          description: Unknown id, invalid UUID, or not visible to the current tenant binding rules.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                notFound:
+                  value:
+                    message: Resource not found.
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      summary: Update Qualification
+      description: |
+        Update a custom tenant qualification (`UpdateQualificationRequest`, `QualificationController::update`).
+
+        **System qualifications** cannot be updated: `QualificationPolicy::update` returns **false** (HTTP **403** before the controller body runs).
+
+        **Authorization:** `qualification.write` for non-system rows.
+      operationId: updateQualification
+      tags:
+        - Qualifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: qualification
+          in: path
+          required: true
+          description: Qualification UUID.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateQualificationRequest'
+      responses:
+        '200':
+          description: Qualification updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QualificationSingleResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+        '403':
+          description: Missing `qualification.write`, policy denied, or system qualification.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete Qualification
+      description: |
+        Soft-delete a custom tenant qualification (`QualificationController::destroy`).
+
+        **System qualifications** cannot be deleted: `QualificationPolicy::delete` rejects them (HTTP **403**).
+
+        **Success:** HTTP **204** with an empty body.
+
+        **Authorization:** `qualification.write` for deletable (non-system) rows.
+      operationId: deleteQualification
+      tags:
+        - Qualifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: qualification
+          in: path
+          required: true
+          description: Qualification UUID.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Qualification soft-deleted
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employees/{employee}/qualifications:
+    get:
+      summary: List Employee Qualifications
+      description: |
+        List assignment rows for the employee (`EmployeeQualificationController::index`).
+
+        **Relations:** `employee` and `qualification` are eager-loaded; each `data[]` item includes both embeds.
+
+        **Organizational scope:** users with `User::organizationalScopes` only see employees in their allowed units; otherwise the controller
+        returns HTTP **403** (with an English message such as “You do not have access to this employee's organizational unit”).
+
+        **Authorization:** `employee_qualification.read` via `EmployeeQualificationPolicy::viewAny`.
+      operationId: listEmployeeQualifications
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employee
+          in: path
+          required: true
+          description: Employee UUID (`employees.id`), tenant-scoped implicit binding.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Assignments returned (`EmployeeQualificationCollectionResponse`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeQualificationCollectionResponse'
+        '401':
+          description: Unauthenticated — **no** `code` field; see `ApiSimpleMessageResponse`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                unauthenticated:
+                  value:
+                    message: Unauthenticated.
+        '403':
+          description: Missing `employee_qualification.read`, policy denied, or organizational scope blocked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+        '404':
+          description: Unknown employee id or out-of-scope implicit binding (**404** `Resource not found.`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                notFound:
+                  value:
+                    message: Resource not found.
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Attach Qualification to Employee
+      description: |
+        Create an `EmployeeQualification` pivot (`AttachQualificationRequest`, `EmployeeQualificationController::store`).
+
+        **Conflict:** attaching the same `qualification_id` twice for one employee yields HTTP **409** with a message-only JSON body.
+
+        **Authorization:** `employee_qualification.write`; scoped managers must pass controller organizational checks (otherwise **403**).
+      operationId: attachEmployeeQualification
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employee
+          in: path
+          required: true
+          description: Employee UUID.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttachQualificationRequest'
+      responses:
+        '201':
+          description: Assignment created (`EmployeeQualificationSingleResponse`; `qualification` relation loaded).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeQualificationSingleResponse'
+        '401':
+          description: Unauthenticated — **no** `code` field.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                unauthenticated:
+                  value:
+                    message: Unauthenticated.
+        '403':
+          description: Missing permission or organizational scope denied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+        '404':
+          description: Employee not found for tenant binding.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                notFound:
+                  value:
+                    message: Resource not found.
+        '409':
+          description: Same qualification already attached (`EmployeeQualificationController::store`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                duplicate:
+                  value:
+                    message: Qualification is already attached to this employee
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employee-qualifications/{employeeQualification}:
+    get:
+      summary: Get Employee Qualification Assignment
+      description: |
+        Return a single pivot row (`EmployeeQualificationController::show`).
+
+        **Route binding:** `EmployeeQualification` is tenant-scoped via its employee (`TenantScopedRouteBindingTest`). Unknown UUID / wrong tenant → **404**
+        `Resource not found.`
+
+        **Authorization:** `EmployeeQualificationPolicy::view` (self-service employee, `employee_qualification.read` with scope rules, etc.).
+      operationId: getEmployeeQualification
+      tags:
+        - Qualifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employeeQualification
+          in: path
+          required: true
+          description: Employee qualification pivot UUID (`employee_qualifications.id`).
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Assignment returned (`EmployeeQualificationSingleResponse` with `employee` and `qualification` loaded).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeQualificationSingleResponse'
+        '401':
+          description: Unauthenticated — **no** `code` field.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                unauthenticated:
+                  value:
+                    message: Unauthenticated.
+        '403':
+          description: Caller cannot view this assignment (permission / scope).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+        '404':
+          description: Invalid UUID format or pivot outside tenant binding (`EmployeeQualificationControllerTest`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                notFound:
+                  value:
+                    message: Resource not found.
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      summary: Update Employee Qualification Assignment
+      description: |
+        PATCH certificate fields / status (`UpdateEmployeeQualificationRequest`, `EmployeeQualificationController::update`).
+
+        Response reloads `qualification`; `employee` is not guaranteed on success payloads.
+
+        **Authorization:** `employee_qualification.write` plus `EmployeeQualificationPolicy::update` scope checks.
+      operationId: updateEmployeeQualification
+      tags:
+        - Qualifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employeeQualification
+          in: path
+          required: true
+          description: Employee qualification pivot UUID.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEmployeeQualificationRequest'
+      responses:
+        '200':
+          description: Updated (`EmployeeQualificationSingleResponse`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeQualificationSingleResponse'
+        '401':
+          description: Unauthenticated — **no** `code` field.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                unauthenticated:
+                  value:
+                    message: Unauthenticated.
+        '403':
+          description: Missing permission or organizational scope denied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+        '404':
+          description: Unknown pivot id or binding failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                notFound:
+                  value:
+                    message: Resource not found.
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Remove Employee Qualification Assignment
+      description: |
+        Hard-delete the pivot (`EmployeeQualificationController::destroy`). Success is HTTP **204** with an empty body.
+
+        **Authorization:** `employee_qualification.write` plus `EmployeeQualificationPolicy::delete` scope checks.
+      operationId: deleteEmployeeQualification
+      tags:
+        - Qualifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employeeQualification
+          in: path
+          required: true
+          description: Employee qualification pivot UUID.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Pivot removed
+        '401':
+          description: Unauthenticated — **no** `code` field.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                unauthenticated:
+                  value:
+                    message: Unauthenticated.
+        '403':
+          description: Missing permission or organizational scope denied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+        '404':
+          description: Unknown pivot id or binding failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                notFound:
+                  value:
+                    message: Resource not found.
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employees/{employee}/documents:
+    get:
+      summary: List Employee Documents
+      description: |
+        Returns metadata for documents belonging to the employee (`EmployeeDocumentPolicy::viewAny` + organizational scope).
+
+        When the authenticated user is the employee (`User` matches `employee.user_id`), the list is filtered to rows with `visible_to_employee` **true**. HR and scoped managers see all documents permitted by policy.
+
+        **Routing:** Lives under the authenticated `verified` middleware group alongside other `/v1` HR APIs; callers need a verified email address when that middleware applies.
+      operationId: listEmployeeDocuments
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employee
+          in: path
+          required: true
+          description: Employee UUID identifier
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Documents returned (`data` includes `uploader` where loaded).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeDocumentCollectionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Upload Employee Document
+      description: |
+        Multipart upload validated by `UploadEmployeeDocumentRequest` (`EmployeeDocumentController::store`).
+
+        Requires `employee_document.write` (via policy). Files are encrypted at rest; responses mirror `EmployeeDocumentResource` and never expose `file_path`.
+      operationId: createEmployeeDocument
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employee
+          in: path
+          required: true
+          description: Employee UUID identifier
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadEmployeeDocumentRequest'
+            encoding:
+              file:
+                contentType: application/pdf, image/jpeg, image/png
+      responses:
+        '201':
+          description: Document stored and metadata returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeDocumentSingleResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employees/{employee}/documents/{document}:
+    get:
+      summary: Get Employee Document Metadata
+      description: |
+        Returns a single document row (`EmployeeDocumentPolicy::view`). Route-model binding is scoped: a `{document}` UUID that does not belong to `{employee}` yields **404**.
+      operationId: getEmployeeDocument
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employee
+          in: path
+          required: true
+          description: Employee UUID identifier
+          schema:
+            type: string
+            format: uuid
+        - name: document
+          in: path
+          required: true
+          description: Employee document UUID (`employee_documents.id`)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Document metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeDocumentSingleResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete Employee Document
+      description: |
+        Soft-deletes the record and removes ciphertext from storage (`EmployeeDocumentPolicy::delete`).
+      operationId: deleteEmployeeDocument
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employee
+          in: path
+          required: true
+          description: Employee UUID identifier
+          schema:
+            type: string
+            format: uuid
+        - name: document
+          in: path
+          required: true
+          description: Employee document UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Deleted (empty body)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employees/{employee}/documents/{document}/download:
+    get:
+      summary: Download Employee Document File
+      description: |
+        Streams decrypted bytes with `Content-Type` set to the stored MIME type and `Content-Disposition: attachment` using a sanitized filename.
+
+        **404:** Returned when the ciphertext blob is missing from disk (`EmployeeDocumentFileNotFoundException` maps to *File not found*) — see feature tests.
+
+        **500:** Returned when ciphertext exists but cannot be decrypted or parsed (invalid envelope). Covered by `EmployeeDocumentControllerTest` (`returns 500 when encrypted document blob is invalid`).
+      operationId: downloadEmployeeDocument
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employee
+          in: path
+          required: true
+          description: Employee UUID identifier
+          schema:
+            type: string
+            format: uuid
+        - name: document
+          in: path
+          required: true
+          description: Employee document UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: |
+            Binary document body. Typical `Content-Type` values include `application/pdf`, `image/jpeg`, or `image/png`.
+          headers:
+            Content-Type:
+              schema:
+                type: string
+              description: Mirrors the stored MIME type on the document row.
+            Content-Disposition:
+              schema:
+                type: string
+              description: Attachment disposition with sanitized filename.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

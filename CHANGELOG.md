@@ -12,8 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Corrected `QualificationResource` schema: removed `description` from `required` (nullable field, may be absent per spec pattern), made `created_at`/`updated_at` non-nullable (`type: string`) to align with all other resource timestamps, and aligned union-type style from `['string', 'null']` to `[string, 'null']` consistently across all new schemas (`docs/openapi.yaml`)
+- Added `created_at`/`updated_at` (required, non-nullable `type: string, format: date-time`) to `EmployeeQualificationResource`, consistent with all other resource schemas (`docs/openapi.yaml`)
+- Fixed file-size note: `10240 KiB (10 MB)` → `10240 KiB (10 MiB)` in `UploadEmployeeDocumentRequest` description (`docs/openapi.yaml`)
+- Fixed optional request fields `description` and `expiry_date` in `UploadEmployeeDocumentRequest` to use nullable union type `[string, 'null']`, consistent with other optional nullable fields across the spec (`docs/openapi.yaml`)
+- Updated `check-openapi-verified-endpoints.mjs` guard comment to accurately describe all operation groups in the allowlist (qualification catalog + employee qualifications were missing from the description)
+
 ### Added
 
+- Documented employee qualification management endpoints in `docs/openapi.yaml` (US-008), including qualification catalog CRUD (`GET/POST /qualifications`, `GET/PATCH/DELETE /qualifications/{qualification}`), per-employee qualification assignment (`GET/POST /employees/{employee}/qualifications`, `GET/PATCH/DELETE /employee-qualifications/{employeeQualification}`), employee document management (`GET/POST /employees/{employee}/documents`, `GET/DELETE /employees/{employee}/documents/{document}`, `GET /employees/{employee}/documents/{document}/download`), email verification resend (`POST /auth/email/verification-notification`), and the `check-openapi-verified-endpoints.mjs` guard that enforces a fixed allowlist of verified operations is present in the spec
 - Documented the native token-mode passkey authentication contract in `docs/openapi.yaml`, including dedicated `/auth/token/passkeys/challenges` start and verify endpoints plus the explicit bearer-token completion response needed by Android Credential Manager clients
 - Added `changelog.secpal.app` to the contracts repo domain policy baseline and `scripts/check-domains.sh` allowlist/output so the public changelog host matches the approved SecPal domain split enforced elsewhere
 - Documented the stable `apk.secpal.app` Android metadata contracts in `docs/openapi.yaml`, including the concrete latest-channel path `/android/channels/{channel}/latest.json`, the versioned path `/android/releases/{version}/metadata.json`, and response schemas aligned with the merged public website metadata model
