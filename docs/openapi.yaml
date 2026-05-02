@@ -538,6 +538,148 @@ components:
         visible_to_employee:
           type: boolean
 
+    QualificationCategory:
+      type: string
+      enum:
+        - bewachv_34a
+        - first_aid
+        - fire_safety
+        - safety_officer
+        - specialized
+        - education
+        - custom
+      description: >
+        Qualification category (`IndexQualificationRequest`, `StoreQualificationRequest`, `UpdateQualificationRequest`).
+
+    QualificationResource:
+      type: object
+      description: >
+        Qualification catalog row returned by `QualificationResource` (system-wide or tenant custom definitions).
+      required:
+        - id
+        - tenant_id
+        - name
+        - description
+        - category
+        - requires_renewal
+        - renewal_period_months
+        - is_mandatory
+        - is_system_qualification
+        - sort_order
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: ['integer', 'null']
+          description: Owning tenant for custom qualifications; `null` for global system qualifications (`tenant_id` column).
+        name:
+          type: string
+        description:
+          type: ['string', 'null']
+        category:
+          $ref: '#/components/schemas/QualificationCategory'
+        requires_renewal:
+          type: boolean
+        renewal_period_months:
+          type: ['integer', 'null']
+        is_mandatory:
+          type: boolean
+        is_system_qualification:
+          type: boolean
+        sort_order:
+          type: integer
+        created_at:
+          type: ['string', 'null']
+          format: date-time
+        updated_at:
+          type: ['string', 'null']
+          format: date-time
+
+    QualificationCollectionResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/QualificationResource'
+
+    QualificationSingleResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/QualificationResource'
+
+    StoreQualificationRequest:
+      type: object
+      description: |
+        JSON body for `POST /qualifications` (`StoreQualificationRequest`).
+
+        Creates **tenant-scoped custom** qualifications only. `is_system_qualification` is always stored as **false**;
+        client-supplied flags are not accepted as validated fields (send only these keys).
+
+        **Authorization:** `QualificationPolicy::create` requires `qualification.write`.
+      required:
+        - name
+        - category
+        - requires_renewal
+        - is_mandatory
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: ['string', 'null']
+          maxLength: 1000
+        category:
+          $ref: '#/components/schemas/QualificationCategory'
+        requires_renewal:
+          type: boolean
+        renewal_period_months:
+          type: ['integer', 'null']
+          minimum: 1
+          maximum: 120
+        is_mandatory:
+          type: boolean
+        sort_order:
+          type: integer
+          minimum: 0
+
+    UpdateQualificationRequest:
+      type: object
+      description: |
+        JSON body for `PATCH /qualifications/{qualification}` (`UpdateQualificationRequest`). PATCH semantics — send only fields to change.
+
+        **System qualifications:** `QualificationPolicy::update` denies changes before the controller runs (HTTP **403**).
+
+        **Authorization:** requires `qualification.write` on non-system rows.
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: ['string', 'null']
+          maxLength: 1000
+        category:
+          $ref: '#/components/schemas/QualificationCategory'
+        requires_renewal:
+          type: boolean
+        renewal_period_months:
+          type: ['integer', 'null']
+          minimum: 1
+          maximum: 120
+        is_mandatory:
+          type: boolean
+        sort_order:
+          type: integer
+          minimum: 0
+
     AuthenticatedUser:
       type: object
       description: Authenticated user profile and authorization context returned by auth and self-service endpoints.
@@ -5747,7 +5889,18 @@ paths:
     get:
       summary: List Qualifications
       description: |
-        List qualification definitions for the tenant with optional filters (`is_system_qualification`, `category`, `is_mandatory`).
+        List qualification definitions visible to the tenant (`QualificationController::index`, middleware `tenant.inject`).
+
+        Results include **global system qualifications** (`tenant_id` null, `is_system_qualification` true) plus **tenant custom**
+        qualifications (`tenant_id` matches the caller). Rows are ordered by `sort_order`, then `name`.
+
+        **Query filters** (`IndexQualificationRequest`):
+
+        - `is_system_qualification` — when **true**, only global system qualifications; when **false**, only tenant custom rows.
+        - `category` — must be one of `QualificationCategory` enum values when provided (empty string coerces to “unset”, matching Laravel `nullable`).
+        - `is_mandatory` — filter by mandatory flag.
+
+        **Authorization:** `QualificationPolicy::viewAny` requires `qualification.read`.
       operationId: listQualifications
       tags:
         - Qualifications
@@ -5759,11 +5912,13 @@ paths:
           required: false
           schema:
             type: boolean
+          description: Filter system vs tenant-custom qualifications (boolean coercion per Laravel query parsing).
         - name: category
           in: query
           required: false
           schema:
-            type: string
+            $ref: '#/components/schemas/QualificationCategory'
+          description: Optional category filter; invalid values yield HTTP **422** validation on `category`.
         - name: is_mandatory
           in: query
           required: false
@@ -5771,22 +5926,42 @@ paths:
             type: boolean
       responses:
         '200':
-          description: Qualifications retrieved
+          description: Qualifications returned (`data` is a `QualificationResource` collection).
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/QualificationCollectionResponse'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Unauthenticated (e.g. `Unauthenticated.`) — **no** `code` field; see `ApiSimpleMessageResponse`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                unauthenticated:
+                  value:
+                    message: Unauthenticated.
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: >
+            `qualification.read` missing, or `QualificationPolicy::viewAny` denied. Laravel returns a **message-only** JSON body
+            (commonly `This action is unauthorized.`) without the shared `Error` `code` field.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
     post:
       summary: Create Qualification
-      description: Create a tenant qualification definition.
+      description: |
+        Create a **custom tenant qualification** (`StoreQualificationRequest`, `QualificationController::store`, `tenant.inject`).
+
+        System qualifications are seeded; this endpoint only creates non-system rows (`is_system_qualification` is always **false** server-side).
+
+        **Authorization:** `qualification.write` via `QualificationPolicy::create`.
       operationId: createQualification
       tags:
         - Qualifications
@@ -5797,20 +5972,26 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: true
+              $ref: '#/components/schemas/StoreQualificationRequest'
       responses:
         '201':
           description: Qualification created
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/QualificationSingleResponse'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Unauthenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Missing `qualification.write` or create denied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
         '422':
           $ref: '#/components/responses/ValidationError'
         '500':
@@ -5819,6 +6000,14 @@ paths:
   /qualifications/{qualification}:
     get:
       summary: Get Qualification
+      description: |
+        Return a single catalog row (`QualificationController::show`).
+
+        **Route binding:** `Qualification` uses tenant-aware binding with an exception for **global system qualifications** (see
+        `EnforcesTenantRouteBinding` + `Qualification::routeBindingAllowsGlobalRecords()`). A UUID that is not a valid string,
+        or a row outside the allowed tenant / global rule set, yields **404** with `message: Resource not found.` (see `QualificationControllerTest`).
+
+        **Authorization:** `qualification.read` via `QualificationPolicy::view`.
       operationId: getQualification
       tags:
         - Qualifications
@@ -5828,6 +6017,7 @@ paths:
         - name: qualification
           in: path
           required: true
+          description: Qualification UUID (`qualifications.id`).
           schema:
             type: string
             format: uuid
@@ -5837,19 +6027,38 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/QualificationSingleResponse'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
         '404':
-          $ref: '#/components/responses/NotFound'
+          description: Unknown id, invalid UUID, or not visible to the current tenant binding rules.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+              examples:
+                notFound:
+                  value:
+                    message: Resource not found.
         '500':
           $ref: '#/components/responses/InternalServerError'
 
     patch:
       summary: Update Qualification
+      description: |
+        Update a custom tenant qualification (`UpdateQualificationRequest`, `QualificationController::update`).
+
+        **System qualifications** cannot be updated: `QualificationPolicy::update` returns **false** (HTTP **403** before the controller body runs).
+
+        **Authorization:** `qualification.write` for non-system rows.
       operationId: updateQualification
       tags:
         - Qualifications
@@ -5859,30 +6068,39 @@ paths:
         - name: qualification
           in: path
           required: true
+          description: Qualification UUID.
           schema:
             type: string
             format: uuid
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: true
+              $ref: '#/components/schemas/UpdateQualificationRequest'
       responses:
         '200':
-          description: Updated
+          description: Qualification updated
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/QualificationSingleResponse'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Missing `qualification.write`, policy denied, or system qualification.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
         '404':
-          $ref: '#/components/responses/NotFound'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
         '422':
           $ref: '#/components/responses/ValidationError'
         '500':
@@ -5890,6 +6108,14 @@ paths:
 
     delete:
       summary: Delete Qualification
+      description: |
+        Soft-delete a custom tenant qualification (`QualificationController::destroy`).
+
+        **System qualifications** cannot be deleted: `QualificationPolicy::delete` rejects them (HTTP **403**).
+
+        **Success:** HTTP **204** with an empty body.
+
+        **Authorization:** `qualification.write` for deletable (non-system) rows.
       operationId: deleteQualification
       tags:
         - Qualifications
@@ -5899,18 +6125,28 @@ paths:
         - name: qualification
           in: path
           required: true
+          description: Qualification UUID.
           schema:
             type: string
             format: uuid
       responses:
         '204':
-          description: Deleted
+          description: Qualification soft-deleted
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
         '404':
-          $ref: '#/components/responses/NotFound'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSimpleMessageResponse'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
