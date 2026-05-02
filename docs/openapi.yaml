@@ -6038,7 +6038,7 @@ paths:
         **Query filters** (`IndexQualificationRequest`):
 
         - `is_system_qualification` — when **true**, only global system qualifications; when **false**, only tenant custom rows.
-        - `category` — must be one of `QualificationCategory` enum values when provided; omitting the parameter returns all categories..
+        - `category` — must be one of `QualificationCategory` enum values when provided; omitting the parameter returns all categories.
         - `is_mandatory` — filter by mandatory flag.
 
         **Authorization:** `QualificationPolicy::viewAny` requires `qualification.read`.
@@ -6667,7 +6667,7 @@ paths:
               $ref: '#/components/schemas/UploadEmployeeDocumentRequest'
             encoding:
               file:
-                contentType: application/octet-stream
+                contentType: application/pdf, image/jpeg, image/png
       responses:
         '201':
           description: Document stored and metadata returned
