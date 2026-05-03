@@ -61,9 +61,9 @@ tags:
   - name: Onboarding
     description: >-
       Public bootstrap and authenticated onboarding workflow endpoints used by the pre-contract employee
-      dossier flow, HR review actions, and onboarding confirmation. Portal steps follow seeded form
-      templates (personal information, bank account, emergency contact, tax identification). Attachment
-      uploads classify files as contract materials, identity documents, or banking verification
+      dossier flow, HR review actions, and onboarding confirmation. Portal steps follow tenant-scoped
+      form templates managed via the onboarding template endpoints. Attachment uploads classify files
+      as contract materials, identity documents, or banking verification
       (`contract`, `id_document`, `banking_details`).
   - name: Android Provisioning
     description: >-
@@ -8707,6 +8707,9 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/UploadOnboardingSubmissionFileRequest'
+            encoding:
+              file:
+                contentType: application/pdf, image/jpeg, image/png
       responses:
         '201':
           description: Onboarding submission attachment uploaded successfully.
