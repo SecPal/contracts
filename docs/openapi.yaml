@@ -8685,7 +8685,7 @@ paths:
         Upload a binary attachment for an existing onboarding form submission. The same upload surface
         is available on every wizard step. Use `document_type` to classify the file: contract copy,
         identity document, or banking verification (`contract`, `id_document`, or `banking_details`).
-        Accepted formats and size limits follow portal policy (e.g. PDF, JPG, PNG; max 10 MB).
+        Accepted formats and size limits follow portal policy (e.g. PDF, JPG, PNG; max 10240 KiB (10 MiB)).
       operationId: uploadOnboardingSubmissionFile
       tags:
         - Onboarding
