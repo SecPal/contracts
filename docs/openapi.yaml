@@ -61,7 +61,10 @@ tags:
   - name: Onboarding
     description: >-
       Public bootstrap and authenticated onboarding workflow endpoints used by the pre-contract employee
-      dossier flow, HR review actions, and onboarding confirmation.
+      dossier flow, HR review actions, and onboarding confirmation. Portal steps follow seeded form
+      templates (personal information, bank account, emergency contact, tax identification). Attachment
+      uploads classify files as contract materials, identity documents, or banking verification
+      (`contract`, `id_document`, `banking_details`).
   - name: Android Provisioning
     description: >-
       Authorized enrollment-session management, public bootstrap-token exchange, and channel-aware
@@ -3181,7 +3184,11 @@ components:
 
     OnboardingSubmissionUploadDocumentType:
       type: string
-      description: Supported onboarding dossier attachment type.
+      description: >
+        Onboarding dossier attachment category (matches the portal "Document Type" control):
+        `contract` — employment contract or related agreement materials;
+        `id_document` — identity document for verification;
+        `banking_details` — banking verification (e.g. account confirmation).
       enum:
         - contract
         - id_document
@@ -8674,7 +8681,11 @@ paths:
   /onboarding/submissions/{submission}/files:
     post:
       summary: Upload Onboarding Submission Attachment
-      description: Upload a binary attachment for an existing onboarding form submission owned by the authenticated pre-contract employee.
+      description: >
+        Upload a binary attachment for an existing onboarding form submission. The same upload surface
+        is available on every wizard step. Use `document_type` to classify the file: contract copy,
+        identity document, or banking verification (`contract`, `id_document`, or `banking_details`).
+        Accepted formats and size limits follow portal policy (e.g. PDF, JPG, PNG; max 10 MB).
       operationId: uploadOnboardingSubmissionFile
       tags:
         - Onboarding
