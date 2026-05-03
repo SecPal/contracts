@@ -2891,7 +2891,11 @@ components:
           example: Basic personal information required for onboarding.
         form_schema:
           type: object
-          description: JSON Schema definition used to render the dynamic form.
+          description: >-
+            JSON Schema definition used to render the dynamic form. The system
+            `tax_identification_number` onboarding template is required during onboarding and
+            includes required `tax_id` and `social_security_number` properties; those Employee
+            master-data fields remain nullable outside the onboarding workflow.
           additionalProperties: true
         is_required:
           type: boolean
@@ -2946,6 +2950,14 @@ components:
         - draft
         - submitted
 
+    OnboardingSubmissionFormData:
+      type: object
+      description: >-
+        Submission data conforming to the template's `form_schema`.
+        For the system `tax_identification_number` template, `form_schema` requires
+        `tax_id` and `social_security_number`.
+      additionalProperties: true
+
     OnboardingFormSubmission:
       type: object
       description: A single form submission within the onboarding dossier.
@@ -2970,9 +2982,7 @@ components:
           format: uuid
           example: 'aab14c00-e29b-41d4-a716-446655440001'
         form_data:
-          type: object
-          description: Employee-submitted form data conforming to the template's `form_schema`.
-          additionalProperties: true
+          $ref: '#/components/schemas/OnboardingSubmissionFormData'
         status:
           $ref: '#/components/schemas/OnboardingSubmissionStatus'
         submitted_at:
@@ -3036,9 +3046,7 @@ components:
           format: uuid
           example: 'aab14c00-e29b-41d4-a716-446655440001'
         form_data:
-          type: object
-          description: Submission data conforming to the template's `form_schema`.
-          additionalProperties: true
+          $ref: '#/components/schemas/OnboardingSubmissionFormData'
         status:
           $ref: '#/components/schemas/OnboardingFormSubmissionWriteStatus'
 
@@ -3050,16 +3058,27 @@ components:
         pre-contract employee.
       properties:
         form_data:
-          type: object
-          description: Submission data conforming to the template's `form_schema`.
-          additionalProperties: true
+          $ref: '#/components/schemas/OnboardingSubmissionFormData'
         status:
           $ref: '#/components/schemas/OnboardingFormSubmissionWriteStatus'
-      anyOf:
-        - required:
-            - form_data
-        - required:
-            - status
+      allOf:
+        - anyOf:
+            - required:
+                - form_data
+            - required:
+                - status
+        - if:
+            properties:
+              status:
+                const: submitted
+            required:
+              - status
+          then:
+            properties:
+              form_data:
+                $ref: '#/components/schemas/OnboardingSubmissionFormData'
+            required:
+              - form_data
 
     OnboardingSubmissionRejectRequest:
       type: object
@@ -8735,6 +8754,11 @@ paths:
       description: |
         HR review action. Approves a submitted onboarding form submission, transitioning
         its status to `approved`.
+
+        Approving the system tax identification submission copies `tax_id` and
+        `social_security_number` from `form_data` into the encrypted Employee master-data fields.
+        Those Employee fields remain nullable outside onboarding so HR can create employees before
+        onboarding is completed.
 
         Requires the explicit `onboarding.approve` permission. Only submissions in `submitted` status may be approved.
       operationId: approveOnboardingSubmission
