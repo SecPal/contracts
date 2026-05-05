@@ -1949,6 +1949,29 @@ components:
           minLength: 2
           maxLength: 2
 
+    EmployeeEmergencyContactEntry:
+      type: object
+      required:
+        - name
+        - phone
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        relationship:
+          type: [string, 'null']
+          maxLength: 100
+        phone:
+          type: string
+          maxLength: 255
+        email:
+          type: [string, 'null']
+          format: email
+          maxLength: 255
+        notes:
+          type: [string, 'null']
+          maxLength: 500
+
     EmployeeStatus:
       type: string
       description: |
@@ -2068,6 +2091,10 @@ components:
           type: [array, 'null']
           items:
             $ref: '#/components/schemas/EmployeeAddressHistoryEntry'
+        emergency_contacts:
+          type: [array, 'null']
+          items:
+            $ref: '#/components/schemas/EmployeeEmergencyContactEntry'
         intended_activities:
           type: [array, 'null']
           items:
@@ -2286,6 +2313,10 @@ components:
           type: [array, 'null']
           items:
             $ref: '#/components/schemas/EmployeeAddressHistoryEntry'
+        emergency_contacts:
+          type: [array, 'null']
+          items:
+            $ref: '#/components/schemas/EmployeeEmergencyContactEntry'
         intended_activities:
           type: [array, 'null']
           items:
@@ -2585,6 +2616,10 @@ components:
           type: [array, 'null']
           items:
             $ref: '#/components/schemas/EmployeeAddressHistoryEntry'
+        emergency_contacts:
+          type: [array, 'null']
+          items:
+            $ref: '#/components/schemas/EmployeeEmergencyContactEntry'
         intended_activities:
           type: [array, 'null']
           items:
