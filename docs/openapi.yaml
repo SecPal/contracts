@@ -2603,8 +2603,8 @@ components:
             $ref: '#/components/schemas/EmployeeAddress'
         current_address:
           anyOf:
-            - type: 'null'
             - $ref: '#/components/schemas/EmployeeAddress'
+            - type: 'null'
           description: Convenience copy of the row with `resided_until` null when addresses are loaded.
         structured_address:
           type: [string, 'null']
