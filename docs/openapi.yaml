@@ -63,8 +63,10 @@ tags:
       Public bootstrap and authenticated onboarding workflow endpoints used by the pre-contract employee
       dossier flow, HR review actions, and onboarding confirmation. Portal steps follow tenant-scoped
       form templates managed via the onboarding template endpoints. Attachment uploads classify files
-      as contract materials, identity documents, or banking verification
-      (`contract`, `id_document`, `banking_details`).
+      with `document_type` as contract materials, identity documents, or banking verification
+      (`contract`, `id_document`, `banking_details`). Identity-document uploads additionally require
+      `document_subtype` so clients can distinguish combined identity files, split identity uploads,
+      proof-of-residence evidence, and split residence permits.
   - name: Android Provisioning
     description: >-
       Authorized enrollment-session management, public bootstrap-token exchange, and channel-aware
@@ -3248,6 +3250,21 @@ components:
         - id_document
         - banking_details
 
+    OnboardingSubmissionUploadDocumentSubtype:
+      type: string
+      description: >
+        Sub-classification for `id_document` uploads. Use `identity_document` for a single combined
+        identity file, `identity_document_front` / `identity_document_back` for split identity uploads,
+        `proof_of_residence` for residency-address evidence, and `residence_permit_front` /
+        `residence_permit_back` for split residence permit uploads.
+      enum:
+        - identity_document
+        - identity_document_front
+        - identity_document_back
+        - proof_of_residence
+        - residence_permit_front
+        - residence_permit_back
+
     UploadOnboardingSubmissionFileRequest:
       type: object
       required:
@@ -3260,6 +3277,24 @@ components:
           description: Binary attachment payload for the onboarding dossier.
         document_type:
           $ref: '#/components/schemas/OnboardingSubmissionUploadDocumentType'
+        document_subtype:
+          description: Required when `document_type` is `id_document`.
+          anyOf:
+            - $ref: '#/components/schemas/OnboardingSubmissionUploadDocumentSubtype'
+            - type: 'null'
+      allOf:
+        - if:
+            properties:
+              document_type:
+                const: id_document
+            required:
+              - document_type
+          then:
+            properties:
+              document_subtype:
+                $ref: '#/components/schemas/OnboardingSubmissionUploadDocumentSubtype'
+            required:
+              - document_subtype
 
     OnboardingSubmissionFileUpload:
       type: object
@@ -8735,12 +8770,22 @@ paths:
   /onboarding/submissions/{submission}/files:
     post:
       summary: Upload Onboarding Submission Attachment
-      description: >
+      description: |
         Upload a binary attachment for an existing onboarding form submission owned by the authenticated
         pre-contract employee. The same upload surface is available on every wizard step. Use
         `document_type` to classify the file: contract copy, identity document, or banking verification
-        (`contract`, `id_document`, or `banking_details`). Accepted formats: PDF, JPG, PNG;
-        max 10240 KiB (10 MiB).
+        (`contract`, `id_document`, or `banking_details`). When `document_type` is `id_document`, send
+        `document_subtype` to identify whether the file is a combined identity document, a front/back
+        identity split, proof-of-residence evidence, or a front/back residence permit upload. Accepted
+        formats: PDF, JPG, PNG; max 10240 KiB (10 MiB).
+
+        Valid request examples:
+        - `file=signed-contract.pdf`, `document_type=contract`
+        - `file=passport-front.jpg`, `document_type=id_document`, `document_subtype=identity_document_front`
+        - `file=residence-permit-front.jpg`, `document_type=id_document`, `document_subtype=residence_permit_front`
+
+        Invalid request example:
+        - `file=passport-front.jpg`, `document_type=id_document` without `document_subtype` returns `422 ValidationError`
       operationId: uploadOnboardingSubmissionFile
       tags:
         - Onboarding
@@ -8779,7 +8824,19 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '422':
-          $ref: '#/components/responses/ValidationError'
+          description: Validation Error - Invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblem'
+              examples:
+                missingDocumentSubtype:
+                  summary: '`document_subtype` is required for identity-document uploads'
+                  value:
+                    message: 'The given data was invalid.'
+                    errors:
+                      document_subtype:
+                        - 'The document subtype field is required when document type is id_document.'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
