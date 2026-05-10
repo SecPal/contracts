@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed optional request fields `description` and `expiry_date` in `UploadEmployeeDocumentRequest` to use nullable union type `[string, 'null']`, consistent with other optional nullable fields across the spec (`docs/openapi.yaml`)
 - Updated `check-openapi-verified-endpoints.mjs` guard comment to accurately describe all operation groups in the allowlist (qualification catalog + employee qualifications were missing from the description)
 
+### Security
+
+- Pinned transitive `fast-uri` to `3.1.2` and `fast-xml-builder` to `1.2.0` via `overrides` so the local Redocly validation toolchain no longer reports the high-severity `npm audit` findings surfaced during preflight
+
 ### Added
 
 - Documented employee emergency contacts in `docs/openapi.yaml` by introducing the reusable `EmployeeEmergencyContactEntry` schema and exposing nullable `emergency_contacts` arrays on `EmployeeCreateRequest`, `EmployeeUpdateRequest`, and `Employee` response payloads
@@ -76,6 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Scoped transitive `postcss` override to `postcss@^8: 8.5.10` (was unscoped `"postcss"`) so future PostCSS major versions are not pinned to `8.x` and the override only applies to the affected v8 range used by `@redocly/cli`'s `styled-components` dependency chain
 - Scoped the transitive `undici` override to `@redocly/cli` and pinned it to `6.24.0` so contract validation tooling no longer resolves the vulnerable HTTP client release reported by `npm audit`
 - Pinned transitive `brace-expansion` and `yaml` resolutions to patched semver-compatible releases so the contracts toolchain no longer reports the moderate `npm audit` findings surfaced during the Redocly CLI maintenance update
+- Scoped transitive `fast-uri` and `fast-xml-builder` overrides to the vulnerable semver ranges used by the Redocly toolchain so local contract validation no longer reports the high-severity `npm audit` findings without pinning unrelated future dependency lines
 
 ### Changed
 
