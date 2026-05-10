@@ -4299,6 +4299,21 @@ components:
           schema:
             $ref: '#/components/schemas/ValidationProblem'
 
+    OnboardingUploadMissingDocumentSubtype:
+      description: Validation Error - Missing onboarding upload document subtype
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+          examples:
+            missingDocumentSubtype:
+              summary: '`document_subtype` is required for identity-document uploads'
+              value:
+                message: 'The given data was invalid.'
+                errors:
+                  document_subtype:
+                    - 'The document subtype field is required when document type is id_document.'
+
     UnprocessableEntity:
       description: Unprocessable Entity - Input validation or workflow preconditions failed
       content:
@@ -8785,7 +8800,7 @@ paths:
         - `file=residence-permit-front.jpg`, `document_type=id_document`, `document_subtype=residence_permit_front`
 
         Invalid request example:
-        - `file=passport-front.jpg`, `document_type=id_document` without `document_subtype` returns `422 ValidationError`
+        - `file=passport-front.jpg`, `document_type=id_document` without `document_subtype` returns a `422` validation response
       operationId: uploadOnboardingSubmissionFile
       tags:
         - Onboarding
@@ -8824,19 +8839,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '422':
-          description: Validation Error - Invalid input data
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ValidationProblem'
-              examples:
-                missingDocumentSubtype:
-                  summary: '`document_subtype` is required for identity-document uploads'
-                  value:
-                    message: 'The given data was invalid.'
-                    errors:
-                      document_subtype:
-                        - 'The document subtype field is required when document type is id_document.'
+          $ref: '#/components/responses/OnboardingUploadMissingDocumentSubtype'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
