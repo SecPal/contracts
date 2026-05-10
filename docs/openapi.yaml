@@ -1921,35 +1921,87 @@ components:
           type: string
           format: date-time
 
-    EmployeeAddressHistoryEntry:
+    EmployeeAddress:
       type: object
+      description: |
+        Residential address row (`employee_addresses`). Exactly one row per employee may omit `resided_until`,
+        indicating the current residence. Responses decrypt sensitive street/postal/city fields into plaintext keys.
       required:
-        - from
-        - to
-        - street
-        - city
-        - postal_code
-        - country
+        - id
       properties:
-        from:
+        id:
           type: string
-          format: date
-        to:
-          type: string
-          format: date
+          format: uuid
         street:
-          type: string
+          type: [string, 'null']
+          description: Decrypted (stored encrypted at rest).
           maxLength: 255
-        city:
-          type: string
-          maxLength: 255
+        house_number:
+          type: [string, 'null']
+          description: Decrypted (stored encrypted at rest).
+          maxLength: 10
         postal_code:
-          type: string
+          type: [string, 'null']
+          description: Decrypted (stored encrypted at rest).
           maxLength: 20
+        city:
+          type: [string, 'null']
+          description: Decrypted (stored encrypted at rest).
+          maxLength: 255
+        supplement:
+          type: [string, 'null']
+          description: Decrypted (stored encrypted at rest).
+          maxLength: 255
         country:
-          type: string
+          type: [string, 'null']
           minLength: 2
           maxLength: 2
+          pattern: '^[A-Z]{2}$'
+        state:
+          type: [string, 'null']
+          maxLength: 100
+        resided_from:
+          type: [string, 'null']
+          format: date
+        resided_until:
+          type: [string, 'null']
+          format: date
+          description: Null means this row is the employee's current address.
+
+    EmployeeAddressInput:
+      type: object
+      description: |
+        Address row for create/update payloads (no `id`; server assigns identifiers). Sending `addresses` replaces stored rows for that employee.
+      properties:
+        street:
+          type: [string, 'null']
+          maxLength: 255
+        house_number:
+          type: [string, 'null']
+          maxLength: 10
+        postal_code:
+          type: [string, 'null']
+          maxLength: 20
+        city:
+          type: [string, 'null']
+          maxLength: 255
+        supplement:
+          type: [string, 'null']
+          maxLength: 255
+        country:
+          type: [string, 'null']
+          minLength: 2
+          maxLength: 2
+          pattern: '^[A-Z]{2}$'
+        state:
+          type: [string, 'null']
+          maxLength: 100
+        resided_from:
+          type: [string, 'null']
+          format: date
+        resided_until:
+          type: [string, 'null']
+          format: date
 
     EmployeeEmergencyContactEntry:
       type: object
@@ -2066,33 +2118,12 @@ components:
             minLength: 2
             maxLength: 2
             pattern: '^[A-Z]{2}$'
-        address_street:
-          type: [string, 'null']
-          maxLength: 255
-        address_house_number:
-          type: [string, 'null']
-          maxLength: 10
-        address_postal_code:
-          type: [string, 'null']
-          maxLength: 20
-        address_city:
-          type: [string, 'null']
-          maxLength: 255
-        address_supplement:
-          type: [string, 'null']
-          maxLength: 255
-        address_country:
-          type: [string, 'null']
-          minLength: 2
-          maxLength: 2
-          pattern: '^[A-Z]{2}$'
-        address_state:
-          type: [string, 'null']
-          maxLength: 100
-        address_history:
+        addresses:
           type: [array, 'null']
+          description: |
+            Residential addresses (full replacement list when supplied). The API validates server-side that exactly one entry has `resided_until` null when `bwr_status` is `pending` or `active`.
           items:
-            $ref: '#/components/schemas/EmployeeAddressHistoryEntry'
+            $ref: '#/components/schemas/EmployeeAddressInput'
         emergency_contacts:
           type: [array, 'null']
           items:
@@ -2288,33 +2319,12 @@ components:
             minLength: 2
             maxLength: 2
             pattern: '^[A-Z]{2}$'
-        address_street:
-          type: [string, 'null']
-          maxLength: 255
-        address_house_number:
-          type: [string, 'null']
-          maxLength: 10
-        address_postal_code:
-          type: [string, 'null']
-          maxLength: 20
-        address_city:
-          type: [string, 'null']
-          maxLength: 255
-        address_supplement:
-          type: [string, 'null']
-          maxLength: 255
-        address_country:
-          type: [string, 'null']
-          minLength: 2
-          maxLength: 2
-          pattern: '^[A-Z]{2}$'
-        address_state:
-          type: [string, 'null']
-          maxLength: 100
-        address_history:
+        addresses:
           type: [array, 'null']
+          description: |
+            When supplied, replaces all stored address rows for this employee (send the full list).
           items:
-            $ref: '#/components/schemas/EmployeeAddressHistoryEntry'
+            $ref: '#/components/schemas/EmployeeAddressInput'
         emergency_contacts:
           type: [array, 'null']
           items:
@@ -2590,34 +2600,21 @@ components:
           type: [array, 'null']
           items:
             type: string
-        address_street:
-          type: [string, 'null']
-          description: Decrypted
-        address_house_number:
-          type: [string, 'null']
-          description: Decrypted
-        address_postal_code:
-          type: [string, 'null']
-          description: Decrypted
-        address_city:
-          type: [string, 'null']
-          description: Decrypted
-        address_supplement:
-          type: [string, 'null']
-          description: Decrypted
-        address_country:
-          type: [string, 'null']
-          minLength: 2
-          maxLength: 2
-        address_state:
-          type: [string, 'null']
-        structured_address:
-          type: [object, 'null']
-          additionalProperties: true
-        address_history:
-          type: [array, 'null']
+        addresses:
+          type: array
+          description: Omitted when the relation is not loaded; present (possibly empty) when loaded.
           items:
-            $ref: '#/components/schemas/EmployeeAddressHistoryEntry'
+            $ref: '#/components/schemas/EmployeeAddress'
+        current_address:
+          anyOf:
+            - $ref: '#/components/schemas/EmployeeAddress'
+            - type: 'null'
+          description: |
+            Omitted when the `addresses` relation is not loaded. When loaded, contains the row
+            with `resided_until` null, or null if no such row exists.
+        structured_address:
+          type: [string, 'null']
+          description: Single-line summary derived from `current_address`; null when no current address exists. Always present in responses.
         emergency_contacts:
           type: [array, 'null']
           items:
