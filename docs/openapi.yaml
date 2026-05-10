@@ -1921,35 +1921,71 @@ components:
           type: string
           format: date-time
 
-    EmployeeAddressHistoryEntry:
+    EmployeeAddress:
       type: object
+      description: |
+        Residential address row (`employee_addresses`). Exactly one row per employee may omit `resided_until`,
+        indicating the current residence. Responses decrypt sensitive street/postal/city fields into plaintext keys.
       required:
-        - from
-        - to
-        - street
-        - city
-        - postal_code
-        - country
+        - id
       properties:
-        from:
+        id:
           type: string
-          format: date
-        to:
-          type: string
-          format: date
+          format: uuid
         street:
-          type: string
-          maxLength: 255
-        city:
-          type: string
-          maxLength: 255
+          type: [string, 'null']
+          description: Decrypted (stored encrypted at rest).
+        house_number:
+          type: [string, 'null']
         postal_code:
-          type: string
-          maxLength: 20
+          type: [string, 'null']
+        city:
+          type: [string, 'null']
+        supplement:
+          type: [string, 'null']
         country:
-          type: string
+          type: [string, 'null']
           minLength: 2
           maxLength: 2
+          pattern: '^[A-Z]{2}$'
+        state:
+          type: [string, 'null']
+        resided_from:
+          type: [string, 'null']
+          format: date
+        resided_until:
+          type: [string, 'null']
+          format: date
+          description: Null means this row is the employee's current address.
+
+    EmployeeAddressInput:
+      type: object
+      description: |
+        Address row for create/update payloads (no `id`; server assigns identifiers). Sending `addresses` replaces stored rows for that employee.
+      properties:
+        street:
+          type: [string, 'null']
+        house_number:
+          type: [string, 'null']
+        postal_code:
+          type: [string, 'null']
+        city:
+          type: [string, 'null']
+        supplement:
+          type: [string, 'null']
+        country:
+          type: [string, 'null']
+          minLength: 2
+          maxLength: 2
+          pattern: '^[A-Z]{2}$'
+        state:
+          type: [string, 'null']
+        resided_from:
+          type: [string, 'null']
+          format: date
+        resided_until:
+          type: [string, 'null']
+          format: date
 
     EmployeeEmergencyContactEntry:
       type: object
@@ -2066,33 +2102,12 @@ components:
             minLength: 2
             maxLength: 2
             pattern: '^[A-Z]{2}$'
-        address_street:
-          type: [string, 'null']
-          maxLength: 255
-        address_house_number:
-          type: [string, 'null']
-          maxLength: 10
-        address_postal_code:
-          type: [string, 'null']
-          maxLength: 20
-        address_city:
-          type: [string, 'null']
-          maxLength: 255
-        address_supplement:
-          type: [string, 'null']
-          maxLength: 255
-        address_country:
-          type: [string, 'null']
-          minLength: 2
-          maxLength: 2
-          pattern: '^[A-Z]{2}$'
-        address_state:
-          type: [string, 'null']
-          maxLength: 100
-        address_history:
+        addresses:
           type: [array, 'null']
+          description: |
+            Residential addresses (full replacement list when supplied). Exactly one entry must have `resided_until` null when `bwr_status` is `pending` or `active`.
           items:
-            $ref: '#/components/schemas/EmployeeAddressHistoryEntry'
+            $ref: '#/components/schemas/EmployeeAddressInput'
         emergency_contacts:
           type: [array, 'null']
           items:
@@ -2288,33 +2303,12 @@ components:
             minLength: 2
             maxLength: 2
             pattern: '^[A-Z]{2}$'
-        address_street:
-          type: [string, 'null']
-          maxLength: 255
-        address_house_number:
-          type: [string, 'null']
-          maxLength: 10
-        address_postal_code:
-          type: [string, 'null']
-          maxLength: 20
-        address_city:
-          type: [string, 'null']
-          maxLength: 255
-        address_supplement:
-          type: [string, 'null']
-          maxLength: 255
-        address_country:
-          type: [string, 'null']
-          minLength: 2
-          maxLength: 2
-          pattern: '^[A-Z]{2}$'
-        address_state:
-          type: [string, 'null']
-          maxLength: 100
-        address_history:
+        addresses:
           type: [array, 'null']
+          description: |
+            When supplied, replaces all stored address rows for this employee (send the full list).
           items:
-            $ref: '#/components/schemas/EmployeeAddressHistoryEntry'
+            $ref: '#/components/schemas/EmployeeAddressInput'
         emergency_contacts:
           type: [array, 'null']
           items:
@@ -2590,34 +2584,19 @@ components:
           type: [array, 'null']
           items:
             type: string
-        address_street:
-          type: [string, 'null']
-          description: Decrypted
-        address_house_number:
-          type: [string, 'null']
-          description: Decrypted
-        address_postal_code:
-          type: [string, 'null']
-          description: Decrypted
-        address_city:
-          type: [string, 'null']
-          description: Decrypted
-        address_supplement:
-          type: [string, 'null']
-          description: Decrypted
-        address_country:
-          type: [string, 'null']
-          minLength: 2
-          maxLength: 2
-        address_state:
-          type: [string, 'null']
-        structured_address:
-          type: [object, 'null']
-          additionalProperties: true
-        address_history:
+        addresses:
           type: [array, 'null']
+          description: Present when the `addresses` relation is loaded.
           items:
-            $ref: '#/components/schemas/EmployeeAddressHistoryEntry'
+            $ref: '#/components/schemas/EmployeeAddress'
+        current_address:
+          anyOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/EmployeeAddress'
+          description: Convenience copy of the row with `resided_until` null when addresses are loaded.
+        structured_address:
+          type: [string, 'null']
+          description: Single-line summary derived from the current address row.
         emergency_contacts:
           type: [array, 'null']
           items:
@@ -4298,21 +4277,6 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ValidationProblem'
-
-    OnboardingUploadMissingDocumentSubtype:
-      description: Validation Error - Missing onboarding upload document subtype
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ValidationProblem'
-          examples:
-            missingDocumentSubtype:
-              summary: '`document_subtype` is required for identity-document uploads'
-              value:
-                message: 'The given data was invalid.'
-                errors:
-                  document_subtype:
-                    - 'The document subtype field is required when document type is id_document.'
 
     UnprocessableEntity:
       description: Unprocessable Entity - Input validation or workflow preconditions failed
@@ -8799,8 +8763,10 @@ paths:
         - `file=passport-front.jpg`, `document_type=id_document`, `document_subtype=identity_document_front`
         - `file=residence-permit-front.jpg`, `document_type=id_document`, `document_subtype=residence_permit_front`
 
-        Invalid request example:
-        - `file=passport-front.jpg`, `document_type=id_document` without `document_subtype` returns a `422` validation response
+        Invalid or rejected requests return `422` with a `ValidationProblem` body (field keys under `errors` vary by case), for example:
+        - `document_type=id_document` without `document_subtype`
+        - uploads after the submission is no longer editable (`draft` / `rejected` only)
+        - multipart `file` rejected before validation (for example size limits)
       operationId: uploadOnboardingSubmissionFile
       tags:
         - Onboarding
@@ -8839,7 +8805,37 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '422':
-          $ref: '#/components/responses/OnboardingUploadMissingDocumentSubtype'
+          description: |
+            Validation failed (`ValidationProblem`). Typical cases include multipart or rule validation,
+            uploads rejected before Laravel validation (such as PHP size limits), workflow rules that block
+            uploads when the submission is not `draft` or `rejected`, or missing `document_subtype` when
+            `document_type` is `id_document`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblem'
+              examples:
+                missingDocumentSubtype:
+                  summary: Missing `document_subtype` for `id_document`
+                  value:
+                    message: The given data was invalid.
+                    errors:
+                      document_subtype:
+                        - The document subtype field is required when document type is id_document.
+                submissionNotEditable:
+                  summary: Upload blocked when submission is not in an editable state
+                  value:
+                    message: The given data was invalid.
+                    errors:
+                      status:
+                        - Files can only be uploaded while the onboarding submission is editable
+                fileRejectedBeforeValidation:
+                  summary: Underlying upload rejected before validation (for example size limits)
+                  value:
+                    message: The given data was invalid.
+                    errors:
+                      file:
+                        - The file failed to upload.
         '500':
           $ref: '#/components/responses/InternalServerError'
 

@@ -29,5 +29,8 @@ credentials/
 .idea
 .vscode
 
+# Polyscope / local agent workspace
+/.context/
+
 # Preflight overrides (local only)
 .preflight-allow-large-pr
