@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Corrected onboarding submission contract consistency in `docs/openapi.yaml`: replaced duplicated inline `form_data` objects with shared `OnboardingSubmissionFormData`, removed contradictory tax-ID-only `anyOf` modeling that could be bypassed, and enforced that `PATCH /onboarding/submissions/{submission}` requires `form_data` when `status` is set to `submitted`
+- Documented the onboarding upload `document_subtype` requirement for `id_document` attachments in `docs/openapi.yaml`, including explicit subtype enums, request examples, and the dedicated `422` validation response for missing subtype payloads
 - Corrected `QualificationResource` schema: removed `description` from `required` (nullable field, may be absent per spec pattern), made `created_at`/`updated_at` non-nullable (`type: string`) to align with all other resource timestamps, and aligned union-type style from `['string', 'null']` to `[string, 'null']` consistently across all new schemas (`docs/openapi.yaml`)
 - Added `created_at`/`updated_at` (required, non-nullable `type: string, format: date-time`) to `EmployeeQualificationResource`, consistent with all other resource schemas (`docs/openapi.yaml`)
 - Fixed file-size note: `10240 KiB (10 MB)` → `10240 KiB (10 MiB)` in `UploadEmployeeDocumentRequest` description (`docs/openapi.yaml`)
