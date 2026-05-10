@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed optional request fields `description` and `expiry_date` in `UploadEmployeeDocumentRequest` to use nullable union type `[string, 'null']`, consistent with other optional nullable fields across the spec (`docs/openapi.yaml`)
 - Updated `check-openapi-verified-endpoints.mjs` guard comment to accurately describe all operation groups in the allowlist (qualification catalog + employee qualifications were missing from the description)
 
+### Security
+
+- Pinned transitive `fast-uri` to `3.1.2` and `fast-xml-builder` to `1.2.0` via `overrides` so the local Redocly validation toolchain no longer reports the high-severity `npm audit` findings surfaced during preflight
+
 ### Added
 
 - Documented employee emergency contacts in `docs/openapi.yaml` by introducing the reusable `EmployeeEmergencyContactEntry` schema and exposing nullable `emergency_contacts` arrays on `EmployeeCreateRequest`, `EmployeeUpdateRequest`, and `Employee` response payloads
