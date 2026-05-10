@@ -1938,15 +1938,19 @@ components:
           maxLength: 255
         house_number:
           type: [string, 'null']
+          description: Decrypted (stored encrypted at rest).
           maxLength: 10
         postal_code:
           type: [string, 'null']
+          description: Decrypted (stored encrypted at rest).
           maxLength: 20
         city:
           type: [string, 'null']
+          description: Decrypted (stored encrypted at rest).
           maxLength: 255
         supplement:
           type: [string, 'null']
+          description: Decrypted (stored encrypted at rest).
           maxLength: 255
         country:
           type: [string, 'null']
@@ -2117,7 +2121,7 @@ components:
         addresses:
           type: [array, 'null']
           description: |
-            Residential addresses (full replacement list when supplied). Exactly one entry must have `resided_until` null when `bwr_status` is `pending` or `active`.
+            Residential addresses (full replacement list when supplied). The API validates server-side that exactly one entry has `resided_until` null when `bwr_status` is `pending` or `active`.
           items:
             $ref: '#/components/schemas/EmployeeAddressInput'
         emergency_contacts:
@@ -2597,18 +2601,20 @@ components:
           items:
             type: string
         addresses:
-          type: [array, 'null']
-          description: Present when the `addresses` relation is loaded.
+          type: array
+          description: Omitted when the relation is not loaded; present (possibly empty) when loaded.
           items:
             $ref: '#/components/schemas/EmployeeAddress'
         current_address:
           anyOf:
             - $ref: '#/components/schemas/EmployeeAddress'
             - type: 'null'
-          description: Convenience copy of the row with `resided_until` null when addresses are loaded.
+          description: |
+            Omitted when the `addresses` relation is not loaded. When loaded, contains the row
+            with `resided_until` null, or null if no such row exists.
         structured_address:
           type: [string, 'null']
-          description: Single-line summary derived from the current address row.
+          description: Single-line summary derived from `current_address`; null when no current address exists. Always present in responses.
         emergency_contacts:
           type: [array, 'null']
           items:
