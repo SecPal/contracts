@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Refactored `POST /auth/email/verification-notification` `401` and `429` responses in `docs/openapi.yaml` to reuse `#/components/responses/SimpleUnauthorized` and `#/components/responses/SimpleTooManyRequests` instead of duplicating inline `SimpleMessageResponse` blocks (closes #259)
 - Refactored qualification catalog and employee-qualification assignment operations in `docs/openapi.yaml` so HTTP `401` and `403` message-only Laravel bodies reuse `#/components/responses/SimpleUnauthorized` and `#/components/responses/SimpleForbidden` instead of duplicating inline `SimpleMessageResponse` blocks; aligned `PATCH` and `DELETE` `/qualifications/{qualification}` `404` descriptions and examples with the same tenant-aware route-binding semantics documented for `GET` on that path (closes #234)
 
 ### Fixed
