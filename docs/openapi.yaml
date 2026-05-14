@@ -1903,23 +1903,15 @@ components:
               minimum: 0
               example: 1
 
-    LogoutMessageResponse:
+    SimpleMessageResponse:
       type: object
       required:
         - message
       properties:
         message:
           type: string
-          example: 'Logged out successfully'
-
-    ApiSimpleMessageResponse:
-      type: object
-      required:
-        - message
-      properties:
-        message:
-          type: string
-          description: Plain JSON message returned by Laravel for some auth and throttle errors (no `code` field).
+          description: Plain JSON message with no `code` field (e.g. Laravel auth or throttle errors, logout confirmation).
+          example: Logged out successfully
 
     UpdateLanguagePreferenceRequest:
       type: object
@@ -4420,7 +4412,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ApiSimpleMessageResponse'
+            $ref: '#/components/schemas/SimpleMessageResponse'
           examples:
             unauthenticated:
               value:
@@ -4431,7 +4423,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ApiSimpleMessageResponse'
+            $ref: '#/components/schemas/SimpleMessageResponse'
           examples:
             forbidden:
               value:
@@ -4496,7 +4488,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ApiSimpleMessageResponse'
+            $ref: '#/components/schemas/SimpleMessageResponse'
           examples:
             throttled:
               value:
@@ -4517,7 +4509,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ApiSimpleMessageResponse'
+            $ref: '#/components/schemas/SimpleMessageResponse'
           examples:
             internalServerError:
               value:
@@ -5054,7 +5046,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LogoutMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -5077,7 +5069,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LogoutMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -5100,7 +5092,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LogoutMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -5136,7 +5128,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
               examples:
                 alreadyVerified:
                   summary: Already verified
@@ -5147,7 +5139,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
               examples:
                 queued:
                   summary: Verification mail queued
@@ -5158,7 +5150,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
               examples:
                 unauthenticated:
                   value:
@@ -5168,7 +5160,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
               examples:
                 throttled:
                   value:
@@ -6536,11 +6528,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/QualificationCollectionResponse'
         '401':
-          description: Unauthenticated (e.g. `Unauthenticated.`) — **no** `code` field; see `ApiSimpleMessageResponse`.
+          description: Unauthenticated (e.g. `Unauthenticated.`) — **no** `code` field; see `SimpleMessageResponse`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
               examples:
                 unauthenticated:
                   value:
@@ -6552,7 +6544,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
         '422':
           $ref: '#/components/responses/ValidationError'
         '500':
@@ -6589,13 +6581,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
         '403':
           description: Missing `qualification.write` or create denied.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
         '422':
           $ref: '#/components/responses/ValidationError'
         '500':
@@ -6636,18 +6628,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
         '403':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
         '404':
           description: Unknown id, invalid UUID, or not visible to the current tenant binding rules.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
               examples:
                 notFound:
                   value:
@@ -6693,18 +6685,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
         '403':
           description: Missing `qualification.write`, policy denied, or system qualification.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
         '422':
           $ref: '#/components/responses/ValidationError'
         '500':
@@ -6740,17 +6732,17 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
         '403':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
         '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -6787,11 +6779,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/EmployeeQualificationCollectionResponse'
         '401':
-          description: Unauthenticated — **no** `code` field; see `ApiSimpleMessageResponse`.
+          description: Unauthenticated — **no** `code` field; see `SimpleMessageResponse`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
               examples:
                 unauthenticated:
                   value:
@@ -6801,13 +6793,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
         '404':
           description: Unknown employee id or out-of-scope implicit binding (**404** `Resource not found.`).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
               examples:
                 notFound:
                   value:
@@ -6854,7 +6846,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
               examples:
                 unauthenticated:
                   value:
@@ -6864,13 +6856,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
         '404':
           description: Employee not found for tenant binding.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
               examples:
                 notFound:
                   value:
@@ -6880,7 +6872,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
               examples:
                 duplicate:
                   value:
@@ -6925,7 +6917,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
               examples:
                 unauthenticated:
                   value:
@@ -6935,13 +6927,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
         '404':
           description: Invalid UUID format or pivot outside tenant binding (`EmployeeQualificationControllerTest`).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
               examples:
                 notFound:
                   value:
@@ -6988,7 +6980,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
               examples:
                 unauthenticated:
                   value:
@@ -6998,13 +6990,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
         '404':
           description: Unknown pivot id or binding failure.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
               examples:
                 notFound:
                   value:
@@ -7041,7 +7033,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
               examples:
                 unauthenticated:
                   value:
@@ -7051,13 +7043,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
         '404':
           description: Unknown pivot id or binding failure.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSimpleMessageResponse'
+                $ref: '#/components/schemas/SimpleMessageResponse'
               examples:
                 notFound:
                   value:
