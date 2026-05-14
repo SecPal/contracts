@@ -6658,11 +6658,15 @@ paths:
         '403':
           $ref: '#/components/responses/SimpleForbidden'
         '404':
-          description: Qualification not found.
+          description: Unknown id, invalid UUID, or not visible to the current tenant binding rules.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SimpleMessageResponse'
+              examples:
+                notFound:
+                  value:
+                    message: Resource not found.
         '422':
           $ref: '#/components/responses/ValidationError'
         '500':
@@ -6699,11 +6703,15 @@ paths:
         '403':
           $ref: '#/components/responses/SimpleForbidden'
         '404':
-          description: Qualification not found.
+          description: Unknown id, invalid UUID, or not visible to the current tenant binding rules.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SimpleMessageResponse'
+              examples:
+                notFound:
+                  value:
+                    message: Resource not found.
         '500':
           $ref: '#/components/responses/InternalServerError'
 
