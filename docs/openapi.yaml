@@ -169,14 +169,17 @@ components:
         borough:
           type: [string, 'null']
           maxLength: 255
+          description: Administrative borough (Bezirk). Always present in the response; `null` for streets outside city-states (Berlin, Hamburg, Bremen) that do not carry borough data in the OpenPLZ source.
           example: Pankow
         suburb:
           type: [string, 'null']
           maxLength: 255
+          description: Suburb or district (Ortsteil). Always present in the response; `null` when the OpenPLZ source carries no suburb for this street.
           example: Niederschönhausen
         regional_key:
           type: [string, 'null']
           maxLength: 255
+          description: Amtlicher Gemeindeschlüssel (AGS/ARS regional key). Always present in the response; `null` when the OpenPLZ source carries no regional key for this street.
           example: '11000000'
 
     AddressStreetSuggestionResponse:
@@ -240,6 +243,9 @@ components:
         imported_at:
           type: string
           format: date-time
+          description: |
+            Timestamp at which this country's data batch was ingested (raw import time).
+            Mirrors `meta.imported_at` for this country entry; both values originate from the same import record and will always be equal.
           example: '2026-05-11T03:30:00Z'
 
     AddressDataStatusResponse:
@@ -4513,6 +4519,16 @@ components:
               value:
                 message: Internal server error.
 
+    AddressDataUnavailable:
+      description: Address reference data not imported yet.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Address reference data is not available yet.
+            code: ADDRESS_DATA_UNAVAILABLE
+
   securitySchemes:
     BearerAuth:
       type: http
@@ -4569,7 +4585,7 @@ paths:
         Search the active German address reference dataset for street suggestions.
 
         At least one filter is required: `name` (2+ chars), `locality` (2+ chars), or `postal_code`.
-        When no active import exists yet, the API responds with `503 address_data_unavailable`.
+        When no active import exists yet, the API responds with `503 ADDRESS_DATA_UNAVAILABLE`.
       operationId: searchGermanAddressStreets
       tags:
         - Addresses
@@ -4624,14 +4640,7 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
         '503':
-          description: Address reference data not imported yet.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                message: Address reference data is not available yet.
-                code: address_data_unavailable
+          $ref: '#/components/responses/AddressDataUnavailable'
         '500':
           $ref: '#/components/responses/SimpleInternalServerError'
 
@@ -4642,7 +4651,7 @@ paths:
         Search the active German address reference dataset for distinct `(postal_code, locality)` suggestions.
 
         At least one filter is required: `postal_code` or `locality` (2+ chars).
-        When no active import exists yet, the API responds with `503 address_data_unavailable`.
+        When no active import exists yet, the API responds with `503 ADDRESS_DATA_UNAVAILABLE`.
       operationId: searchGermanAddressLocalities
       tags:
         - Addresses
@@ -4689,14 +4698,7 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
         '503':
-          description: Address reference data not imported yet.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                message: Address reference data is not available yet.
-                code: address_data_unavailable
+          $ref: '#/components/responses/AddressDataUnavailable'
         '500':
           $ref: '#/components/responses/SimpleInternalServerError'
 
@@ -4706,7 +4708,7 @@ paths:
       description: |
         Returns metadata about the currently active German address reference import.
 
-        When no active import exists yet, the API responds with `503 address_data_unavailable`.
+        When no active import exists yet, the API responds with `503 ADDRESS_DATA_UNAVAILABLE`.
       operationId: getGermanAddressDataStatus
       tags:
         - Addresses
@@ -4726,14 +4728,7 @@ paths:
         '429':
           $ref: '#/components/responses/SimpleTooManyRequests'
         '503':
-          description: Address reference data not imported yet.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                message: Address reference data is not available yet.
-                code: address_data_unavailable
+          $ref: '#/components/responses/AddressDataUnavailable'
         '500':
           $ref: '#/components/responses/SimpleInternalServerError'
 
