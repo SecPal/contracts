@@ -663,7 +663,9 @@ components:
 
         **File rules:** required; max **10240 KiB (10 MiB)**; extensions **pdf, jpg, jpeg, png**; MIME types **application/pdf, image/jpeg, image/png** (`mimes` + `mimetypes` validation).
 
-        **Fields:** `title` and `document_type` are required. `visible_to_employee` is required (boolean). `description` and `expiry_date` are optional; when `expiry_date` is present it must be a date **after** today.
+        **Fields:** `title` and `document_type` are required. `visible_to_employee` is required (boolean).
+
+        **`description` and `expiry_date`:** Laravel `nullable`. This operation uses **`multipart/form-data` text parts** (see operation `encoding`); there is **no** documented JSON-typed null part. To leave values unset, **omit** those parts (recommended). Do **not** send the literal ASCII token `null` as the part body expecting JSON null semantics—it is a string and may fail `date` validation for `expiry_date`. The OpenAPI union `type: [string, 'null']` models the **validated PHP value** and matches **JSON** responses on `EmployeeDocumentResource`, not a multipart null literal. When `expiry_date` is sent as a non-empty text part, it must be strictly **after** today (`after:today`).
       required:
         - file
         - title
@@ -680,12 +682,13 @@ components:
         description:
           type: [string, 'null']
           maxLength: 1000
+          description: Optional text part; omit the multipart field when unset (`nullable`, `string`, `max:1000` when present).
         document_type:
           $ref: '#/components/schemas/EmployeeDocumentType'
         expiry_date:
           type: [string, 'null']
           format: date
-          description: Optional; must be strictly after the current calendar day when provided.
+          description: Optional `YYYY-MM-DD` text part; omit the multipart field when unset (`nullable`). When present, must be strictly after the current calendar day (`after:today`).
         visible_to_employee:
           type: boolean
 
@@ -7128,6 +7131,16 @@ paths:
             encoding:
               file:
                 contentType: application/pdf, image/jpeg, image/png
+              title:
+                contentType: text/plain
+              description:
+                contentType: text/plain
+              document_type:
+                contentType: text/plain
+              expiry_date:
+                contentType: text/plain
+              visible_to_employee:
+                contentType: text/plain
       responses:
         '201':
           description: Document stored and metadata returned
