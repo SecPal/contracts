@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Aligned `AuthenticatedUser.id` with the API `users.id` UUID primary key (`type: string`, `format: uuid`) instead of `integer`, matching `Employee.user_id` and embedded user summaries (`docs/openapi.yaml`, closes #237)
 - Corrected onboarding submission contract consistency in `docs/openapi.yaml`: replaced duplicated inline `form_data` objects with shared `OnboardingSubmissionFormData`, removed contradictory tax-ID-only `anyOf` modeling that could be bypassed, and enforced that `PATCH /onboarding/submissions/{submission}` requires `form_data` when `status` is set to `submitted`
 - Documented the onboarding upload `document_subtype` requirement for `id_document` attachments in `docs/openapi.yaml`, including explicit subtype enums, request examples, and the dedicated `422` validation response for missing subtype payloads
 - Corrected `QualificationResource` schema: removed `description` from `required` (nullable field, may be absent per spec pattern), made `created_at`/`updated_at` non-nullable (`type: string`) to align with all other resource timestamps, and aligned union-type style from `['string', 'null']` to `[string, 'null']` consistently across all new schemas (`docs/openapi.yaml`)
