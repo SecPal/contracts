@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - Pinned transitive `fast-uri` to `3.1.2` and `fast-xml-builder` to `1.2.0` via `overrides` so the local Redocly validation toolchain no longer reports the high-severity `npm audit` findings surfaced during preflight
+- Pinned transitive `protobufjs` to `7.5.8` and its sub-dependency `@protobufjs/utf8` to `1.1.1` via scoped `overrides` to address the `npm audit` finding in the `@redocly/cli` → `@opentelemetry/otlp-transformer` dependency chain
 
 ### Added
 
