@@ -665,7 +665,7 @@ components:
 
         **Fields:** `title` and `document_type` are required. `visible_to_employee` is required (boolean).
 
-        **`description` and `expiry_date`:** Laravel `nullable` — clients may **omit** these parts or send an **explicit null**; both are accepted. When `expiry_date` is a non-null date value, it must be strictly **after** today (`after:today`). This aligns with `EmployeeDocumentResource`, where the same properties may be JSON `null` in responses.
+        **`description` and `expiry_date`:** Laravel `nullable`. This operation uses **`multipart/form-data` text parts** (see operation `encoding`); there is **no** documented JSON-typed null part. To leave values unset, **omit** those parts (recommended). Do **not** send the literal ASCII token `null` as the part body expecting JSON null semantics—it is a string and may fail `date` validation for `expiry_date`. The OpenAPI union `type: [string, 'null']` models the **validated PHP value** and matches **JSON** responses on `EmployeeDocumentResource`, not a multipart null literal. When `expiry_date` is sent as a non-empty text part, it must be strictly **after** today (`after:today`).
       required:
         - file
         - title
@@ -682,13 +682,13 @@ components:
         description:
           type: [string, 'null']
           maxLength: 1000
-          description: Omit the part or send null (`nullable`, `string`, `max:1000`).
+          description: Optional text part; omit the multipart field when unset (`nullable`, `string`, `max:1000` when present).
         document_type:
           $ref: '#/components/schemas/EmployeeDocumentType'
         expiry_date:
           type: [string, 'null']
           format: date
-          description: Omit the part or send null (`nullable`). When a date value is sent, it must be strictly after the current calendar day (`after:today`).
+          description: Optional `YYYY-MM-DD` text part; omit the multipart field when unset (`nullable`). When present, must be strictly after the current calendar day (`after:today`).
         visible_to_employee:
           type: boolean
 
@@ -7131,6 +7131,16 @@ paths:
             encoding:
               file:
                 contentType: application/pdf, image/jpeg, image/png
+              title:
+                contentType: text/plain
+              description:
+                contentType: text/plain
+              document_type:
+                contentType: text/plain
+              expiry_date:
+                contentType: text/plain
+              visible_to_employee:
+                contentType: text/plain
       responses:
         '201':
           description: Document stored and metadata returned
