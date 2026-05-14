@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed file-size note: `10240 KiB (10 MB)` → `10240 KiB (10 MiB)` in `UploadEmployeeDocumentRequest` description (`docs/openapi.yaml`)
 - Fixed file-size note: `max 10 MB` → `max 10240 KiB (10 MiB)` in `POST /onboarding/submissions/{submission}/files` endpoint description to match the canonical unit used throughout the spec; restored the "owned by the authenticated pre-contract employee" ownership constraint that was inadvertently dropped from the upload endpoint description (`docs/openapi.yaml`)
 - Fixed optional request fields `description` and `expiry_date` in `UploadEmployeeDocumentRequest` to use nullable union type `[string, 'null']`, consistent with other optional nullable fields across the spec (`docs/openapi.yaml`)
+- Clarified null-acceptance semantics for `description` and `expiry_date` in `UploadEmployeeDocumentRequest`: documented that clients may omit the multipart part or send an explicit `null` (Laravel `nullable`), and that `expiry_date` is validated only when a non-null date value is present (`after:today`); aligns with `EmployeeDocumentResource` response behaviour (`docs/openapi.yaml`)
 - Updated `check-openapi-verified-endpoints.mjs` guard comment to accurately describe all operation groups in the allowlist (qualification catalog + employee qualifications were missing from the description)
 
 ### Security
