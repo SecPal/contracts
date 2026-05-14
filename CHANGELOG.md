@@ -14,7 +14,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Aligned `AuthenticatedUser.id` with the API `users.id` UUID primary key (`type: string`, `format: uuid`) instead of `integer`, matching `Employee.user_id` and embedded user summaries (`docs/openapi.yaml`, closes #237)
 - Corrected onboarding submission contract consistency in `docs/openapi.yaml`: replaced duplicated inline `form_data` objects with shared `OnboardingSubmissionFormData`, removed contradictory tax-ID-only `anyOf` modeling that could be bypassed, and enforced that `PATCH /onboarding/submissions/{submission}` requires `form_data` when `status` is set to `submitted`
 - Documented the onboarding upload `document_subtype` requirement for `id_document` attachments in `docs/openapi.yaml`, including explicit subtype enums, request examples, and the dedicated `422` validation response for missing subtype payloads
 - Corrected `QualificationResource` schema: removed `description` from `required` (nullable field, may be absent per spec pattern), made `created_at`/`updated_at` non-nullable (`type: string`) to align with all other resource timestamps, and aligned union-type style from `['string', 'null']` to `[string, 'null']` consistently across all new schemas (`docs/openapi.yaml`)
@@ -51,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** Changed `AuthenticatedUser.id` from `integer` to `string` with `format: uuid` in `docs/openapi.yaml` so the published contract matches the API `users.id` UUID primary key and other user identifiers such as `Employee.user_id`; consumers that assumed a numeric id must migrate to string UUIDs (closes #237)
 - **Breaking:** Removed the `state` field from `EmployeeAddress` and `EmployeeAddressInput` schemas and the `birth_state` field from `EmployeeCreateRequest`, `EmployeeUpdateRequest`, and `Employee` schemas in `docs/openapi.yaml`. These fields were not part of the German BWR data model and had no live callers; callers must stop sending or reading these fields.
 - **Breaking:** Employee residential data is modeled as `addresses[]` (`EmployeeAddress` / `EmployeeAddressInput`) instead of flat `address_*` fields and `address_history` on `Employee`, `EmployeeCreateRequest`, and `EmployeeUpdateRequest` (`docs/openapi.yaml`). The current residence is the row with `resided_until` null; full replacement applies when clients submit `addresses` on create/update. BWR five-year continuity is enforced at export time in the API implementation.
 - Renamed the onboarding review and Android provisioning contract paths to neutral `/onboarding-review/...` and `/android-enrollment-sessions...` routes, and renamed `AndroidProvisioningAdminExtras` to `AndroidProvisioningOperatorExtras` so generated clients no longer encode the deleted Admin model (breaking change, consumers must update to the new paths and schema name).
