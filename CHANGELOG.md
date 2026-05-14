@@ -59,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Added a fail-fast `prevalidate` guard that blocks `npm run validate` when local `node_modules` still resolve a stale `@redocly/cli` version instead of the lockfile-pinned release, so the follow-up tracked in #223 now reports an actionable `npm ci` requirement instead of a misleading Redocly upgrade banner
+- Updated `@redocly/cli` to `2.30.6` after reviewing the `2.30.5`/`2.30.6` upstream patch releases (query-language handling, `redocly.yaml` env-var validation, Respect `--har-output` fixes, `@redocly/openapi-core` bumps, no-API crash fix) so `redocly lint` stops printing the stale upgrade banner from #252 once `node_modules` matches the lockfile; no npm `overrides` changes were required and `npm audit` stays clean (closes #252)
 - Updated `@redocly/cli` from `2.29.2` to `2.30.3` across the follow-up maintenance bumps tracked from #223 so the contracts validation toolchain now stays on the current compatible Redocly CLI release line already recorded in `package.json` and `package-lock.json`
 - Updated `@redocly/cli` from `2.28.0` to `2.28.1` so the contracts toolchain stays aligned with the current Redocly CLI release tracked in #213
 - Aligned `EmployeeCreateRequest` with the live employee-create runtime by making `management_level` optional for non-management hires and by documenting `position` as free-text plus the `0`/`1-255` management-rank semantics
