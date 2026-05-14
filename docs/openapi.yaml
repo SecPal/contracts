@@ -42,6 +42,8 @@ tags:
     description: Login, logout, and MFA challenge endpoints for browser-session and Bearer-token clients.
   - name: Monitoring
     description: Service health and operational readiness endpoints.
+  - name: Addresses
+    description: Authenticated German address reference-data lookup endpoints for employee onboarding and HR forms.
   - name: Activity Logs
     description: Tamper-evident audit trail operations and verification flows.
   - name: Employees
@@ -112,6 +114,144 @@ components:
               type: string
           example:
             email: ['The email field must be a valid email address.']
+
+    AddressReferenceMeta:
+      type: object
+      required:
+        - source
+        - imported_at
+      properties:
+        source:
+          type: string
+          description: Human-readable source label for the active import.
+          example: OpenPLZ API Data
+        license:
+          type: [string, 'null']
+          description: SPDX license identifier attached to the active import, if recorded.
+          example: ODbL-1.0
+        attribution:
+          type: [string, 'null']
+          description: Attribution text that downstream clients must preserve when required, if recorded.
+          example: OpenPLZ API Data / OpenStreetMap contributors
+        imported_at:
+          type: string
+          format: date-time
+          description: Activation timestamp of the currently active import.
+          example: '2026-05-11T03:30:00Z'
+        version_hash:
+          type: [string, 'null']
+          pattern: '^[a-f0-9]{64}$'
+          description: SHA-256 hash of the active upstream source artifact, if recorded.
+          example: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+    AddressStreetSuggestion:
+      type: object
+      required:
+        - name
+        - postal_code
+        - locality
+        - borough
+        - suburb
+        - regional_key
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          example: Grabstraße
+        postal_code:
+          type: string
+          pattern: '^\d{5}$'
+          example: '13156'
+        locality:
+          type: string
+          maxLength: 255
+          example: Berlin
+        borough:
+          type: [string, 'null']
+          maxLength: 255
+          example: Pankow
+        suburb:
+          type: [string, 'null']
+          maxLength: 255
+          example: Niederschönhausen
+        regional_key:
+          type: [string, 'null']
+          maxLength: 255
+          example: '11000000'
+
+    AddressStreetSuggestionResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AddressStreetSuggestion'
+        meta:
+          $ref: '#/components/schemas/AddressReferenceMeta'
+
+    AddressLocalitySuggestion:
+      type: object
+      required:
+        - postal_code
+        - locality
+      properties:
+        postal_code:
+          type: string
+          pattern: '^\d{5}$'
+          example: '42103'
+        locality:
+          type: string
+          maxLength: 255
+          example: Wuppertal
+
+    AddressLocalitySuggestionResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AddressLocalitySuggestion'
+        meta:
+          $ref: '#/components/schemas/AddressReferenceMeta'
+
+    AddressDataStatus:
+      type: object
+      required:
+        - country
+        - row_count
+        - imported_at
+      properties:
+        country:
+          type: string
+          minLength: 2
+          maxLength: 2
+          pattern: '^[A-Z]{2}$'
+          example: DE
+        row_count:
+          type: integer
+          minimum: 0
+          example: 1845234
+        imported_at:
+          type: string
+          format: date-time
+          example: '2026-05-11T03:30:00Z'
+
+    AddressDataStatusResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          $ref: '#/components/schemas/AddressDataStatus'
+        meta:
+          $ref: '#/components/schemas/AddressReferenceMeta'
 
     Activity:
       type: object
@@ -1957,9 +2097,6 @@ components:
           minLength: 2
           maxLength: 2
           pattern: '^[A-Z]{2}$'
-        state:
-          type: [string, 'null']
-          maxLength: 100
         resided_from:
           type: [string, 'null']
           format: date
@@ -1993,9 +2130,6 @@ components:
           minLength: 2
           maxLength: 2
           pattern: '^[A-Z]{2}$'
-        state:
-          type: [string, 'null']
-          maxLength: 100
         resided_from:
           type: [string, 'null']
           format: date
@@ -2108,9 +2242,6 @@ components:
           minLength: 2
           maxLength: 2
           pattern: '^[A-Z]{2}$'
-        birth_state:
-          type: [string, 'null']
-          maxLength: 100
         nationalities:
           type: [array, 'null']
           items:
@@ -2309,9 +2440,6 @@ components:
           minLength: 2
           maxLength: 2
           pattern: '^[A-Z]{2}$'
-        birth_state:
-          type: [string, 'null']
-          maxLength: 100
         nationalities:
           type: [array, 'null']
           items:
@@ -2594,8 +2722,6 @@ components:
           type: [string, 'null']
           minLength: 2
           maxLength: 2
-        birth_state:
-          type: [string, 'null']
         nationalities:
           type: [array, 'null']
           items:
@@ -4279,6 +4405,28 @@ components:
             message: Insufficient permissions
             code: FORBIDDEN
 
+    SimpleUnauthorized:
+      description: Unauthenticated - Laravel returns a message-only JSON body without a `code` field.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiSimpleMessageResponse'
+          examples:
+            unauthenticated:
+              value:
+                message: Unauthenticated.
+
+    SimpleForbidden:
+      description: Forbidden - middleware/policy failures may return a message-only JSON body without a `code` field.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiSimpleMessageResponse'
+          examples:
+            forbidden:
+              value:
+                message: Invalid ability provided.
+
     NotFound:
       description: Not Found - Resource does not exist
       content:
@@ -4333,6 +4481,17 @@ components:
             message: Too many attempts. Please try again later.
             code: TOO_MANY_REQUESTS
 
+    SimpleTooManyRequests:
+      description: Too Many Requests - Laravel throttle middleware returns a message-only JSON body without a `code` field.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiSimpleMessageResponse'
+          examples:
+            throttled:
+              value:
+                message: Too Many Attempts.
+
     InternalServerError:
       description: Internal Server Error
       content:
@@ -4342,6 +4501,17 @@ components:
           example:
             message: An internal error occurred
             code: INTERNAL_ERROR
+
+    SimpleInternalServerError:
+      description: Internal Server Error - Laravel returns a message-only JSON body without a `code` field.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiSimpleMessageResponse'
+          examples:
+            internalServerError:
+              value:
+                message: Internal server error.
 
   securitySchemes:
     BearerAuth:
@@ -4387,6 +4557,185 @@ paths:
               example:
                 message: Service temporarily unavailable
                 code: SERVICE_UNAVAILABLE
+
+  # =============================================================================
+  # Address Reference Data
+  # =============================================================================
+
+  /addresses/de/streets:
+    get:
+      summary: Search German streets
+      description: |
+        Search the active German address reference dataset for street suggestions.
+
+        At least one filter is required: `name` (2+ chars), `locality` (2+ chars), or `postal_code`.
+        When no active import exists yet, the API responds with `503 address_data_unavailable`.
+      operationId: searchGermanAddressStreets
+      tags:
+        - Addresses
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: name
+          in: query
+          required: false
+          description: Street-name prefix, minimum 2 characters.
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 100
+        - name: postal_code
+          in: query
+          required: false
+          description: German postal-code prefix, 1 to 5 digits.
+          schema:
+            type: string
+            pattern: '^\d{1,5}$'
+        - name: locality
+          in: query
+          required: false
+          description: Locality/city prefix, minimum 2 characters.
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 100
+        - name: limit
+          in: query
+          required: false
+          description: Max number of suggestions to return.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: Street suggestions from the active import.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressStreetSuggestionResponse'
+        '401':
+          $ref: '#/components/responses/SimpleUnauthorized'
+        '403':
+          $ref: '#/components/responses/SimpleForbidden'
+        '429':
+          $ref: '#/components/responses/SimpleTooManyRequests'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '503':
+          description: Address reference data not imported yet.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Address reference data is not available yet.
+                code: address_data_unavailable
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+
+  /addresses/de/localities:
+    get:
+      summary: Search German localities
+      description: |
+        Search the active German address reference dataset for distinct `(postal_code, locality)` suggestions.
+
+        At least one filter is required: `postal_code` or `locality` (2+ chars).
+        When no active import exists yet, the API responds with `503 address_data_unavailable`.
+      operationId: searchGermanAddressLocalities
+      tags:
+        - Addresses
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: postal_code
+          in: query
+          required: false
+          description: German postal-code prefix, 1 to 5 digits.
+          schema:
+            type: string
+            pattern: '^\d{1,5}$'
+        - name: locality
+          in: query
+          required: false
+          description: Locality/city prefix, minimum 2 characters.
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 100
+        - name: limit
+          in: query
+          required: false
+          description: Max number of distinct locality rows to return.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: Distinct locality suggestions from the active import.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressLocalitySuggestionResponse'
+        '401':
+          $ref: '#/components/responses/SimpleUnauthorized'
+        '403':
+          $ref: '#/components/responses/SimpleForbidden'
+        '429':
+          $ref: '#/components/responses/SimpleTooManyRequests'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '503':
+          description: Address reference data not imported yet.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Address reference data is not available yet.
+                code: address_data_unavailable
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+
+  /addresses/de/status:
+    get:
+      summary: Get German address data import status
+      description: |
+        Returns metadata about the currently active German address reference import.
+
+        When no active import exists yet, the API responds with `503 address_data_unavailable`.
+      operationId: getGermanAddressDataStatus
+      tags:
+        - Addresses
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Active import metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressDataStatusResponse'
+        '401':
+          $ref: '#/components/responses/SimpleUnauthorized'
+        '403':
+          $ref: '#/components/responses/SimpleForbidden'
+        '429':
+          $ref: '#/components/responses/SimpleTooManyRequests'
+        '503':
+          description: Address reference data not imported yet.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Address reference data is not available yet.
+                code: address_data_unavailable
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
 
   # =============================================================================
   # Authentication & Self-Service Endpoints
