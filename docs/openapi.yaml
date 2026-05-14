@@ -6528,23 +6528,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/QualificationCollectionResponse'
         '401':
-          description: Unauthenticated (e.g. `Unauthenticated.`) — **no** `code` field; see `SimpleMessageResponse`.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
-              examples:
-                unauthenticated:
-                  value:
-                    message: Unauthenticated.
+          $ref: '#/components/responses/SimpleUnauthorized'
         '403':
-          description: >
-            `qualification.read` missing, or `QualificationPolicy::viewAny` denied. Laravel returns a **message-only** JSON body
-            (commonly `This action is unauthorized.`) without the shared `Error` `code` field.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
+          $ref: '#/components/responses/SimpleForbidden'
         '422':
           $ref: '#/components/responses/ValidationError'
         '500':
@@ -6577,17 +6563,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/QualificationSingleResponse'
         '401':
-          description: Unauthenticated.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
+          $ref: '#/components/responses/SimpleUnauthorized'
         '403':
-          description: Missing `qualification.write` or create denied.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
+          $ref: '#/components/responses/SimpleForbidden'
         '422':
           $ref: '#/components/responses/ValidationError'
         '500':
@@ -6625,15 +6603,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/QualificationSingleResponse'
         '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
+          $ref: '#/components/responses/SimpleUnauthorized'
         '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
+          $ref: '#/components/responses/SimpleForbidden'
         '404':
           description: Unknown id, invalid UUID, or not visible to the current tenant binding rules.
           content:
@@ -6682,17 +6654,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/QualificationSingleResponse'
         '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
+          $ref: '#/components/responses/SimpleUnauthorized'
         '403':
-          description: Missing `qualification.write`, policy denied, or system qualification.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
+          $ref: '#/components/responses/SimpleForbidden'
         '404':
+          description: Qualification not found.
           content:
             application/json:
               schema:
@@ -6729,16 +6695,11 @@ paths:
         '204':
           description: Qualification soft-deleted
         '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
+          $ref: '#/components/responses/SimpleUnauthorized'
         '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
+          $ref: '#/components/responses/SimpleForbidden'
         '404':
+          description: Qualification not found.
           content:
             application/json:
               schema:
@@ -6779,21 +6740,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/EmployeeQualificationCollectionResponse'
         '401':
-          description: Unauthenticated — **no** `code` field; see `SimpleMessageResponse`.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
-              examples:
-                unauthenticated:
-                  value:
-                    message: Unauthenticated.
+          $ref: '#/components/responses/SimpleUnauthorized'
         '403':
-          description: Missing `employee_qualification.read`, policy denied, or organizational scope blocked.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
+          $ref: '#/components/responses/SimpleForbidden'
         '404':
           description: Unknown employee id or out-of-scope implicit binding (**404** `Resource not found.`).
           content:
@@ -6842,21 +6791,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/EmployeeQualificationSingleResponse'
         '401':
-          description: Unauthenticated — **no** `code` field.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
-              examples:
-                unauthenticated:
-                  value:
-                    message: Unauthenticated.
+          $ref: '#/components/responses/SimpleUnauthorized'
         '403':
-          description: Missing permission or organizational scope denied.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
+          $ref: '#/components/responses/SimpleForbidden'
         '404':
           description: Employee not found for tenant binding.
           content:
@@ -6913,21 +6850,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/EmployeeQualificationSingleResponse'
         '401':
-          description: Unauthenticated — **no** `code` field.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
-              examples:
-                unauthenticated:
-                  value:
-                    message: Unauthenticated.
+          $ref: '#/components/responses/SimpleUnauthorized'
         '403':
-          description: Caller cannot view this assignment (permission / scope).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
+          $ref: '#/components/responses/SimpleForbidden'
         '404':
           description: Invalid UUID format or pivot outside tenant binding (`EmployeeQualificationControllerTest`).
           content:
@@ -6976,21 +6901,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/EmployeeQualificationSingleResponse'
         '401':
-          description: Unauthenticated — **no** `code` field.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
-              examples:
-                unauthenticated:
-                  value:
-                    message: Unauthenticated.
+          $ref: '#/components/responses/SimpleUnauthorized'
         '403':
-          description: Missing permission or organizational scope denied.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
+          $ref: '#/components/responses/SimpleForbidden'
         '404':
           description: Unknown pivot id or binding failure.
           content:
@@ -7029,21 +6942,9 @@ paths:
         '204':
           description: Pivot removed
         '401':
-          description: Unauthenticated — **no** `code` field.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
-              examples:
-                unauthenticated:
-                  value:
-                    message: Unauthenticated.
+          $ref: '#/components/responses/SimpleUnauthorized'
         '403':
-          description: Missing permission or organizational scope denied.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
+          $ref: '#/components/responses/SimpleForbidden'
         '404':
           description: Unknown pivot id or binding failure.
           content:
