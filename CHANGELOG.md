@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Refactored qualification catalog and employee-qualification assignment operations in `docs/openapi.yaml` so HTTP `401` and `403` message-only Laravel bodies reuse `#/components/responses/SimpleUnauthorized` and `#/components/responses/SimpleForbidden` instead of duplicating inline `SimpleMessageResponse` blocks; aligned `PATCH` and `DELETE` `/qualifications/{qualification}` `404` descriptions and examples with the same tenant-aware route-binding semantics documented for `GET` on that path (closes #234)
+
 ### Fixed
 
 - Corrected onboarding submission contract consistency in `docs/openapi.yaml`: replaced duplicated inline `form_data` objects with shared `OnboardingSubmissionFormData`, removed contradictory tax-ID-only `anyOf` modeling that could be bypassed, and enforced that `PATCH /onboarding/submissions/{submission}` requires `form_data` when `status` is set to `submitted`
