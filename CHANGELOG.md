@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Removed `document_path` from `AttachQualificationRequest`, `UpdateEmployeeQualificationRequest`, and `EmployeeQualificationResource`; the API stores certificate files at an internal storage path (`employee_qualifications.document_path`) that must not be exposed to consumers, consistent with `EmployeeDocumentResource` omitting `file_path` (closes #233)
 - Migrated all `nullable: true` fields in the `Activity` component schema and the `verifyActivityLog` response `details` inline object to OpenAPI 3.1 union-type syntax (`type: [T, 'null']`); extracted the `details` object into the reusable `ActivityVerificationDetails` component schema to eliminate inline duplication (`docs/openapi.yaml`)
 - Corrected onboarding submission contract consistency in `docs/openapi.yaml`: replaced duplicated inline `form_data` objects with shared `OnboardingSubmissionFormData`, removed contradictory tax-ID-only `anyOf` modeling that could be bypassed, and enforced that `PATCH /onboarding/submissions/{submission}` requires `form_data` when `status` is set to `submitted`
 - Documented the onboarding upload `document_subtype` requirement for `id_document` attachments in `docs/openapi.yaml`, including explicit subtype enums, request examples, and the dedicated `422` validation response for missing subtype payloads

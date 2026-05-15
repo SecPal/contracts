@@ -834,9 +834,6 @@ components:
         notes:
           type: [string, 'null']
           maxLength: 1000
-        document_path:
-          type: [string, 'null']
-          maxLength: 255
         status:
           description: Optional; server defaults to `valid` when omitted (`EmployeeQualificationController::store`).
           anyOf:
@@ -867,9 +864,6 @@ components:
         notes:
           type: [string, 'null']
           maxLength: 1000
-        document_path:
-          type: [string, 'null']
-          maxLength: 255
         status:
           anyOf:
             - $ref: '#/components/schemas/EmployeeQualificationStatus'
@@ -879,6 +873,9 @@ components:
       type: object
       description: |
         Pivot row returned by `EmployeeQualificationResource`.
+
+        Responses never include the internal certificate storage path (`document_path` on the model is omitted), consistent with
+        `EmployeeDocumentResource` omitting `file_path`. Certificate file upload and download are not yet part of this contract surface.
 
         `qualification` is included when that relation is eager-loaded (list, show, create, and update responses load it where applicable).
         `employee` is included when loaded (list and show paths); create/update responses may omit it when not loaded.
@@ -911,8 +908,6 @@ components:
         issuing_authority:
           type: [string, 'null']
         notes:
-          type: [string, 'null']
-        document_path:
           type: [string, 'null']
         status:
           $ref: '#/components/schemas/EmployeeQualificationStatus'
