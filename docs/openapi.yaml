@@ -874,7 +874,7 @@ components:
       description: |
         Pivot row returned by `EmployeeQualificationResource`.
 
-        Responses never include the internal certificate storage path (`document_path` on the model is omitted), consistent with
+        Responses never include an internal certificate storage path, consistent with
         `EmployeeDocumentResource` omitting `file_path`. Certificate file upload and download are not yet part of this contract surface.
 
         `qualification` is included when that relation is eager-loaded (list, show, create, and update responses load it where applicable).
