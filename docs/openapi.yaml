@@ -294,46 +294,38 @@ components:
           description: Event type that triggered the activity
           example: 'created'
         causer_type:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Polymorphic type of the user/entity that caused the activity
           example: 'App\Models\User'
         causer_id:
-          type: string
+          type: [string, 'null']
           format: uuid
-          nullable: true
           description: UUID of the causer
           example: '770e8400-e29b-41d4-a716-446655440002'
         causer:
-          type: object
-          nullable: true
+          type: [object, 'null']
           description: Full causer object (when loaded)
           additionalProperties: true
         subject_type:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Polymorphic type of the entity the activity is about
           example: 'App\Models\Employee'
         subject_id:
-          type: string
+          type: [string, 'null']
           format: uuid
-          nullable: true
           description: UUID of the subject
           example: '880e8400-e29b-41d4-a716-446655440003'
         subject:
-          type: object
-          nullable: true
+          type: [object, 'null']
           description: Full subject object (when loaded)
           additionalProperties: true
         organizational_unit_id:
-          type: string
+          type: [string, 'null']
           format: uuid
-          nullable: true
           description: Organizational unit this activity belongs to
           example: '990e8400-e29b-41d4-a716-446655440004'
         organizational_unit:
-          type: object
-          nullable: true
+          type: [object, 'null']
           description: Full organizational unit object (when loaded)
           properties:
             id:
@@ -342,28 +334,23 @@ components:
             name:
               type: string
             parent_id:
-              type: string
+              type: [string, 'null']
               format: uuid
-              nullable: true
         properties:
-          type: object
-          nullable: true
+          type: [object, 'null']
           description: Additional properties stored with the activity
           additionalProperties: true
         batch_uuid:
-          type: string
+          type: [string, 'null']
           format: uuid
-          nullable: true
           description: Batch UUID for grouping related activities
           example: 'aa0e8400-e29b-41d4-a716-446655440005'
         ip_address:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Source IP address captured for the activity
           example: '192.0.2.1'
         user_agent:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: User agent captured for the activity
           example: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
         created_at:
@@ -377,42 +364,35 @@ components:
           description: Timestamp when the activity was last updated
           example: '2025-11-16T10:00:00Z'
         previous_hash:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Hash of the previous activity in the blockchain
           example: '5f9c4ab08cac7457e9111a6e4e3e3c3e3c3e3c3e3c3e3c3e3c3e3c3e3c3e'
         event_hash:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Hash of this activity event
           example: '6a8d5bc19dbd8568fa222b7f5f4f4d4f4d4f4d4f4d4f4d4f4d4f4d4f4d4f'
         merkle_batch_id:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
           description: Batch identifier for the Merkle tree grouping
           example: 1742203200
         merkle_proof:
-          type: array
-          nullable: true
+          type: [array, 'null']
           description: Merkle proof for this activity
           items:
             type: string
         merkle_root:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Merkle root this activity is part of
           example: '7b9e6cd2aece9679gb333c8g6g5g5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e'
         ots_submitted_at:
-          type: string
+          type: [string, 'null']
           format: date-time
-          nullable: true
           description: Timestamp when the OpenTimestamp proof was submitted
           example: '2025-11-16T10:03:00Z'
         ots_confirmed_at:
-          type: string
+          type: [string, 'null']
           format: date-time
-          nullable: true
           description: Timestamp when OpenTimestamp verification completed
           example: '2025-11-16T10:05:23Z'
         has_ots_proof:
@@ -424,19 +404,16 @@ components:
           description: Whether the activity became a genesis entry after retention archived its predecessor
           example: false
         orphaned_reason:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Reason why the activity became an orphaned genesis entry
           example: 'Predecessor archived (retention: authentication, 2026-03-01)'
         orphaned_at:
-          type: string
+          type: [string, 'null']
           format: date-time
-          nullable: true
           description: Timestamp when the activity was marked as orphaned genesis
           example: '2025-11-16T10:07:00Z'
         verification:
-          type: object
-          nullable: true
+          type: [object, 'null']
           description: Verification results (only present when include_verification=true)
           properties:
             chain_valid:
@@ -455,6 +432,48 @@ components:
               type: boolean
               description: Whether the OpenTimestamp verification is valid
               example: true
+
+    ActivityVerificationDetails:
+      type: object
+      required:
+        - event_hash
+        - previous_hash
+        - merkle_root
+        - merkle_batch_id
+        - ots_confirmed_at
+        - is_orphaned_genesis
+        - orphaned_reason
+      properties:
+        event_hash:
+          type: [string, 'null']
+          description: Hash of this activity event
+          example: '5d41402abc4b2a76b9719d911017c592'
+        previous_hash:
+          type: [string, 'null']
+          description: Hash of the previous activity in the chain
+          example: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+        merkle_root:
+          type: [string, 'null']
+          description: Merkle root this activity is part of
+          example: 'a8c7e3d5f9b1c4e6d8a2f4b6c8e0d2f4a6b8c0e2d4f6a8b0c2e4d6f8a0b2c4e6'
+        merkle_batch_id:
+          type: [integer, 'null']
+          format: int64
+          description: Batch identifier for the Merkle tree grouping
+          example: 1742203200
+        ots_confirmed_at:
+          type: [string, 'null']
+          format: date-time
+          description: Timestamp when OpenTimestamp verification completed
+          example: '2025-01-15T12:30:45Z'
+        is_orphaned_genesis:
+          type: boolean
+          description: Whether the activity became an orphaned genesis entry
+          example: false
+        orphaned_reason:
+          type: [string, 'null']
+          description: Reason why the activity became orphaned
+          example: null
 
     HealthStatus:
       type: object
@@ -6100,52 +6119,7 @@ paths:
                             description: Whether the OpenTimestamp verification is valid
                             example: true
                       details:
-                        type: object
-                        required:
-                          - event_hash
-                          - previous_hash
-                          - merkle_root
-                          - merkle_batch_id
-                          - ots_confirmed_at
-                          - is_orphaned_genesis
-                          - orphaned_reason
-                        properties:
-                          event_hash:
-                            type: string
-                            nullable: true
-                            description: Hash of this activity event
-                            example: '5d41402abc4b2a76b9719d911017c592'
-                          previous_hash:
-                            type: string
-                            nullable: true
-                            description: Hash of the previous activity in the chain
-                            example: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
-                          merkle_root:
-                            type: string
-                            nullable: true
-                            description: Merkle root this activity is part of
-                            example: 'a8c7e3d5f9b1c4e6d8a2f4b6c8e0d2f4a6b8c0e2d4f6a8b0c2e4d6f8a0b2c4e6'
-                          merkle_batch_id:
-                            type: integer
-                            format: int64
-                            nullable: true
-                            description: Batch identifier for the Merkle tree grouping
-                            example: 1742203200
-                          ots_confirmed_at:
-                            type: string
-                            format: date-time
-                            nullable: true
-                            description: Timestamp when OpenTimestamp verification completed
-                            example: '2025-01-15T12:30:45Z'
-                          is_orphaned_genesis:
-                            type: boolean
-                            description: Whether the activity became an orphaned genesis entry
-                            example: false
-                          orphaned_reason:
-                            type: string
-                            nullable: true
-                            description: Reason why the activity became orphaned
-                            example: null
+                        $ref: '#/components/schemas/ActivityVerificationDetails'
               examples:
                 allValid:
                   summary: All verifications successful
