@@ -434,7 +434,7 @@ components:
               example: true
 
     ActivityVerificationDetails:
-      type: object
+      type: [object, 'null']
       required:
         - event_hash
         - previous_hash
