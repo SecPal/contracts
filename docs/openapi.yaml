@@ -5146,25 +5146,9 @@ paths:
                   value:
                     message: Verification link sent successfully.
         '401':
-          description: Missing or invalid Sanctum session or bearer token.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
-              examples:
-                unauthenticated:
-                  value:
-                    message: Unauthenticated.
+          $ref: '#/components/responses/SimpleUnauthorized'
         '429':
-          description: Per-route throttle exceeded (`throttle:6,1`).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
-              examples:
-                throttled:
-                  value:
-                    message: Too Many Attempts.
+          $ref: '#/components/responses/SimpleTooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
