@@ -1,7 +1,10 @@
-# SPDX-FileCopyrightText: 2025 SecPal Contributors
+# SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 # SPDX-License-Identifier: CC0-1.0
 #
 # Redocly Configuration for SecPal API
+#
+# This file is named `redocly.yaml` so the Redocly CLI auto-discovers it when
+# lint runs from the repository root (for example `npx @redocly/cli lint docs/openapi.yaml`).
 #
 # Rules customization:
 # - operation-4xx-response: Disabled for health/monitoring endpoints.
