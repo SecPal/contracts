@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Renamed `.redocly.yaml` to `redocly.yaml` so the Redocly CLI auto-discovers the configuration file when `npm run lint` or `npx @redocly/cli lint` runs from the repository root; removed the explicit `--config .redocly.yaml` flag from the `lint` script in `package.json`; updated `README.md` and `.github/instructions/openapi.instructions.md` to document the auto-discovery behaviour and the rationale for disabling `operation-4xx-response` on `GET /health`
 - Refactored `POST /auth/email/verification-notification` `401` and `429` responses in `docs/openapi.yaml` to reuse `#/components/responses/SimpleUnauthorized` and `#/components/responses/SimpleTooManyRequests` instead of duplicating inline `SimpleMessageResponse` blocks (closes #259)
 - Refactored qualification catalog and employee-qualification assignment operations in `docs/openapi.yaml` so HTTP `401` and `403` message-only Laravel bodies reuse `#/components/responses/SimpleUnauthorized` and `#/components/responses/SimpleForbidden` instead of duplicating inline `SimpleMessageResponse` blocks; aligned `PATCH` and `DELETE` `/qualifications/{qualification}` `404` descriptions and examples with the same tenant-aware route-binding semantics documented for `GET` on that path (closes #234)
 

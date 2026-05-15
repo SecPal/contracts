@@ -64,7 +64,15 @@ To validate the OpenAPI specification locally, run:
 npm run lint
 ```
 
-This uses `@redocly/cli` to lint the `docs/openapi.yaml` file against the configured rules.
+This uses `@redocly/cli` to lint `docs/openapi.yaml` against the repository rules in `redocly.yaml` (auto-discovered when lint runs from the repo root).
+
+To lint directly with the CLI instead of `npm run lint`, run from the repository root so `redocly.yaml` is picked up:
+
+```bash
+npx @redocly/cli lint docs/openapi.yaml
+```
+
+`GET /health` documents `200` and `503` only. Redocly's recommended `operation-4xx-response` rule expects a `4XX` response on every operation, but health checks accept no input and do not produce client errors. That rule is disabled in `redocly.yaml`; without that config file, standalone lint reports a warning on `#/paths/~1health/get/responses`.
 
 ## Contributing
 
