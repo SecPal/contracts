@@ -42,6 +42,8 @@ tags:
     description: Login, logout, and MFA challenge endpoints for browser-session and Bearer-token clients.
   - name: Monitoring
     description: Service health and operational readiness endpoints.
+  - name: Bootstrap
+    description: Public pre-login runtime-discovery contract for deployment-local client configuration before authentication.
   - name: Addresses
     description: Authenticated German address reference-data lookup endpoints for employee onboarding and HR forms.
   - name: Activity Logs
@@ -3957,6 +3959,235 @@ components:
         data:
           $ref: '#/components/schemas/AndroidVersionedReleaseMetadata'
 
+    BootstrapClientPlatform:
+      type: string
+      description: Pre-login client platform requesting the public bootstrap document.
+      enum:
+        - android
+
+    BootstrapVersion:
+      type: string
+      description: Canonical version identifier for the public runtime-discovery contract.
+      enum:
+        - v1
+
+    BootstrapInstanceMetadata:
+      type: object
+      description: Public deployment display metadata safe to render before authentication.
+      additionalProperties: false
+      required:
+        - display_name
+      properties:
+        display_name:
+          type: string
+          maxLength: 120
+          example: SecPal Demo
+
+    BootstrapFeatureFlags:
+      type: object
+      description: Pre-login capability flags that do not disclose tenant or authenticated-user state.
+      additionalProperties: false
+      required:
+        - password_login
+        - passkey_login
+        - managed_android_enrollment
+      properties:
+        password_login:
+          type: boolean
+          description: Whether password-based sign-in entry points are enabled for this deployment.
+          example: true
+        passkey_login:
+          type: boolean
+          description: Whether passkey sign-in entry points are enabled for this deployment.
+          example: true
+        managed_android_enrollment:
+          type: boolean
+          description: Whether the public Android Device Owner bootstrap flow is enabled on this deployment.
+          example: true
+
+    BootstrapCompatibility:
+      type: object
+      description: Version metadata and minimum supported client version information for the canonical bootstrap contract.
+      additionalProperties: false
+      required:
+        - bootstrap_version
+        - schema_version
+        - minimum_supported_app_version
+        - minimum_supported_app_build
+      properties:
+        bootstrap_version:
+          $ref: '#/components/schemas/BootstrapVersion'
+        schema_version:
+          type: integer
+          minimum: 1
+          description: Monotonic schema revision within the canonical `bootstrap_version` surface.
+          example: 1
+        minimum_supported_app_version:
+          type: string
+          maxLength: 50
+          description: Lowest Android app version name allowed to proceed to login against this deployment.
+          example: 1.4.0
+        minimum_supported_app_build:
+          type: integer
+          minimum: 1
+          description: Lowest Android version code allowed to proceed to login against this deployment.
+          example: 10400
+
+    BootstrapConfiguration:
+      type: object
+      description: >-
+        Canonical public pre-login runtime-discovery document for SecPal clients.
+
+        Under SecPal's current `0.x` policy, obsolete bootstrap/mobile fields are removed instead of preserved as
+        compatibility aliases. Clients must consume this canonical `v1` shape.
+      additionalProperties: false
+      required:
+        - client_platform
+        - api_base_url
+        - instance
+        - compatibility
+        - features
+      properties:
+        client_platform:
+          $ref: '#/components/schemas/BootstrapClientPlatform'
+        api_base_url:
+          type: string
+          format: uri
+          description: Canonical API base URL including the `/v1` prefix clients must use after bootstrap.
+          example: 'https://api.secpal.dev/v1'
+        instance:
+          $ref: '#/components/schemas/BootstrapInstanceMetadata'
+        compatibility:
+          $ref: '#/components/schemas/BootstrapCompatibility'
+        features:
+          $ref: '#/components/schemas/BootstrapFeatureFlags'
+
+    BootstrapResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/BootstrapConfiguration'
+
+    BootstrapStateInvalidDetails:
+      type: object
+      description: Structured detail fields for an invalid bootstrap configuration response.
+      additionalProperties: false
+      required:
+        - missing_fields
+      properties:
+        missing_fields:
+          type: array
+          minItems: 1
+          items:
+            type: string
+          example:
+            - api_base_url
+            - instance.display_name
+
+    BootstrapStateInvalidError:
+      type: object
+      additionalProperties: false
+      required:
+        - message
+        - code
+        - details
+      properties:
+        message:
+          type: string
+          example: Public bootstrap configuration is incomplete for this deployment.
+        code:
+          type: string
+          enum:
+            - BOOTSTRAP_STATE_INVALID
+        details:
+          $ref: '#/components/schemas/BootstrapStateInvalidDetails'
+
+    BootstrapUnsupportedClientVersionDetails:
+      type: object
+      description: Structured detail fields for a client version that can no longer proceed to login.
+      additionalProperties: false
+      required:
+        - provided_app_version
+        - provided_app_build
+        - minimum_supported_app_version
+        - minimum_supported_app_build
+        - bootstrap_version
+      properties:
+        provided_app_version:
+          type: string
+          maxLength: 50
+          example: 1.3.2
+        provided_app_build:
+          type: integer
+          minimum: 1
+          example: 10302
+        minimum_supported_app_version:
+          type: string
+          maxLength: 50
+          example: 1.4.0
+        minimum_supported_app_build:
+          type: integer
+          minimum: 1
+          example: 10400
+        bootstrap_version:
+          $ref: '#/components/schemas/BootstrapVersion'
+
+    BootstrapUnsupportedClientVersionError:
+      type: object
+      additionalProperties: false
+      required:
+        - message
+        - code
+        - details
+      properties:
+        message:
+          type: string
+          example: This SecPal deployment requires app version 1.4.0 (build 10400) or newer before login may proceed.
+        code:
+          type: string
+          enum:
+            - UNSUPPORTED_CLIENT_VERSION
+        details:
+          $ref: '#/components/schemas/BootstrapUnsupportedClientVersionDetails'
+
+    BootstrapConfigurationUnavailableDetails:
+      type: object
+      description: Structured detail fields for a temporarily unavailable bootstrap response.
+      additionalProperties: false
+      required:
+        - retryable
+        - retry_after_seconds
+      properties:
+        retryable:
+          type: boolean
+          example: true
+        retry_after_seconds:
+          type: integer
+          minimum: 1
+          description: Suggested number of seconds the client should wait before retrying the bootstrap request.
+          example: 60
+
+    BootstrapConfigurationUnavailableError:
+      type: object
+      additionalProperties: false
+      required:
+        - message
+        - code
+        - details
+      properties:
+        message:
+          type: string
+          example: Public bootstrap configuration is temporarily unavailable.
+        code:
+          type: string
+          enum:
+            - BOOTSTRAP_CONFIG_UNAVAILABLE
+        details:
+          $ref: '#/components/schemas/BootstrapConfigurationUnavailableDetails'
+
     # =============================================================================
     # Customer & Site Management Schemas (Epic #210)
     # =============================================================================
@@ -4540,6 +4771,58 @@ components:
           example:
             message: Address reference data is not available yet.
             code: ADDRESS_DATA_UNAVAILABLE
+
+    BootstrapStateInvalid:
+      description: Internal Server Error - public bootstrap is enabled but deployment configuration is internally inconsistent.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BootstrapStateInvalidError'
+          examples:
+            missingRequiredBootstrapFields:
+              summary: Deployment-local bootstrap metadata is enabled but incomplete.
+              value:
+                message: Public bootstrap configuration is incomplete for this deployment.
+                code: BOOTSTRAP_STATE_INVALID
+                details:
+                  missing_fields:
+                    - api_base_url
+                    - instance.display_name
+
+    UnsupportedClientVersion:
+      description: Upgrade Required - client version is below the deployment minimum for login.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BootstrapUnsupportedClientVersionError'
+          examples:
+            androidTooOld:
+              summary: Android app must upgrade before login may proceed.
+              value:
+                message: This SecPal deployment requires app version 1.4.0 (build 10400) or newer before login may proceed.
+                code: UNSUPPORTED_CLIENT_VERSION
+                details:
+                  provided_app_version: 1.3.2
+                  provided_app_build: 10302
+                  minimum_supported_app_version: 1.4.0
+                  minimum_supported_app_build: 10400
+                  bootstrap_version: v1
+
+    BootstrapConfigurationUnavailable:
+      description: Service Unavailable - public bootstrap configuration cannot be served right now.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BootstrapConfigurationUnavailableError'
+          examples:
+            upstreamConfigurationReload:
+              summary: Bootstrap metadata is temporarily unavailable during a runtime refresh.
+              value:
+                message: Public bootstrap configuration is temporarily unavailable.
+                code: BOOTSTRAP_CONFIG_UNAVAILABLE
+                details:
+                  retryable: true
+                  retry_after_seconds: 60
 
   securitySchemes:
     BearerAuth:
@@ -9395,6 +9678,87 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
+
+  /bootstrap:
+    get:
+      summary: Get Public Bootstrap Configuration
+      description: |
+        Returns the canonical public pre-login runtime-discovery document for SecPal clients on this deployment.
+
+        Android callers use this response to discover the canonical API base URL, deployment display metadata,
+        bootstrap/schema version information, minimum supported app version, and pre-login feature flags before any
+        login attempt.
+
+        The response contains only public deployment metadata. It never exposes tenant-personalized values, push
+        credentials, or server secrets.
+
+        Clients must send their current app version so the deployment can reject unsupported runtimes deterministically
+        instead of relying on undocumented fallback behavior.
+
+        Under SecPal's current `0.x` policy, obsolete bootstrap/mobile fields are not preserved for compatibility.
+        Clients must consume this canonical `v1` response shape and should not assume aliases or fallback keys survive.
+      operationId: getBootstrapConfiguration
+      tags:
+        - Bootstrap
+      security: []
+      parameters:
+        - name: client_platform
+          in: query
+          required: true
+          description: Pre-login client platform requesting the bootstrap document.
+          schema:
+            $ref: '#/components/schemas/BootstrapClientPlatform'
+        - name: app_version
+          in: query
+          required: true
+          description: SecPal app version name currently running on the client.
+          schema:
+            type: string
+            maxLength: 50
+            example: 1.4.0
+        - name: app_build
+          in: query
+          required: true
+          description: SecPal Android version code currently running on the client.
+          schema:
+            type: integer
+            minimum: 1
+            example: 10400
+      responses:
+        '200':
+          description: Public bootstrap configuration returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BootstrapResponse'
+              examples:
+                supportedAndroidClient:
+                  summary: Supported Android client receives the canonical bootstrap document.
+                  value:
+                    data:
+                      client_platform: android
+                      api_base_url: 'https://api.secpal.dev/v1'
+                      instance:
+                        display_name: SecPal Demo
+                      compatibility:
+                        bootstrap_version: v1
+                        schema_version: 1
+                        minimum_supported_app_version: 1.4.0
+                        minimum_supported_app_build: 10400
+                      features:
+                        password_login: true
+                        passkey_login: true
+                        managed_android_enrollment: true
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '426':
+          $ref: '#/components/responses/UnsupportedClientVersion'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/BootstrapStateInvalid'
+        '503':
+          $ref: '#/components/responses/BootstrapConfigurationUnavailable'
 
   /android/channels/{channel}/latest.json:
     get:
