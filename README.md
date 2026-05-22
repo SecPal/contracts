@@ -26,7 +26,23 @@ SecPal is the operations software for German private security services. This rep
 The contract file `docs/openapi.yaml` is the source of truth. It documents a large portion of the live `/v1` surface, including authentication and session flows, self-service (`/me`), employees (including nested qualifications and documents), the qualification catalog, customers, sites, assignments, onboarding, activity logs, Android enrollment/release metadata, and more.
 
 - **Monitoring:** Health-related paths (for example `GET /health`) appear in the spec as deployed.
-- **Coverage:** Some backend-only or admin-heavy routes — for example RBAC role administration under `/v1/roles` and direct user-permission administration under `/v1/users/{user}/permissions` and `/v1/users/{user}/permissions/direct` — are described in the API repository ([`SecPal/api` docs](https://github.com/SecPal/api)) and may not yet appear in OpenAPI; compare with `routes/api.php` when auditing coverage.
+- **Coverage:** Some backend-only or admin-heavy routes are described in the API repository ([`SecPal/api` docs](https://github.com/SecPal/api)) and may not yet appear in OpenAPI; compare with `routes/api.php` when auditing coverage. Notable examples:
+  - RBAC role administration (all five sub-paths):
+    - `GET /v1/roles`
+    - `POST /v1/roles`
+    - `GET /v1/roles/{id}`
+    - `PATCH /v1/roles/{id}`
+    - `DELETE /v1/roles/{id}`
+  - User-role assignment (all four sub-paths):
+    - `GET /v1/users/{user}/roles`
+    - `POST /v1/users/{user}/roles`
+    - `DELETE /v1/users/{user}/roles/{role}`
+    - `PATCH /v1/users/{user}/roles/{role}/extend`
+  - Direct user-permission administration (all four sub-paths):
+    - `GET /v1/users/{user}/permissions`
+    - `GET /v1/users/{user}/permissions/direct`
+    - `POST /v1/users/{user}/permissions`
+    - `DELETE /v1/users/{user}/permissions/{permission}`
 
 _See `docs/openapi.yaml` for paths, operations, and schemas._
 
