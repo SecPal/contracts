@@ -1541,11 +1541,12 @@ components:
           type: string
           enum: [discouraged, preferred, required]
           description: >-
-            Controls whether the authenticator must create a discoverable
-            (resident) credential during enrollment. Defaults to `preferred`
-            for broader browser and authenticator compatibility; set to
-            `required` only when the relying party mandates discoverable
-            credentials.
+            Relying-party preference for whether the authenticator creates a
+            discoverable (resident) credential during enrollment. `discouraged`
+            and `preferred` are requests the authenticator may honor or ignore;
+            only `required` mandates that a discoverable credential is created
+            (or the ceremony fails). Defaults to `preferred` for broader
+            browser and authenticator compatibility.
           example: preferred
         require_resident_key:
           type: boolean
@@ -1722,9 +1723,7 @@ components:
         challenge endpoints. The contract is discoverable-only: the response
         does not advertise an `allow_credentials` list because the server does
         not perform email-scoped or otherwise account-scoped credential
-        lookups before the WebAuthn assertion is verified (tracks
-        `SecPal/api#1101`). Regenerate clients only after that change is
-        deployed.
+        lookups before the WebAuthn assertion is verified.
       required:
         - challenge
         - rp_id
