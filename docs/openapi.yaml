@@ -1541,9 +1541,12 @@ components:
           type: string
           enum: [discouraged, preferred, required]
           description: >-
-            Passkey enrollment defaults to `preferred` for broader browser and
-            authenticator compatibility. Sign-in is discoverable-only and does
-            not use an `allow_credentials` list.
+            Relying-party preference for whether the authenticator creates a
+            discoverable (resident) credential during enrollment. `discouraged`
+            and `preferred` are requests the authenticator may honor or ignore;
+            only `required` mandates that a discoverable credential is created
+            (or the ceremony fails). Defaults to `preferred` for broader
+            browser and authenticator compatibility.
           example: preferred
         require_resident_key:
           type: boolean
@@ -1718,7 +1721,7 @@ components:
       description: >-
         WebAuthn `publicKey` options returned by the public passkey sign-in
         challenge endpoints. The contract is discoverable-only: the response
-        never advertises an `allow_credentials` list because the server does
+        does not advertise an `allow_credentials` list because the server does
         not perform email-scoped or otherwise account-scoped credential
         lookups before the WebAuthn assertion is verified.
       required:
