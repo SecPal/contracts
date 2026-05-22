@@ -25,11 +25,8 @@ SecPal is the operations software for German private security services. This rep
 
 The contract file `docs/openapi.yaml` is the source of truth. It documents a large portion of the live `/v1` surface, including authentication and session flows, self-service (`/me`), employees (including nested qualifications and documents), the qualification catalog, customers, sites, assignments, onboarding, activity logs, Android enrollment/release metadata, and more.
 
-**Monitoring:**
-
-- Health-related paths (for example `GET /health`) appear in the spec as deployed.
-
-Some backend-only or admin-heavy routes (for example RBAC role administration under `/v1/roles` and direct user-permission administration under `/v1/users/{user}/permissions*`) are described in the API repository ([`SecPal/api` docs](https://github.com/SecPal/api)) and may not yet appear in OpenAPI — compare with `routes/api.php` when auditing coverage.
+- **Monitoring:** Health-related paths (for example `GET /health`) appear in the spec as deployed.
+- **Coverage:** Some backend-only or admin-heavy routes — for example RBAC role administration under `/v1/roles` and direct user-permission administration under `/v1/users/{user}/permissions` and `/v1/users/{user}/permissions/direct` — are described in the API repository ([`SecPal/api` docs](https://github.com/SecPal/api)) and may not yet appear in OpenAPI; compare with `routes/api.php` when auditing coverage.
 
 _See `docs/openapi.yaml` for paths, operations, and schemas._
 
