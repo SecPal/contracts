@@ -4159,6 +4159,7 @@ components:
       additionalProperties: false
       required:
         - retryable
+        - retry_after_seconds
       properties:
         retryable:
           type: boolean
@@ -4166,6 +4167,7 @@ components:
         retry_after_seconds:
           type: integer
           minimum: 1
+          description: Suggested number of seconds the client should wait before retrying the bootstrap request.
           example: 60
 
     BootstrapConfigurationUnavailableError:
@@ -4771,7 +4773,7 @@ components:
             code: ADDRESS_DATA_UNAVAILABLE
 
     BootstrapStateInvalid:
-      description: Conflict - public bootstrap is enabled but deployment configuration is internally inconsistent.
+      description: Internal Server Error - public bootstrap is enabled but deployment configuration is internally inconsistent.
       content:
         application/json:
           schema:
@@ -9747,10 +9749,14 @@ paths:
                         password_login: true
                         passkey_login: true
                         managed_android_enrollment: true
-        '409':
-          $ref: '#/components/responses/BootstrapStateInvalid'
+        '422':
+          $ref: '#/components/responses/ValidationError'
         '426':
           $ref: '#/components/responses/UnsupportedClientVersion'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/BootstrapStateInvalid'
         '503':
           $ref: '#/components/responses/BootstrapConfigurationUnavailable'
 
