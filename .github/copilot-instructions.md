@@ -19,7 +19,12 @@ Do not assume instructions from sibling repositories or comment-based inheritanc
   or validation FIRST, then implement downstream changes and refactor with validation green.
 - Quality first. Do not trade correctness, review depth, validation depth, or issue tracking for speed.
 - Keep one topic per change. 1 topic = 1 PR = 1 branch. Do not mix unrelated
-  fixes, features, refactors, docs, or governance cleanup.
+  fixes, features, refactors, docs, or governance cleanup. In particular:
+  do not roll Dependabot bumps into a manual branch (each Dependabot PR
+  must land on its own auto-generated branch), do not append
+  documentation-only prose to an unrelated topic branch, and ship every
+  `overrides` (transitive security pin) change on a dedicated
+  `fix/<package>-<version>` branch (e.g. `fix/brace-expansion-5.0.6`).
 - Never use bypasses such as `--no-verify` or force-push.
 - Update `CHANGELOG.md` in the same change set for real fixes, features, and breaking changes.
 - Create a GitHub issue immediately for every real out-of-scope bug, technical debt, missing test,

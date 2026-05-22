@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 SecPal
+SPDX-FileCopyrightText: 2025–2026 SecPal
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
@@ -164,6 +164,36 @@ All pull requests will be reviewed by a maintainer and by GitHub Copilot.
 
 **If tempted to add "just one more thing":** Stop, create a separate branch and PR.
 
+#### Recurring One-Topic Violations (Do Not Repeat)
+
+The following anti-patterns have triggered post-merge governance findings
+(see [contracts#277](https://github.com/SecPal/contracts/issues/277)). They
+are explicit violations of the one-topic rule even when each individual
+change is small or "obviously correct":
+
+1. **Rolling Dependabot bumps into a manual branch.** Dependabot already
+   opens a dedicated branch and PR per bump. Do not `git cherry-pick`,
+   merge, or rebase Dependabot commits onto a feature, fix, or chore branch
+   that you own. Let each Dependabot PR merge on its own.
+2. **Adding documentation-only prose to an unrelated branch.** README,
+   CHANGELOG narrative, or instructions edits that are not required by the
+   primary topic of the branch must be filed as a separate `docs/` PR. The
+   "while I'm here, let me fix that paragraph" reflex is the most common
+   way this rule is broken.
+3. **Bundling a security pin override with a feature, refactor, or schema
+   change.** Adding or tightening an entry under `overrides` in
+   `package.json` (or an equivalent transitive-dependency pin) is its own
+   topic and must ship on its own audit-finding branch (see
+   [Branch Naming Convention](#branch-naming-convention) for the
+   `fix/<package>-<version>` convention). Do not slip a pin bump into an
+   OpenAPI change, a Redocly CLI bump, or any other branch.
+
+If you discover any of the above mid-branch, stop, create the correct
+separate branch from `main`, and move the unrelated work there before
+pushing. If the unrelated work is already committed and the branch is
+already pushed, do **not** force-push to rewrite history — open a tracking
+issue for the process debt instead and split future work cleanly.
+
 ### PR Size Limit
 
 Keep PRs **≤ 600 changed lines** for maintainability. If larger, split into sequential PRs:
@@ -195,6 +225,31 @@ Use the following prefixes for your branch names:
 - `refactor/` - Code refactoring (e.g., `refactor/simplify-auth`)
 - `test/` - Test additions or fixes (e.g., `test/add-e2e-tests`)
 - `spike/` - Exploration/prototyping (see [Spike Branch Policy](#spike-branch-policy))
+
+### Security Pin Override Branches
+
+When tightening or adding a transitive-dependency pin in response to an
+`npm audit`, GitHub Security Advisory, or other audit finding, the branch
+must:
+
+1. Use the `fix/` prefix.
+2. Be named after the package and the pinned version, not the audit ticket
+   ID. Example: `fix/brace-expansion-5.0.6`, `fix/fast-uri-3.1.2`.
+3. Contain **only** the `overrides` entry (or equivalent pin),
+   the regenerated lock file, and a `CHANGELOG.md` `### Security` entry.
+4. Reference the audit finding (advisory ID, `npm audit` output, or
+   tracking issue) in both the PR description and the changelog entry.
+
+Pins like these are their own topic; do **not** bundle them with feature
+work, refactors, or unrelated dependency bumps (see
+[Recurring One-Topic Violations](#recurring-one-topic-violations-do-not-repeat)).
+
+### Dependabot Branches
+
+Dependabot opens its own branches and PRs (see `.github/dependabot.yml`).
+Do not adopt, rebase, or cherry-pick those commits onto your own topic
+branch. Let each Dependabot PR land independently so that every bump
+keeps a clean one-topic history and an isolated revert surface.
 
 ### Spike Branch Policy
 
