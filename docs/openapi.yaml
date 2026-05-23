@@ -5192,6 +5192,11 @@ components:
             oneOf:
               - $ref: '#/components/schemas/PushDeviceUnsupportedConfigurationError'
               - $ref: '#/components/schemas/PushDeviceRuntimeStateConflictError'
+            discriminator:
+              propertyName: code
+              mapping:
+                ANDROID_PUSH_UNSUPPORTED: '#/components/schemas/PushDeviceUnsupportedConfigurationError'
+                PUSH_RUNTIME_STATE_INVALID: '#/components/schemas/PushDeviceRuntimeStateConflictError'
           examples:
             unsupportedConfiguration:
               summary: Deployment does not expose authenticated Android push-device registration.
@@ -6028,6 +6033,8 @@ paths:
                       updated_at: '2026-05-23T11:30:00Z'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/PushDeviceRegistrationConflict'
         '422':
@@ -6082,6 +6089,8 @@ paths:
                       revoked_at: '2026-05-23T12:00:00Z'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
