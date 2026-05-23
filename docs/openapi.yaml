@@ -1925,6 +1925,7 @@ components:
       type: object
       required:
         - message
+      additionalProperties: false
       properties:
         message:
           type: string
@@ -2953,37 +2954,54 @@ components:
 
     OnboardingTokenValidationResponse:
       type: object
-      description: Response returned when a valid onboarding token is presented.
+      description: |
+        Minimal response returned when a valid onboarding token is presented.
+
+        Intentionally does NOT echo any personal data (first name, last name, email)
+        about the invitee. Anyone in possession of the magic link can call this endpoint;
+        leaking identity attributes here would turn the link into an information-disclosure
+        primitive. The actual identity proof happens at POST /onboarding/complete, which
+        requires the invitee to additionally know their date of birth and full name.
       required:
         - data
+      additionalProperties: false
       properties:
         data:
           type: object
           required:
-            - first_name
-            - last_name
-            - email
+            - valid
+          additionalProperties: false
           properties:
-            first_name:
-              type: string
-              example: Max
-            last_name:
-              type: string
-              example: Mustermann
-            email:
-              type: string
-              format: email
-              example: 'max.mustermann@secpal.dev'
+            valid:
+              type: boolean
+              const: true
+              description: Always `true` when the response is 200. Lets clients render a "you may continue" state without exposing employee fields.
+              example: true
 
     OnboardingCompleteRequest:
       type: object
-      description: Public onboarding completion payload accepted by the runtime endpoint.
+      description: |
+        Public onboarding completion payload accepted by the runtime endpoint.
+
+        The invitee must additionally prove knowledge of `date_of_birth` and a name that
+        is similar enough to the HR record. Any identity-verification failure (wrong
+        date of birth, name too different, or both) is reported with a single generic
+        `422 { "message": "…" }` and no `errors` payload, so the response cannot be used
+        as an oracle to enumerate individual fields.
+
+        **Single-shot policy.** A failed identity proof permanently revokes the magic
+        link: the same `token` cannot be reused, not even with corrected details, and
+        subsequent calls return the standard "invalid or expired" response. The
+        legitimate invitee must request a fresh invitation from HR. This deliberately
+        rules out guessing — anyone who does not know their own date of birth and name
+        is, by definition, not the intended recipient.
       required:
         - token
         - email
         - password
         - first_name
         - last_name
+        - date_of_birth
       properties:
         token:
           type: string
@@ -3002,6 +3020,16 @@ components:
         last_name:
           type: string
           maxLength: 255
+        date_of_birth:
+          type: string
+          format: date
+          description: |
+            Invitee's date of birth in ISO-8601 `YYYY-MM-DD` form. Must be a past date
+            (today and future dates are rejected at input-validation with a
+            field-scoped `422 errors.date_of_birth`). When the format is valid but the
+            value does not match the HR-maintained record, the request fails with a
+            single generic `422 { "message": "…" }` (no `errors` key).
+          example: '1990-04-15'
 
     OnboardingStepsResponse:
       type: object
@@ -8919,11 +8947,18 @@ paths:
     get:
       summary: Validate Onboarding Token
       description: |
-        Public bootstrap endpoint. Validates the one-time onboarding token that was delivered
-        in the invitation email before the employee creates their account.
+        Public bootstrap endpoint. Confirms whether the one-time onboarding token from the
+        invitation email is still usable before the employee opens the completion form.
 
-        This endpoint is unauthenticated. Clients must present both the token and the invited email address.
-        An invalid or expired token returns `422`.
+        **Information-disclosure stance:** the response body is intentionally minimal and
+        does NOT echo the invitee's first name, last name, or email. Anyone with the link
+        can call this endpoint; we therefore avoid turning it into a data-leak primitive.
+        The actual identity proof (name + date of birth) happens at
+        `POST /onboarding/complete`.
+
+        This endpoint is unauthenticated. Clients must present both the token and the
+        invited email address. An invalid or expired token returns `422`. Repeated failed
+        attempts are rate-limited; legitimate refreshes are not.
       operationId: validateOnboardingToken
       tags:
         - Onboarding
@@ -8944,7 +8979,9 @@ paths:
             format: email
       responses:
         '200':
-          description: Token is valid; returns minimal employee bootstrap data.
+          description: |
+            Token is valid for the supplied email. Body is intentionally information-poor;
+            see `OnboardingTokenValidationResponse`.
           content:
             application/json:
               schema:
@@ -8962,11 +8999,19 @@ paths:
     post:
       summary: Complete Onboarding Account Setup
       description: |
-        Public bootstrap endpoint. Finalizes account bootstrap for an invited pre-contract employee,
-        persists the supplied name and password, marks the invitation token as completed,
-        and establishes a browser session.
+        Public bootstrap endpoint. Finalizes account bootstrap for an invited pre-contract
+        employee: persists the verified name and password, marks the invitation token as
+        completed, and establishes a browser session.
 
-        The caller must present a valid onboarding token and the invited email address.
+        **Identity proof:** in addition to the link contents (token + email) the caller
+        must supply the invitee's `date_of_birth` and a `first_name`/`last_name` that match
+        the HR record (an automatic similarity check tolerates typos and umlaut
+        alternatives). Any identity-verification failure is reported with a single
+        generic `422 { "message": "…" }` and no `errors` payload, so the response cannot
+        be used as a per-field oracle. Each failed attempt is rate-limited and
+        **permanently revokes the magic link** — see the request schema for the
+        single-shot policy. Subsequent reuse of a revoked link returns the standard
+        "invalid or expired" 422 response.
       operationId: completeOnboarding
       tags:
         - Onboarding
@@ -8987,7 +9032,36 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '422':
-          $ref: '#/components/responses/ValidationError'
+          description: |
+            Unprocessable — two distinct shapes are possible:
+            - **Field-validation error** (invalid format, missing required field, future `date_of_birth`):
+              body matches `ValidationProblem` (`message` + `errors` object). The magic
+              link is preserved so the invitee can retry with a corrected payload.
+            - **Identity-verification failure** (wrong date of birth, name too different,
+              or reuse of a magic link that was already revoked by a previous failure):
+              body is `{ "message": "…" }` only — no `errors` key — so the response
+              cannot be used as a per-field oracle. **The magic link is permanently
+              revoked on the first identity-verification failure**; further attempts
+              with the same token return the standard "invalid or expired" message.
+              Each request is also rate-limited.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ValidationProblem'
+                  - $ref: '#/components/schemas/SimpleMessageResponse'
+              examples:
+                fieldValidation:
+                  summary: Missing or malformed field
+                  value:
+                    message: The given data was invalid.
+                    errors:
+                      date_of_birth:
+                        - The date of birth field must be a date before today.
+                identityVerification:
+                  summary: Identity-verification failure (DOB or name mismatch)
+                  value:
+                    message: We could not verify your identity with the details provided. For security reasons this onboarding link has been deactivated. Please contact HR for a new invitation.
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '404':
