@@ -2964,14 +2964,17 @@ components:
         requires the invitee to additionally know their date of birth and full name.
       required:
         - data
+      additionalProperties: false
       properties:
         data:
           type: object
           required:
             - valid
+          additionalProperties: false
           properties:
             valid:
               type: boolean
+              const: true
               description: Always `true` when the response is 200. Lets clients render a "you may continue" state without exposing employee fields.
               example: true
 
