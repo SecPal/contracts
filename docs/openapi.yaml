@@ -9058,7 +9058,7 @@ paths:
                 identityVerification:
                   summary: Identity-verification failure (DOB or name mismatch)
                   value:
-                    message: We could not verify your identity with the details provided. Please double-check your name and date of birth, or contact HR if you believe this is an error.
+                    message: We could not verify your identity with the details provided. For security reasons this onboarding link has been deactivated. Please contact HR for a new invitation.
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '404':
