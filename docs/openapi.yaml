@@ -3987,6 +3987,356 @@ components:
         data:
           $ref: '#/components/schemas/AndroidVersionedReleaseMetadata'
 
+    PushDevicePlatform:
+      type: string
+      description: Client platform for authenticated push-device registration.
+      enum:
+        - android
+
+    PushProvider:
+      type: string
+      description: Customer-owned push provider used by the client runtime.
+      enum:
+        - fcm
+
+    AndroidPushPublicClientMetadata:
+      type: object
+      description: >-
+        Exhaustive allowlist of Android push provider fields that may be returned in the public bootstrap
+        response.
+
+        These values are public client/runtime metadata needed by the Android SDK. They are not server
+        credentials, service-account secrets, or token-signing material.
+      additionalProperties: false
+      required:
+        - api_key
+        - project_id
+        - application_id
+        - sender_id
+      properties:
+        api_key:
+          type: string
+          maxLength: 255
+          description: Provider-issued client API key used by the Android SDK during runtime initialization. This value is public client configuration, not a server credential.
+          example: 'public-client-api-key-demo-1234567890'
+        project_id:
+          type: string
+          maxLength: 200
+          description: Provider project/workspace identifier safe to embed in the Android app runtime.
+          example: secpal-demo-push
+        application_id:
+          type: string
+          maxLength: 200
+          description: Provider-specific Android client application identifier.
+          example: '1:1234567890:android:abcdef1234567890'
+        sender_id:
+          type: string
+          maxLength: 50
+          description: Provider sender identifier used to request device tokens from the Android SDK.
+          example: '1234567890'
+
+    AndroidPushRuntimeMetadata:
+      type: object
+      description: >-
+        Canonical public Android push runtime bootstrap extension.
+
+        The fields under `public_client_metadata` are the complete allowlist of Android push values that may be
+        returned to unauthenticated clients. Server credentials, service-account material, push token secrets, and
+        obsolete compatibility aliases are intentionally excluded under SecPal's current `0.x` policy.
+      additionalProperties: false
+      required:
+        - provider
+        - metadata_revision
+        - public_client_metadata
+      properties:
+        provider:
+          $ref: '#/components/schemas/PushProvider'
+        metadata_revision:
+          type: integer
+          minimum: 1
+          description: Monotonic revision of the public Android push runtime metadata. Authenticated device registration requests echo this value so stale bootstrap state can be rejected deterministically.
+          example: 3
+        public_client_metadata:
+          $ref: '#/components/schemas/AndroidPushPublicClientMetadata'
+
+    AndroidPushAppRuntimeMetadata:
+      type: object
+      description: Android app package/version metadata supplied with push-device registration.
+      additionalProperties: false
+      required:
+        - package_name
+      properties:
+        package_name:
+          type: string
+          enum: [app.secpal]
+          description: Package name reported by the generic SecPal Android app.
+        package_version_name:
+          type: [string, 'null']
+          maxLength: 50
+          example: 1.5.0
+        package_version_code:
+          type: [integer, 'null']
+          minimum: 1
+          example: 10500
+
+    AndroidPushDeviceMetadata:
+      type: object
+      description: Optional device hardware/runtime identifiers supplied with push-device registration.
+      additionalProperties: false
+      properties:
+        manufacturer:
+          type: [string, 'null']
+          maxLength: 120
+          example: Samsung
+        model:
+          type: [string, 'null']
+          maxLength: 120
+          example: SM-G556B
+        android_version:
+          type: [string, 'null']
+          maxLength: 30
+          example: '16'
+        sdk_int:
+          type: [integer, 'null']
+          minimum: 21
+          example: 36
+
+    PushDeviceLifecycleEvent:
+      type: string
+      description: App lifecycle event that triggered the current push-device registration upsert.
+      enum:
+        - registered
+        - token_rotated
+        - app_updated
+
+    PushDeviceRuntimeState:
+      type: object
+      description: Echoed bootstrap/runtime version metadata used to reject stale push registration attempts.
+      additionalProperties: false
+      required:
+        - bootstrap_version
+        - schema_version
+        - push_metadata_revision
+      properties:
+        bootstrap_version:
+          $ref: '#/components/schemas/BootstrapVersion'
+        schema_version:
+          type: integer
+          minimum: 1
+          example: 2
+        push_metadata_revision:
+          type: integer
+          minimum: 1
+          example: 3
+
+    PushDeviceRegistrationUpsertRequest:
+      type: object
+      description: >-
+        Authenticated upsert payload for one app installation's push-device registration.
+
+        Repeating the same `PUT /me/push-devices/{installationId}` call with the same `installationId` updates
+        token material, runtime metadata, or lifecycle state for that installation instead of creating a second
+        record.
+      additionalProperties: false
+      required:
+        - platform
+        - provider
+        - device_name
+        - push_token
+        - lifecycle_event
+        - app
+        - runtime
+      properties:
+        platform:
+          $ref: '#/components/schemas/PushDevicePlatform'
+        provider:
+          $ref: '#/components/schemas/PushProvider'
+        device_name:
+          type: string
+          maxLength: 120
+          description: Friendly operator-visible label for the registered Android app installation.
+          example: SM-G556B reception tablet
+        push_token:
+          type: string
+          minLength: 32
+          maxLength: 4096
+          description: Provider-issued push token currently bound to this authenticated app installation.
+          example: 'e6pGmJq4Yk12:APA91bH8mP7rQ6sT5uV4wX3yZ2aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890abcdef'
+        lifecycle_event:
+          $ref: '#/components/schemas/PushDeviceLifecycleEvent'
+        app:
+          $ref: '#/components/schemas/AndroidPushAppRuntimeMetadata'
+        device:
+          $ref: '#/components/schemas/AndroidPushDeviceMetadata'
+        runtime:
+          $ref: '#/components/schemas/PushDeviceRuntimeState'
+
+    PushDeviceRegistration:
+      type: object
+      description: Current push-device registration state for one authenticated app installation.
+      additionalProperties: false
+      required:
+        - installation_id
+        - platform
+        - provider
+        - device_name
+        - token_last_eight
+        - last_lifecycle_event
+        - app
+        - runtime
+        - created_at
+        - updated_at
+      properties:
+        installation_id:
+          type: string
+          format: uuid
+          example: 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b'
+        platform:
+          $ref: '#/components/schemas/PushDevicePlatform'
+        provider:
+          $ref: '#/components/schemas/PushProvider'
+        device_name:
+          type: string
+          maxLength: 120
+          example: SM-G556B reception tablet
+        token_last_eight:
+          type: string
+          minLength: 8
+          maxLength: 8
+          description: Last eight characters of the stored provider token for support and audit workflows.
+          example: 90abcdef
+        last_lifecycle_event:
+          $ref: '#/components/schemas/PushDeviceLifecycleEvent'
+        app:
+          $ref: '#/components/schemas/AndroidPushAppRuntimeMetadata'
+        device:
+          $ref: '#/components/schemas/AndroidPushDeviceMetadata'
+        runtime:
+          $ref: '#/components/schemas/PushDeviceRuntimeState'
+        created_at:
+          type: string
+          format: date-time
+          example: '2026-05-23T11:30:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          example: '2026-05-23T11:45:00Z'
+
+    PushDeviceRegistrationResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/PushDeviceRegistration'
+
+    PushDeviceRevocation:
+      type: object
+      additionalProperties: false
+      required:
+        - installation_id
+        - revoked_at
+      properties:
+        installation_id:
+          type: string
+          format: uuid
+          example: 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b'
+        revoked_at:
+          type: string
+          format: date-time
+          example: '2026-05-23T12:00:00Z'
+
+    PushDeviceRevocationResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/PushDeviceRevocation'
+
+    PushDeviceUnsupportedConfigurationDetails:
+      type: object
+      additionalProperties: false
+      required:
+        - feature_flag
+        - provider
+        - retryable
+      properties:
+        feature_flag:
+          type: string
+          enum:
+            - android_push
+        provider:
+          $ref: '#/components/schemas/PushProvider'
+        retryable:
+          type: boolean
+          example: false
+
+    PushDeviceUnsupportedConfigurationError:
+      type: object
+      additionalProperties: false
+      required:
+        - message
+        - code
+        - details
+      properties:
+        message:
+          type: string
+          example: This deployment does not accept authenticated Android push-device registrations.
+        code:
+          type: string
+          enum:
+            - ANDROID_PUSH_UNSUPPORTED
+        details:
+          $ref: '#/components/schemas/PushDeviceUnsupportedConfigurationDetails'
+
+    PushDeviceRuntimeStateConflictDetails:
+      type: object
+      additionalProperties: false
+      required:
+        - bootstrap_version
+        - schema_version
+        - provider
+        - provided_push_metadata_revision
+        - expected_push_metadata_revision
+      properties:
+        bootstrap_version:
+          $ref: '#/components/schemas/BootstrapVersion'
+        schema_version:
+          type: integer
+          minimum: 1
+          example: 2
+        provider:
+          $ref: '#/components/schemas/PushProvider'
+        provided_push_metadata_revision:
+          type: integer
+          minimum: 1
+          example: 2
+        expected_push_metadata_revision:
+          type: integer
+          minimum: 1
+          example: 3
+
+    PushDeviceRuntimeStateConflictError:
+      type: object
+      additionalProperties: false
+      required:
+        - message
+        - code
+        - details
+      properties:
+        message:
+          type: string
+          example: Android push runtime metadata changed; refresh bootstrap before retrying this registration.
+        code:
+          type: string
+          enum:
+            - PUSH_RUNTIME_STATE_INVALID
+        details:
+          $ref: '#/components/schemas/PushDeviceRuntimeStateConflictDetails'
+
     BootstrapClientPlatform:
       type: string
       description: Pre-login client platform requesting the public bootstrap document.
@@ -4019,6 +4369,7 @@ components:
         - password_login
         - passkey_login
         - managed_android_enrollment
+        - android_push
       properties:
         password_login:
           type: boolean
@@ -4031,6 +4382,10 @@ components:
         managed_android_enrollment:
           type: boolean
           description: Whether the public Android Device Owner bootstrap flow is enabled on this deployment.
+          example: true
+        android_push:
+          type: boolean
+          description: Whether authenticated Android push-device registration is enabled on this deployment.
           example: true
 
     BootstrapCompatibility:
@@ -4049,7 +4404,7 @@ components:
           type: integer
           minimum: 1
           description: Monotonic schema revision within the canonical `bootstrap_version` surface.
-          example: 1
+          example: 2
         minimum_supported_app_version:
           type: string
           maxLength: 50
@@ -4066,8 +4421,8 @@ components:
       description: >-
         Canonical public pre-login runtime-discovery document for SecPal clients.
 
-        Under SecPal's current `0.x` policy, obsolete bootstrap/mobile fields are removed instead of preserved as
-        compatibility aliases. Clients must consume this canonical `v1` shape.
+        Under SecPal's current `0.x` policy, obsolete bootstrap/mobile and Android push fields are removed instead
+        of preserved as compatibility aliases. Clients must consume this canonical `v1` shape.
       additionalProperties: false
       required:
         - client_platform
@@ -4089,6 +4444,9 @@ components:
           $ref: '#/components/schemas/BootstrapCompatibility'
         features:
           $ref: '#/components/schemas/BootstrapFeatureFlags'
+        android_push:
+          description: Optional Android push runtime metadata. Omitted when `features.android_push` is `false`.
+          $ref: '#/components/schemas/AndroidPushRuntimeMetadata'
 
     BootstrapResponse:
       type: object
@@ -4816,6 +5174,45 @@ components:
                   missing_fields:
                     - api_base_url
                     - instance.display_name
+            missingAndroidPushRuntimeMetadata:
+              summary: Android push bootstrap is enabled but the public runtime metadata is incomplete.
+              value:
+                message: Public bootstrap configuration is incomplete for this deployment.
+                code: BOOTSTRAP_STATE_INVALID
+                details:
+                  missing_fields:
+                    - android_push.metadata_revision
+                    - android_push.public_client_metadata.api_key
+
+    PushDeviceRegistrationConflict:
+      description: Conflict - push registration is unsupported for this deployment or the caller is using stale bootstrap metadata.
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/PushDeviceUnsupportedConfigurationError'
+              - $ref: '#/components/schemas/PushDeviceRuntimeStateConflictError'
+          examples:
+            unsupportedConfiguration:
+              summary: Deployment does not expose authenticated Android push-device registration.
+              value:
+                message: This deployment does not accept authenticated Android push-device registrations.
+                code: ANDROID_PUSH_UNSUPPORTED
+                details:
+                  feature_flag: android_push
+                  provider: fcm
+                  retryable: false
+            staleBootstrapMetadata:
+              summary: Client must refresh bootstrap metadata before retrying.
+              value:
+                message: Android push runtime metadata changed; refresh bootstrap before retrying this registration.
+                code: PUSH_RUNTIME_STATE_INVALID
+                details:
+                  bootstrap_version: v1
+                  schema_version: 2
+                  provider: fcm
+                  provided_push_metadata_revision: 2
+                  expected_push_metadata_revision: 3
 
     UnsupportedClientVersion:
       description: Upgrade Required - client version is below the deployment minimum for login.
@@ -5530,6 +5927,163 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /me/push-devices/{installationId}:
+    put:
+      summary: Register or Update My Push Device
+      description: |
+        Register or replace the authenticated app installation's push token and runtime metadata.
+
+        The client chooses one stable `installationId` per app install. Repeating this `PUT` for the same
+        installation updates token material, app version metadata, or lifecycle state instead of creating a new
+        registration row.
+
+        This contract is provider-neutral at the endpoint level, but the current canonical payload documents only
+        the Android app with `platform: android` and `provider: fcm`.
+      operationId: upsertMyPushDevice
+      tags:
+        - Me
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: installationId
+          in: path
+          required: true
+          description: Stable client-generated installation identifier for one app install.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushDeviceRegistrationUpsertRequest'
+      responses:
+        '200':
+          description: Existing push-device registration updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PushDeviceRegistrationResponse'
+              examples:
+                tokenRotated:
+                  summary: Existing installation rotated its provider token.
+                  value:
+                    data:
+                      installation_id: 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b'
+                      platform: android
+                      provider: fcm
+                      device_name: SM-G556B reception tablet
+                      token_last_eight: 90abcdef
+                      last_lifecycle_event: token_rotated
+                      app:
+                        package_name: app.secpal
+                        package_version_name: 1.5.0
+                        package_version_code: 10500
+                      device:
+                        manufacturer: Samsung
+                        model: SM-G556B
+                        android_version: '16'
+                        sdk_int: 36
+                      runtime:
+                        bootstrap_version: v1
+                        schema_version: 2
+                        push_metadata_revision: 3
+                      created_at: '2026-05-23T11:30:00Z'
+                      updated_at: '2026-05-23T11:45:00Z'
+        '201':
+          description: Push-device registration created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PushDeviceRegistrationResponse'
+              examples:
+                registered:
+                  summary: New authenticated Android push-device registration created.
+                  value:
+                    data:
+                      installation_id: 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b'
+                      platform: android
+                      provider: fcm
+                      device_name: SM-G556B reception tablet
+                      token_last_eight: 90abcdef
+                      last_lifecycle_event: registered
+                      app:
+                        package_name: app.secpal
+                        package_version_name: 1.5.0
+                        package_version_code: 10500
+                      device:
+                        manufacturer: Samsung
+                        model: SM-G556B
+                        android_version: '16'
+                        sdk_int: 36
+                      runtime:
+                        bootstrap_version: v1
+                        schema_version: 2
+                        push_metadata_revision: 3
+                      created_at: '2026-05-23T11:30:00Z'
+                      updated_at: '2026-05-23T11:30:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/PushDeviceRegistrationConflict'
+        '422':
+          description: Validation Error - invalid push registration payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblem'
+              examples:
+                invalidPushToken:
+                  summary: Provider token payload is malformed.
+                  value:
+                    message: The given data was invalid.
+                    errors:
+                      push_token:
+                        - The push token field must be at least 32 characters.
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      summary: Revoke My Push Device
+      description: |
+        Revoke the authenticated app installation's current push-device registration.
+
+        This endpoint removes the server-side association for the selected `installationId`, for example during
+        logout, app uninstall, or explicit device cleanup.
+      operationId: revokeMyPushDevice
+      tags:
+        - Me
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: installationId
+          in: path
+          required: true
+          description: Stable client-generated installation identifier for one app install.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Push-device registration revoked successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PushDeviceRevocationResponse'
+              examples:
+                revoked:
+                  summary: Installation registration removed.
+                  value:
+                    data:
+                      installation_id: 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b'
+                      revoked_at: '2026-05-23T12:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -9760,11 +10314,11 @@ paths:
         Returns the canonical public pre-login runtime-discovery document for SecPal clients on this deployment.
 
         Android callers use this response to discover the canonical API base URL, deployment display metadata,
-        bootstrap/schema version information, minimum supported app version, and pre-login feature flags before any
-        login attempt.
+        bootstrap/schema version information, minimum supported app version, pre-login feature flags, and optional
+        Android push runtime metadata before any login attempt.
 
-        The response contains only public deployment metadata. It never exposes tenant-personalized values, push
-        credentials, or server secrets.
+        The response contains only public deployment metadata. It never exposes tenant-personalized values, private
+        push-provider credentials, registration secrets, or server secrets.
 
         Clients must send their current app version so the deployment can reject unsupported runtimes deterministically
         instead of relying on undocumented fallback behavior.
@@ -9816,13 +10370,22 @@ paths:
                         display_name: SecPal Demo
                       compatibility:
                         bootstrap_version: v1
-                        schema_version: 1
+                        schema_version: 2
                         minimum_supported_app_version: 1.4.0
                         minimum_supported_app_build: 10400
                       features:
                         password_login: true
                         passkey_login: true
                         managed_android_enrollment: true
+                        android_push: true
+                      android_push:
+                        provider: fcm
+                        metadata_revision: 3
+                        public_client_metadata:
+                          api_key: 'public-client-api-key-demo-1234567890'
+                          project_id: secpal-demo-push
+                          application_id: '1:1234567890:android:abcdef1234567890'
+                          sender_id: '1234567890'
         '422':
           $ref: '#/components/responses/ValidationError'
         '426':
