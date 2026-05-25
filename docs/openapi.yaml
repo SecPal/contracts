@@ -3996,7 +3996,13 @@ components:
 
     NotificationChannelFeatureFlags:
       type: object
-      description: Per-channel enablement flags for authenticated notification installations on this deployment.
+      description: >-
+        Exhaustive per-channel enablement flags for authenticated notification installations on this deployment.
+
+        Servers must return every known channel flag for the active bootstrap `schema_version`, including explicit
+        `false` values when a known channel is unavailable on the deployment. Adding a new channel changes this
+        object shape and therefore requires a bootstrap `schema_version` bump plus a breaking-change entry in
+        `CHANGELOG.md`.
       additionalProperties: false
       required:
         - android_fcm
