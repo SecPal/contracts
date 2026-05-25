@@ -3987,23 +3987,34 @@ components:
         data:
           $ref: '#/components/schemas/AndroidVersionedReleaseMetadata'
 
-    PushDevicePlatform:
+    NotificationChannel:
       type: string
-      description: Client platform for authenticated push-device registration.
+      description: Authenticated notification delivery channel surfaced by bootstrap and installation contracts.
       enum:
-        - android
+        - android_fcm
+        - web_push
 
-    PushProvider:
-      type: string
-      description: Customer-owned push provider used by the client runtime.
-      enum:
-        - fcm
+    NotificationChannelFeatureFlags:
+      type: object
+      description: Per-channel enablement flags for authenticated notification installations on this deployment.
+      additionalProperties: false
+      required:
+        - android_fcm
+        - web_push
+      properties:
+        android_fcm:
+          type: boolean
+          description: Whether authenticated Android FCM notification installations are enabled on this deployment.
+          example: true
+        web_push:
+          type: boolean
+          description: Whether authenticated Web Push notification installations are enabled on this deployment.
+          example: true
 
-    AndroidPushPublicClientMetadata:
+    AndroidFcmPublicRuntimeMetadata:
       type: object
       description: >-
-        Exhaustive allowlist of Android push provider fields that may be returned in the public bootstrap
-        response.
+        Exhaustive allowlist of Android FCM values that may be returned in the public bootstrap response.
 
         These values are public client/runtime metadata needed by the Android SDK. They are not server
         credentials, service-account secrets, or token-signing material.
@@ -4035,33 +4046,89 @@ components:
           description: Provider sender identifier used to request device tokens from the Android SDK.
           example: '1234567890'
 
-    AndroidPushRuntimeMetadata:
+    AndroidFcmNotificationChannelRuntime:
       type: object
       description: >-
-        Canonical public Android push runtime bootstrap extension.
+        Canonical public Android FCM runtime metadata returned in the shared bootstrap document.
 
-        The fields under `public_client_metadata` are the complete allowlist of Android push values that may be
-        returned to unauthenticated clients. Server credentials, service-account material, push token secrets, and
+        The fields under `public_runtime_metadata` are the complete allowlist of Android FCM values that may be
+        returned to unauthenticated clients. Server credentials, service-account material, delivery secrets, and
         obsolete compatibility aliases are intentionally excluded under SecPal's current `0.x` policy.
       additionalProperties: false
       required:
-        - provider
+        - channel
         - metadata_revision
-        - public_client_metadata
+        - public_runtime_metadata
       properties:
-        provider:
-          $ref: '#/components/schemas/PushProvider'
+        channel:
+          allOf:
+            - $ref: '#/components/schemas/NotificationChannel'
+            - const: android_fcm
         metadata_revision:
           type: integer
           minimum: 1
-          description: Monotonic revision of the public Android push runtime metadata. Authenticated device registration requests echo this value so stale bootstrap state can be rejected deterministically.
+          description: Monotonic revision of the public Android FCM runtime metadata. Authenticated installation requests echo this value so stale bootstrap state can be rejected deterministically.
           example: 3
-        public_client_metadata:
-          $ref: '#/components/schemas/AndroidPushPublicClientMetadata'
+        public_runtime_metadata:
+          $ref: '#/components/schemas/AndroidFcmPublicRuntimeMetadata'
 
-    AndroidPushAppRuntimeMetadata:
+    WebPushPublicRuntimeMetadata:
       type: object
-      description: Android app package/version metadata supplied with push-device registration.
+      description: >-
+        Exhaustive allowlist of Web Push values that may be returned in the public bootstrap response.
+
+        These values are safe for browser runtimes and do not include private VAPID material, signing keys, or
+        server-only delivery credentials.
+      additionalProperties: false
+      required:
+        - vapid_public_key
+      properties:
+        vapid_public_key:
+          type: string
+          minLength: 87
+          maxLength: 87
+          description: Base64url-encoded uncompressed P-256 VAPID public key (65 bytes, no padding) that browser runtimes use when creating Push API subscriptions.
+          example: 'BE9tfo-aCxwtPk9QYXKDlAUGBwgJCgsMDQ4PEBESExQVobLD1OX2BxgpMEFSY3SFlgcYKTBLXG1-j5ABAgMEBQY'
+
+    WebPushNotificationChannelRuntime:
+      type: object
+      description: >-
+        Canonical public Web Push runtime metadata returned in the shared bootstrap document.
+
+        The fields under `public_runtime_metadata` are the complete allowlist of browser-facing Web Push values
+        that may be returned to unauthenticated clients. Private signing material and delivery credentials remain
+        server-side.
+      additionalProperties: false
+      required:
+        - channel
+        - metadata_revision
+        - public_runtime_metadata
+      properties:
+        channel:
+          allOf:
+            - $ref: '#/components/schemas/NotificationChannel'
+            - const: web_push
+        metadata_revision:
+          type: integer
+          minimum: 1
+          description: Monotonic revision of the public Web Push runtime metadata. Authenticated installation requests echo this value so stale bootstrap state can be rejected deterministically.
+          example: 5
+        public_runtime_metadata:
+          $ref: '#/components/schemas/WebPushPublicRuntimeMetadata'
+
+    NotificationChannelRuntimeMetadata:
+      type: object
+      description: Optional per-channel public runtime metadata for authenticated notification installations.
+      additionalProperties: false
+      properties:
+        android_fcm:
+          $ref: '#/components/schemas/AndroidFcmNotificationChannelRuntime'
+        web_push:
+          $ref: '#/components/schemas/WebPushNotificationChannelRuntime'
+
+    AndroidFcmAppRuntimeMetadata:
+      type: object
+      description: Android app package/version metadata supplied with Android FCM notification-installation registration.
       additionalProperties: false
       required:
         - package_name
@@ -4079,9 +4146,9 @@ components:
           minimum: 1
           example: 10500
 
-    AndroidPushDeviceMetadata:
+    AndroidDeviceRuntimeMetadata:
       type: object
-      description: Optional device hardware/runtime identifiers supplied with push-device registration.
+      description: Optional Android device hardware/runtime identifiers supplied with notification-installation registration.
       additionalProperties: false
       properties:
         manufacturer:
@@ -4101,17 +4168,79 @@ components:
           minimum: 21
           example: 36
 
-    PushDeviceLifecycleEvent:
+    WebPushBrowserRuntimeMetadata:
+      type: object
+      description: Browser runtime metadata supplied with Web Push notification-installation registration.
+      additionalProperties: false
+      required:
+        - browser_name
+      properties:
+        browser_name:
+          type: string
+          maxLength: 80
+          example: Chrome
+        browser_version:
+          type: [string, 'null']
+          maxLength: 50
+          example: 136.0.7103.114
+        service_worker_scope:
+          type: [string, 'null']
+          maxLength: 255
+          description: Service worker scope currently bound to the browser subscription.
+          example: /
+
+    WebPushSubscriptionKeys:
+      type: object
+      description: Browser-generated Web Push key material associated with the current subscription.
+      additionalProperties: false
+      required:
+        - p256dh
+        - auth
+      properties:
+        p256dh:
+          type: string
+          minLength: 16
+          maxLength: 255
+          example: 'BElx7P1qA2rS9tUvWxYz0123456789abcdefghijklmnopqrstuv'
+        auth:
+          type: string
+          minLength: 8
+          maxLength: 255
+          example: 'K7d9Lm2PqRs'
+
+    WebPushSubscriptionInput:
+      type: object
+      description: Browser Push API subscription payload bound to the current notification installation.
+      additionalProperties: false
+      required:
+        - endpoint
+        - keys
+      properties:
+        endpoint:
+          type: string
+          format: uri
+          maxLength: 2048
+          description: Browser subscription endpoint currently bound to this authenticated notification installation.
+          example: 'https://fcm.googleapis.com/fcm/send/cVJmVnB1c2g6MTIzNDU2Nzg5MA:APA91bHabcdefghijklmno1234567890'
+        expiration_time:
+          type: [integer, 'null']
+          minimum: 0
+          description: Browser-reported `PushSubscription.expirationTime` in milliseconds since the Unix epoch, or `null` when the browser does not expose one.
+          example: 1782475200000
+        keys:
+          $ref: '#/components/schemas/WebPushSubscriptionKeys'
+
+    NotificationInstallationLifecycleEvent:
       type: string
-      description: App lifecycle event that triggered the current push-device registration upsert.
+      description: Lifecycle event that triggered the current notification-installation upsert.
       enum:
         - registered
-        - token_rotated
-        - app_updated
+        - credential_rotated
+        - client_updated
 
-    PushDeviceRuntimeState:
+    NotificationRuntimeState:
       type: object
-      description: Echoed bootstrap/runtime version metadata used to reject stale push registration attempts.
+      description: Echoed bootstrap/runtime version metadata used to reject stale notification installation updates.
       additionalProperties: false
       required:
         - bootstrap_version
@@ -4123,66 +4252,162 @@ components:
         schema_version:
           type: integer
           minimum: 1
-          example: 2
+          example: 3
         metadata_revision:
           type: integer
           minimum: 1
           example: 3
 
-    PushDeviceRegistrationUpsertRequest:
+    AndroidFcmNotificationInstallationRegistrationInput:
       type: object
-      description: >-
-        Authenticated upsert payload for one app installation's push-device registration.
-
-        Repeating the same `PUT /me/push-devices/{installationId}` call with the same `installationId` updates
-        token material, runtime metadata, or lifecycle state for that installation instead of creating a second
-        record.
+      description: Channel-specific Android FCM credential and runtime identifiers supplied with notification-installation registration.
       additionalProperties: false
       required:
-        - platform
-        - provider
-        - device_name
         - push_token
-        - lifecycle_event
         - app
-        - runtime
       properties:
-        platform:
-          $ref: '#/components/schemas/PushDevicePlatform'
-        provider:
-          $ref: '#/components/schemas/PushProvider'
-        device_name:
-          type: string
-          maxLength: 120
-          description: Friendly operator-visible label for the registered Android app installation.
-          example: SM-G556B reception tablet
         push_token:
           type: string
           minLength: 32
           maxLength: 4096
-          description: Provider-issued push token currently bound to this authenticated app installation.
+          description: Provider-issued FCM token currently bound to this authenticated notification installation.
           example: 'e6pGmJq4Yk12:APA91bH8mP7rQ6sT5uV4wX3yZ2aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890abcdef'
-        lifecycle_event:
-          $ref: '#/components/schemas/PushDeviceLifecycleEvent'
         app:
-          $ref: '#/components/schemas/AndroidPushAppRuntimeMetadata'
+          $ref: '#/components/schemas/AndroidFcmAppRuntimeMetadata'
         device:
-          $ref: '#/components/schemas/AndroidPushDeviceMetadata'
-        runtime:
-          $ref: '#/components/schemas/PushDeviceRuntimeState'
+          $ref: '#/components/schemas/AndroidDeviceRuntimeMetadata'
 
-    PushDeviceRegistration:
+    AndroidFcmNotificationInstallationRegistrationState:
       type: object
-      description: Current push-device registration state for one authenticated app installation.
+      description: Persisted Android FCM runtime metadata for one notification installation.
+      additionalProperties: false
+      required:
+        - app
+      properties:
+        app:
+          $ref: '#/components/schemas/AndroidFcmAppRuntimeMetadata'
+        device:
+          $ref: '#/components/schemas/AndroidDeviceRuntimeMetadata'
+
+    WebPushNotificationInstallationRegistrationInput:
+      type: object
+      description: Channel-specific Web Push subscription and browser metadata supplied with notification-installation registration.
+      additionalProperties: false
+      required:
+        - browser
+        - subscription
+      properties:
+        browser:
+          $ref: '#/components/schemas/WebPushBrowserRuntimeMetadata'
+        subscription:
+          $ref: '#/components/schemas/WebPushSubscriptionInput'
+
+    WebPushNotificationInstallationRegistrationState:
+      type: object
+      description: Persisted Web Push runtime metadata for one notification installation.
+      additionalProperties: false
+      required:
+        - browser
+        - subscription_endpoint_origin
+      properties:
+        browser:
+          $ref: '#/components/schemas/WebPushBrowserRuntimeMetadata'
+        subscription_endpoint_origin:
+          type: string
+          format: uri
+          description: Origin of the stored browser subscription endpoint for support and audit workflows.
+          example: 'https://fcm.googleapis.com'
+        subscription_expires_at:
+          type: [string, 'null']
+          format: date-time
+          description: Subscription expiration timestamp derived from the browser payload when one exists.
+          example: '2026-06-23T11:30:00Z'
+
+    AndroidFcmNotificationInstallationUpsertRequest:
+      type: object
+      description: >-
+        Authenticated upsert payload for one Android app installation's notification registration.
+
+        Repeating the same `PUT /me/notification-installations/{installationId}` call with the same
+        `installationId` updates the FCM credential, runtime metadata, or lifecycle state for that installation
+        instead of creating a second record.
+      additionalProperties: false
+      required:
+        - channel
+        - installation_name
+        - lifecycle_event
+        - runtime
+        - registration
+      properties:
+        channel:
+          allOf:
+            - $ref: '#/components/schemas/NotificationChannel'
+            - const: android_fcm
+        installation_name:
+          type: string
+          maxLength: 120
+          description: Friendly operator-visible label for the authenticated Android notification installation.
+          example: SM-G556B reception tablet
+        lifecycle_event:
+          $ref: '#/components/schemas/NotificationInstallationLifecycleEvent'
+        runtime:
+          $ref: '#/components/schemas/NotificationRuntimeState'
+        registration:
+          $ref: '#/components/schemas/AndroidFcmNotificationInstallationRegistrationInput'
+
+    WebPushNotificationInstallationUpsertRequest:
+      type: object
+      description: >-
+        Authenticated upsert payload for one browser profile's Web Push notification installation.
+
+        Repeating the same `PUT /me/notification-installations/{installationId}` call with the same
+        `installationId` updates the browser subscription, runtime metadata, or lifecycle state for that
+        installation instead of creating a second record.
+      additionalProperties: false
+      required:
+        - channel
+        - installation_name
+        - lifecycle_event
+        - runtime
+        - registration
+      properties:
+        channel:
+          allOf:
+            - $ref: '#/components/schemas/NotificationChannel'
+            - const: web_push
+        installation_name:
+          type: string
+          maxLength: 120
+          description: Friendly operator-visible label for the authenticated browser notification installation.
+          example: Chrome workstation notifications
+        lifecycle_event:
+          $ref: '#/components/schemas/NotificationInstallationLifecycleEvent'
+        runtime:
+          $ref: '#/components/schemas/NotificationRuntimeState'
+        registration:
+          $ref: '#/components/schemas/WebPushNotificationInstallationRegistrationInput'
+
+    NotificationInstallationUpsertRequest:
+      oneOf:
+        - $ref: '#/components/schemas/AndroidFcmNotificationInstallationUpsertRequest'
+        - $ref: '#/components/schemas/WebPushNotificationInstallationUpsertRequest'
+      discriminator:
+        propertyName: channel
+        mapping:
+          android_fcm: '#/components/schemas/AndroidFcmNotificationInstallationUpsertRequest'
+          web_push: '#/components/schemas/WebPushNotificationInstallationUpsertRequest'
+
+    AndroidFcmNotificationInstallation:
+      type: object
+      description: Current Android FCM notification-installation state for one authenticated app install.
       additionalProperties: false
       required:
         - installation_id
-        - platform
-        - provider
-        - device_name
-        - token_last_eight
+        - channel
+        - installation_name
+        - credential_reference
         - last_lifecycle_event
-        - app
+        - registration
         - runtime
         - created_at
         - updated_at
@@ -4191,28 +4416,26 @@ components:
           type: string
           format: uuid
           example: 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b'
-        platform:
-          $ref: '#/components/schemas/PushDevicePlatform'
-        provider:
-          $ref: '#/components/schemas/PushProvider'
-        device_name:
+        channel:
+          allOf:
+            - $ref: '#/components/schemas/NotificationChannel'
+            - const: android_fcm
+        installation_name:
           type: string
           maxLength: 120
           example: SM-G556B reception tablet
-        token_last_eight:
+        credential_reference:
           type: string
-          minLength: 8
-          maxLength: 8
-          description: Last eight characters of the stored provider token for support and audit workflows.
+          minLength: 6
+          maxLength: 64
+          description: Support-safe truncated reference derived from the stored delivery credential.
           example: 90abcdef
         last_lifecycle_event:
-          $ref: '#/components/schemas/PushDeviceLifecycleEvent'
-        app:
-          $ref: '#/components/schemas/AndroidPushAppRuntimeMetadata'
-        device:
-          $ref: '#/components/schemas/AndroidPushDeviceMetadata'
+          $ref: '#/components/schemas/NotificationInstallationLifecycleEvent'
+        registration:
+          $ref: '#/components/schemas/AndroidFcmNotificationInstallationRegistrationState'
         runtime:
-          $ref: '#/components/schemas/PushDeviceRuntimeState'
+          $ref: '#/components/schemas/NotificationRuntimeState'
         created_at:
           type: string
           format: date-time
@@ -4222,59 +4445,115 @@ components:
           format: date-time
           example: '2026-05-23T11:45:00Z'
 
-    PushDeviceRegistrationResponse:
+    WebPushNotificationInstallation:
+      type: object
+      description: Current Web Push notification-installation state for one authenticated browser profile.
+      additionalProperties: false
+      required:
+        - installation_id
+        - channel
+        - installation_name
+        - credential_reference
+        - last_lifecycle_event
+        - registration
+        - runtime
+        - created_at
+        - updated_at
+      properties:
+        installation_id:
+          type: string
+          format: uuid
+          example: 'b1c2d3e4-f5a6-4789-8abc-1d2e3f4a5b6c'
+        channel:
+          allOf:
+            - $ref: '#/components/schemas/NotificationChannel'
+            - const: web_push
+        installation_name:
+          type: string
+          maxLength: 120
+          example: Chrome workstation notifications
+        credential_reference:
+          type: string
+          minLength: 6
+          maxLength: 64
+          description: Support-safe truncated reference derived from the stored delivery credential.
+          example: 7f3c9a12
+        last_lifecycle_event:
+          $ref: '#/components/schemas/NotificationInstallationLifecycleEvent'
+        registration:
+          $ref: '#/components/schemas/WebPushNotificationInstallationRegistrationState'
+        runtime:
+          $ref: '#/components/schemas/NotificationRuntimeState'
+        created_at:
+          type: string
+          format: date-time
+          example: '2026-05-23T14:15:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          example: '2026-05-23T14:25:00Z'
+
+    NotificationInstallation:
+      oneOf:
+        - $ref: '#/components/schemas/AndroidFcmNotificationInstallation'
+        - $ref: '#/components/schemas/WebPushNotificationInstallation'
+      discriminator:
+        propertyName: channel
+        mapping:
+          android_fcm: '#/components/schemas/AndroidFcmNotificationInstallation'
+          web_push: '#/components/schemas/WebPushNotificationInstallation'
+
+    NotificationInstallationResponse:
       type: object
       additionalProperties: false
       required:
         - data
       properties:
         data:
-          $ref: '#/components/schemas/PushDeviceRegistration'
+          $ref: '#/components/schemas/NotificationInstallation'
 
-    PushDeviceRevocation:
+    NotificationInstallationRevocation:
       type: object
       additionalProperties: false
       required:
         - installation_id
+        - channel
         - revoked_at
       properties:
         installation_id:
           type: string
           format: uuid
           example: 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b'
+        channel:
+          $ref: '#/components/schemas/NotificationChannel'
         revoked_at:
           type: string
           format: date-time
           example: '2026-05-23T12:00:00Z'
 
-    PushDeviceRevocationResponse:
+    NotificationInstallationRevocationResponse:
       type: object
       additionalProperties: false
       required:
         - data
       properties:
         data:
-          $ref: '#/components/schemas/PushDeviceRevocation'
+          $ref: '#/components/schemas/NotificationInstallationRevocation'
 
-    PushDeviceUnsupportedConfigurationDetails:
+    NotificationChannelUnsupportedDetails:
       type: object
       additionalProperties: false
       required:
-        - feature_flag
-        - provider
+        - channel
         - retryable
       properties:
-        feature_flag:
-          type: string
-          enum:
-            - android_push
-        provider:
-          $ref: '#/components/schemas/PushProvider'
+        channel:
+          $ref: '#/components/schemas/NotificationChannel'
         retryable:
           type: boolean
           example: false
 
-    PushDeviceUnsupportedConfigurationError:
+    NotificationChannelUnsupportedError:
       type: object
       additionalProperties: false
       required:
@@ -4284,21 +4563,21 @@ components:
       properties:
         message:
           type: string
-          example: This deployment does not accept authenticated Android push-device registrations.
+          example: This deployment does not accept authenticated notification installations for the requested channel.
         code:
           type: string
           enum:
-            - ANDROID_PUSH_UNSUPPORTED
+            - NOTIFICATION_CHANNEL_UNSUPPORTED
         details:
-          $ref: '#/components/schemas/PushDeviceUnsupportedConfigurationDetails'
+          $ref: '#/components/schemas/NotificationChannelUnsupportedDetails'
 
-    PushDeviceRuntimeStateConflictDetails:
+    NotificationRuntimeStateConflictDetails:
       type: object
       additionalProperties: false
       required:
         - bootstrap_version
         - schema_version
-        - provider
+        - channel
         - provided_metadata_revision
         - expected_metadata_revision
       properties:
@@ -4307,9 +4586,9 @@ components:
         schema_version:
           type: integer
           minimum: 1
-          example: 2
-        provider:
-          $ref: '#/components/schemas/PushProvider'
+          example: 3
+        channel:
+          $ref: '#/components/schemas/NotificationChannel'
         provided_metadata_revision:
           type: integer
           minimum: 1
@@ -4319,7 +4598,7 @@ components:
           minimum: 1
           example: 3
 
-    PushDeviceRuntimeStateConflictError:
+    NotificationRuntimeStateConflictError:
       type: object
       additionalProperties: false
       required:
@@ -4329,19 +4608,20 @@ components:
       properties:
         message:
           type: string
-          example: Android push runtime metadata changed; refresh bootstrap before retrying this registration.
+          example: Notification runtime metadata changed; refresh bootstrap before retrying this installation update.
         code:
           type: string
           enum:
-            - PUSH_RUNTIME_STATE_INVALID
+            - NOTIFICATION_RUNTIME_STATE_INVALID
         details:
-          $ref: '#/components/schemas/PushDeviceRuntimeStateConflictDetails'
+          $ref: '#/components/schemas/NotificationRuntimeStateConflictDetails'
 
     BootstrapClientPlatform:
       type: string
       description: Pre-login client platform requesting the public bootstrap document.
       enum:
         - android
+        - browser
 
     BootstrapVersion:
       type: string
@@ -4369,7 +4649,7 @@ components:
         - password_login
         - passkey_login
         - managed_android_enrollment
-        - android_push
+        - notification_channels
       properties:
         password_login:
           type: boolean
@@ -4383,10 +4663,8 @@ components:
           type: boolean
           description: Whether the public Android Device Owner bootstrap flow is enabled on this deployment.
           example: true
-        android_push:
-          type: boolean
-          description: Whether authenticated Android push-device registration is enabled on this deployment.
-          example: true
+        notification_channels:
+          $ref: '#/components/schemas/NotificationChannelFeatureFlags'
 
     BootstrapCompatibility:
       type: object
@@ -4404,7 +4682,7 @@ components:
           type: integer
           minimum: 1
           description: Monotonic schema revision within the canonical `bootstrap_version` surface.
-          example: 2
+          example: 3
         minimum_supported_app_version:
           type: string
           maxLength: 50
@@ -4421,8 +4699,8 @@ components:
       description: >-
         Canonical public pre-login runtime-discovery document for SecPal clients.
 
-        Under SecPal's current `0.x` policy, obsolete bootstrap/mobile and Android push fields are removed instead
-        of preserved as compatibility aliases. Clients must consume this canonical `v1` shape.
+        Under SecPal's current `0.x` policy, obsolete bootstrap/mobile and Android-only notification fields are
+        removed instead of preserved as compatibility aliases. Clients must consume this canonical `v1` shape.
       additionalProperties: false
       required:
         - client_platform
@@ -4444,9 +4722,9 @@ components:
           $ref: '#/components/schemas/BootstrapCompatibility'
         features:
           $ref: '#/components/schemas/BootstrapFeatureFlags'
-        android_push:
-          description: Optional Android push runtime metadata. Omitted when `features.android_push` is `false`.
-          $ref: '#/components/schemas/AndroidPushRuntimeMetadata'
+        notification_channels:
+          description: Optional per-channel public notification runtime metadata. Omitted when every notification channel is disabled in `features.notification_channels`.
+          $ref: '#/components/schemas/NotificationChannelRuntimeMetadata'
 
     BootstrapResponse:
       type: object
@@ -5174,50 +5452,77 @@ components:
                   missing_fields:
                     - api_base_url
                     - instance.display_name
-            missingAndroidPushRuntimeMetadata:
-              summary: Android push bootstrap is enabled but the public runtime metadata is incomplete.
+            missingAndroidFcmRuntimeMetadata:
+              summary: Android FCM bootstrap is enabled but the public runtime metadata is incomplete.
               value:
                 message: Public bootstrap configuration is incomplete for this deployment.
                 code: BOOTSTRAP_STATE_INVALID
                 details:
                   missing_fields:
-                    - android_push.metadata_revision
-                    - android_push.public_client_metadata.api_key
+                    - notification_channels.android_fcm.metadata_revision
+                    - notification_channels.android_fcm.public_runtime_metadata.api_key
+            missingWebPushRuntimeMetadata:
+              summary: Web Push bootstrap is enabled but the public runtime metadata is incomplete.
+              value:
+                message: Public bootstrap configuration is incomplete for this deployment.
+                code: BOOTSTRAP_STATE_INVALID
+                details:
+                  missing_fields:
+                    - notification_channels.web_push.metadata_revision
+                    - notification_channels.web_push.public_runtime_metadata.vapid_public_key
 
-    PushDeviceRegistrationConflict:
-      description: Conflict - push registration is unsupported for this deployment or the caller is using stale bootstrap metadata.
+    NotificationInstallationConflict:
+      description: Conflict - notification installation is unsupported for this deployment or the caller is using stale bootstrap metadata.
       content:
         application/json:
           schema:
             oneOf:
-              - $ref: '#/components/schemas/PushDeviceUnsupportedConfigurationError'
-              - $ref: '#/components/schemas/PushDeviceRuntimeStateConflictError'
+              - $ref: '#/components/schemas/NotificationChannelUnsupportedError'
+              - $ref: '#/components/schemas/NotificationRuntimeStateConflictError'
             discriminator:
               propertyName: code
               mapping:
-                ANDROID_PUSH_UNSUPPORTED: '#/components/schemas/PushDeviceUnsupportedConfigurationError'
-                PUSH_RUNTIME_STATE_INVALID: '#/components/schemas/PushDeviceRuntimeStateConflictError'
+                NOTIFICATION_CHANNEL_UNSUPPORTED: '#/components/schemas/NotificationChannelUnsupportedError'
+                NOTIFICATION_RUNTIME_STATE_INVALID: '#/components/schemas/NotificationRuntimeStateConflictError'
           examples:
-            unsupportedConfiguration:
-              summary: Deployment does not expose authenticated Android push-device registration.
+            unsupportedAndroidFcm:
+              summary: Deployment does not expose authenticated Android FCM notification installations.
               value:
-                message: This deployment does not accept authenticated Android push-device registrations.
-                code: ANDROID_PUSH_UNSUPPORTED
+                message: This deployment does not accept authenticated notification installations for the requested channel.
+                code: NOTIFICATION_CHANNEL_UNSUPPORTED
                 details:
-                  feature_flag: android_push
-                  provider: fcm
+                  channel: android_fcm
                   retryable: false
-            staleBootstrapMetadata:
-              summary: Client must refresh bootstrap metadata before retrying.
+            unsupportedWebPush:
+              summary: Deployment does not expose authenticated Web Push notification installations.
               value:
-                message: Android push runtime metadata changed; refresh bootstrap before retrying this registration.
-                code: PUSH_RUNTIME_STATE_INVALID
+                message: This deployment does not accept authenticated notification installations for the requested channel.
+                code: NOTIFICATION_CHANNEL_UNSUPPORTED
+                details:
+                  channel: web_push
+                  retryable: false
+            staleAndroidFcmRuntime:
+              summary: Android client must refresh bootstrap metadata before retrying.
+              value:
+                message: Notification runtime metadata changed; refresh bootstrap before retrying this installation update.
+                code: NOTIFICATION_RUNTIME_STATE_INVALID
                 details:
                   bootstrap_version: v1
-                  schema_version: 2
-                  provider: fcm
+                  schema_version: 3
+                  channel: android_fcm
                   provided_metadata_revision: 2
                   expected_metadata_revision: 3
+            staleWebPushRuntime:
+              summary: Browser client must refresh bootstrap metadata before retrying.
+              value:
+                message: Notification runtime metadata changed; refresh bootstrap before retrying this installation update.
+                code: NOTIFICATION_RUNTIME_STATE_INVALID
+                details:
+                  bootstrap_version: v1
+                  schema_version: 3
+                  channel: web_push
+                  provided_metadata_revision: 4
+                  expected_metadata_revision: 5
 
     UnsupportedClientVersion:
       description: Upgrade Required - client version is below the deployment minimum for login.
@@ -5935,28 +6240,31 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /me/push-devices/{installationId}:
+  /me/notification-installations/{installationId}:
     put:
-      summary: Register or Update My Push Device
+      summary: Register or Update My Notification Installation
       description: |
-        Register or replace the authenticated app installation's push token and runtime metadata.
+        Register or replace the authenticated notification installation's delivery credential and runtime metadata.
 
-        The client chooses one stable `installationId` per app install. Repeating this `PUT` for the same
-        installation updates token material, app version metadata, or lifecycle state instead of creating a new
-        registration row.
+        The client chooses one stable `installationId` per notification-capable install context. Android callers use
+        one identifier per app install. Browser callers use one identifier per notification-enabled browser
+        profile/origin. Repeating this `PUT` for the same installation updates the channel credential, runtime
+        metadata, or lifecycle state instead of creating a second registration row.
 
-        This contract is provider-neutral at the endpoint level, but the current canonical payload documents only
-        the Android app with `platform: android` and `provider: fcm`.
-      operationId: upsertMyPushDevice
+        This canonical authenticated surface is channel-aware. Callers send `channel: android_fcm` for the generic
+        SecPal Android app and `channel: web_push` for browser Push API subscriptions.
+      operationId: upsertMyNotificationInstallation
       tags:
         - Me
       security:
         - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
       parameters:
         - name: installationId
           in: path
           required: true
-          description: Stable client-generated installation identifier for one app install.
+          description: Stable client-generated installation identifier for one notification-capable install context.
           schema:
             type: string
             format: uuid
@@ -5965,127 +6273,233 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PushDeviceRegistrationUpsertRequest'
+              $ref: '#/components/schemas/NotificationInstallationUpsertRequest'
+            examples:
+              androidFcmRegistered:
+                summary: Android app registers a new FCM notification installation.
+                value:
+                  channel: android_fcm
+                  installation_name: SM-G556B reception tablet
+                  lifecycle_event: registered
+                  runtime:
+                    bootstrap_version: v1
+                    schema_version: 3
+                    metadata_revision: 3
+                  registration:
+                    push_token: 'e6pGmJq4Yk12:APA91bH8mP7rQ6sT5uV4wX3yZ2aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890abcdef'
+                    app:
+                      package_name: app.secpal
+                      package_version_name: 1.5.0
+                      package_version_code: 10500
+                    device:
+                      manufacturer: Samsung
+                      model: SM-G556B
+                      android_version: '16'
+                      sdk_int: 36
+              webPushRegistered:
+                summary: Browser client registers a new Web Push notification installation.
+                value:
+                  channel: web_push
+                  installation_name: Chrome workstation notifications
+                  lifecycle_event: registered
+                  runtime:
+                    bootstrap_version: v1
+                    schema_version: 3
+                    metadata_revision: 5
+                  registration:
+                    browser:
+                      browser_name: Chrome
+                      browser_version: 136.0.7103.114
+                      service_worker_scope: /
+                    subscription:
+                      endpoint: 'https://fcm.googleapis.com/fcm/send/cVJmVnB1c2g6MTIzNDU2Nzg5MA:APA91bHabcdefghijklmno1234567890'
+                      expiration_time: 1782475200000
+                      keys:
+                        p256dh: 'BElx7P1qA2rS9tUvWxYz0123456789abcdefghijklmnopqrstuv'
+                        auth: 'K7d9Lm2PqRs'
       responses:
         '200':
-          description: Existing push-device registration updated successfully.
+          description: Existing notification installation updated successfully.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PushDeviceRegistrationResponse'
+                $ref: '#/components/schemas/NotificationInstallationResponse'
               examples:
-                tokenRotated:
-                  summary: Existing installation rotated its provider token.
+                androidFcmCredentialRotated:
+                  summary: Existing Android installation rotated its FCM token.
                   value:
                     data:
                       installation_id: 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b'
-                      platform: android
-                      provider: fcm
-                      device_name: SM-G556B reception tablet
-                      token_last_eight: 90abcdef
-                      last_lifecycle_event: token_rotated
-                      app:
-                        package_name: app.secpal
-                        package_version_name: 1.5.0
-                        package_version_code: 10500
-                      device:
-                        manufacturer: Samsung
-                        model: SM-G556B
-                        android_version: '16'
-                        sdk_int: 36
+                      channel: android_fcm
+                      installation_name: SM-G556B reception tablet
+                      credential_reference: 90abcdef
+                      last_lifecycle_event: credential_rotated
+                      registration:
+                        app:
+                          package_name: app.secpal
+                          package_version_name: 1.5.0
+                          package_version_code: 10500
+                        device:
+                          manufacturer: Samsung
+                          model: SM-G556B
+                          android_version: '16'
+                          sdk_int: 36
                       runtime:
                         bootstrap_version: v1
-                        schema_version: 2
+                        schema_version: 3
                         metadata_revision: 3
                       created_at: '2026-05-23T11:30:00Z'
                       updated_at: '2026-05-23T11:45:00Z'
+                webPushCredentialRotated:
+                  summary: Existing browser installation refreshed its Web Push subscription.
+                  value:
+                    data:
+                      installation_id: 'b1c2d3e4-f5a6-4789-8abc-1d2e3f4a5b6c'
+                      channel: web_push
+                      installation_name: Chrome workstation notifications
+                      credential_reference: 7f3c9a12
+                      last_lifecycle_event: credential_rotated
+                      registration:
+                        browser:
+                          browser_name: Chrome
+                          browser_version: 136.0.7103.114
+                          service_worker_scope: /
+                        subscription_endpoint_origin: 'https://fcm.googleapis.com'
+                        subscription_expires_at: '2026-06-23T11:30:00Z'
+                      runtime:
+                        bootstrap_version: v1
+                        schema_version: 3
+                        metadata_revision: 5
+                      created_at: '2026-05-23T14:15:00Z'
+                      updated_at: '2026-05-23T14:25:00Z'
         '201':
-          description: Push-device registration created successfully.
+          description: Notification installation created successfully.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PushDeviceRegistrationResponse'
+                $ref: '#/components/schemas/NotificationInstallationResponse'
               examples:
-                registered:
-                  summary: New authenticated Android push-device registration created.
+                androidFcmRegistered:
+                  summary: New authenticated Android FCM notification installation created.
                   value:
                     data:
                       installation_id: 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b'
-                      platform: android
-                      provider: fcm
-                      device_name: SM-G556B reception tablet
-                      token_last_eight: 90abcdef
+                      channel: android_fcm
+                      installation_name: SM-G556B reception tablet
+                      credential_reference: 90abcdef
                       last_lifecycle_event: registered
-                      app:
-                        package_name: app.secpal
-                        package_version_name: 1.5.0
-                        package_version_code: 10500
-                      device:
-                        manufacturer: Samsung
-                        model: SM-G556B
-                        android_version: '16'
-                        sdk_int: 36
+                      registration:
+                        app:
+                          package_name: app.secpal
+                          package_version_name: 1.5.0
+                          package_version_code: 10500
+                        device:
+                          manufacturer: Samsung
+                          model: SM-G556B
+                          android_version: '16'
+                          sdk_int: 36
                       runtime:
                         bootstrap_version: v1
-                        schema_version: 2
+                        schema_version: 3
                         metadata_revision: 3
                       created_at: '2026-05-23T11:30:00Z'
                       updated_at: '2026-05-23T11:30:00Z'
+                webPushRegistered:
+                  summary: New authenticated Web Push notification installation created.
+                  value:
+                    data:
+                      installation_id: 'b1c2d3e4-f5a6-4789-8abc-1d2e3f4a5b6c'
+                      channel: web_push
+                      installation_name: Chrome workstation notifications
+                      credential_reference: 7f3c9a12
+                      last_lifecycle_event: registered
+                      registration:
+                        browser:
+                          browser_name: Chrome
+                          browser_version: 136.0.7103.114
+                          service_worker_scope: /
+                        subscription_endpoint_origin: 'https://fcm.googleapis.com'
+                        subscription_expires_at: '2026-06-23T11:30:00Z'
+                      runtime:
+                        bootstrap_version: v1
+                        schema_version: 3
+                        metadata_revision: 5
+                      created_at: '2026-05-23T14:15:00Z'
+                      updated_at: '2026-05-23T14:15:00Z'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
-          $ref: '#/components/responses/PushDeviceRegistrationConflict'
+          $ref: '#/components/responses/NotificationInstallationConflict'
         '422':
-          description: Validation Error - invalid push registration payload.
+          description: Validation Error - invalid notification installation payload.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ValidationProblem'
               examples:
-                invalidPushToken:
-                  summary: Provider token payload is malformed.
+                invalidAndroidFcmToken:
+                  summary: Android FCM token payload is malformed.
                   value:
                     message: The given data was invalid.
                     errors:
-                      push_token:
-                        - The push token field must be at least 32 characters.
+                      registration.push_token:
+                        - The registration.push_token field must be at least 32 characters.
+                invalidWebPushSubscription:
+                  summary: Browser subscription payload is malformed.
+                  value:
+                    message: The given data was invalid.
+                    errors:
+                      registration.subscription.endpoint:
+                        - The registration.subscription.endpoint field must be a valid URL.
+                      registration.subscription.keys.p256dh:
+                        - The registration.subscription.keys.p256dh field must be at least 16 characters.
         '500':
           $ref: '#/components/responses/InternalServerError'
     delete:
-      summary: Revoke My Push Device
+      summary: Revoke My Notification Installation
       description: |
-        Revoke the authenticated app installation's current push-device registration.
+        Revoke the authenticated notification installation's current delivery registration.
 
         This endpoint removes the server-side association for the selected `installationId`, for example during
-        logout, app uninstall, or explicit device cleanup.
-      operationId: revokeMyPushDevice
+        logout, app uninstall, browser sign-out, or explicit installation cleanup.
+      operationId: revokeMyNotificationInstallation
       tags:
         - Me
       security:
         - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
       parameters:
         - name: installationId
           in: path
           required: true
-          description: Stable client-generated installation identifier for one app install.
+          description: Stable client-generated installation identifier for one notification-capable install context.
           schema:
             type: string
             format: uuid
       responses:
         '200':
-          description: Push-device registration revoked successfully.
+          description: Notification installation revoked successfully.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PushDeviceRevocationResponse'
+                $ref: '#/components/schemas/NotificationInstallationRevocationResponse'
               examples:
-                revoked:
-                  summary: Installation registration removed.
+                androidFcmRevoked:
+                  summary: Android FCM installation registration removed.
                   value:
                     data:
                       installation_id: 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b'
+                      channel: android_fcm
+                      revoked_at: '2026-05-23T12:00:00Z'
+                webPushRevoked:
+                  summary: Web Push installation registration removed.
+                  value:
+                    data:
+                      installation_id: 'b1c2d3e4-f5a6-4789-8abc-1d2e3f4a5b6c'
+                      channel: web_push
                       revoked_at: '2026-05-23T12:00:00Z'
         '401':
           $ref: '#/components/responses/Unauthorized'
@@ -10322,15 +10736,20 @@ paths:
       description: |
         Returns the canonical public pre-login runtime-discovery document for SecPal clients on this deployment.
 
-        Android callers use this response to discover the canonical API base URL, deployment display metadata,
+        Clients use this response to discover the canonical API base URL, deployment display metadata,
         bootstrap/schema version information, minimum supported app version, pre-login feature flags, and optional
-        Android push runtime metadata before any login attempt.
+        per-channel notification runtime metadata before any login attempt.
+
+        Android callers request this surface with `client_platform=android` and send `app_version` plus
+        `app_build` so the deployment can reject unsupported native runtimes deterministically. Browser callers
+        request the same surface with `client_platform=browser` to fetch Web Push public runtime metadata before
+        login or subscription refresh and omit the Android-specific version parameters.
 
         The response contains only public deployment metadata. It never exposes tenant-personalized values, private
-        push-provider credentials, registration secrets, or server secrets.
+        notification delivery credentials, registration secrets, or server secrets.
 
-        Clients must send their current app version so the deployment can reject unsupported runtimes deterministically
-        instead of relying on undocumented fallback behavior.
+        Android clients must send their current app version so the deployment can reject unsupported runtimes
+        deterministically instead of relying on undocumented fallback behavior.
 
         Under SecPal's current `0.x` policy, obsolete bootstrap/mobile fields are not preserved for compatibility.
         Clients must consume this canonical `v1` response shape and should not assume aliases or fallback keys survive.
@@ -10342,21 +10761,21 @@ paths:
         - name: client_platform
           in: query
           required: true
-          description: Pre-login client platform requesting the bootstrap document.
+          description: Pre-login client platform requesting the bootstrap document. Use `android` for native-app bootstrap and `browser` for Web Push-capable browser bootstrap.
           schema:
             $ref: '#/components/schemas/BootstrapClientPlatform'
         - name: app_version
           in: query
-          required: true
-          description: SecPal app version name currently running on the client.
+          required: false
+          description: Required when `client_platform=android`. SecPal Android app version name currently running on the client. Browser callers omit this parameter.
           schema:
             type: string
             maxLength: 50
             example: 1.4.0
         - name: app_build
           in: query
-          required: true
-          description: SecPal Android version code currently running on the client.
+          required: false
+          description: Required when `client_platform=android`. SecPal Android version code currently running on the client. Browser callers omit this parameter.
           schema:
             type: integer
             minimum: 1
@@ -10370,7 +10789,7 @@ paths:
                 $ref: '#/components/schemas/BootstrapResponse'
               examples:
                 supportedAndroidClient:
-                  summary: Supported Android client receives the canonical bootstrap document.
+                  summary: Supported Android client receives the canonical bootstrap document with channel-aware notification metadata.
                   value:
                     data:
                       client_platform: android
@@ -10379,22 +10798,64 @@ paths:
                         display_name: SecPal Demo
                       compatibility:
                         bootstrap_version: v1
-                        schema_version: 2
+                        schema_version: 3
                         minimum_supported_app_version: 1.4.0
                         minimum_supported_app_build: 10400
                       features:
                         password_login: true
                         passkey_login: true
                         managed_android_enrollment: true
-                        android_push: true
-                      android_push:
-                        provider: fcm
-                        metadata_revision: 3
-                        public_client_metadata:
-                          api_key: 'public-client-api-key-demo-1234567890'
-                          project_id: secpal-demo-push
-                          application_id: '1:1234567890:android:abcdef1234567890'
-                          sender_id: '1234567890'
+                        notification_channels:
+                          android_fcm: true
+                          web_push: true
+                      notification_channels:
+                        android_fcm:
+                          channel: android_fcm
+                          metadata_revision: 3
+                          public_runtime_metadata:
+                            api_key: 'public-client-api-key-demo-1234567890'
+                            project_id: secpal-demo-push
+                            application_id: '1:1234567890:android:abcdef1234567890'
+                            sender_id: '1234567890'
+                        web_push:
+                          channel: web_push
+                          metadata_revision: 5
+                          public_runtime_metadata:
+                            vapid_public_key: 'BE9tfo-aCxwtPk9QYXKDlAUGBwgJCgsMDQ4PEBESExQVobLD1OX2BxgpMEFSY3SFlgcYKTBLXG1-j5ABAgMEBQY'
+                supportedBrowserClient:
+                  summary: Supported browser client receives the same canonical bootstrap document for Web Push runtime bootstrap.
+                  value:
+                    data:
+                      client_platform: browser
+                      api_base_url: 'https://api.secpal.dev/v1'
+                      instance:
+                        display_name: SecPal Demo
+                      compatibility:
+                        bootstrap_version: v1
+                        schema_version: 3
+                        minimum_supported_app_version: 1.4.0
+                        minimum_supported_app_build: 10400
+                      features:
+                        password_login: true
+                        passkey_login: true
+                        managed_android_enrollment: true
+                        notification_channels:
+                          android_fcm: true
+                          web_push: true
+                      notification_channels:
+                        android_fcm:
+                          channel: android_fcm
+                          metadata_revision: 3
+                          public_runtime_metadata:
+                            api_key: 'public-client-api-key-demo-1234567890'
+                            project_id: secpal-demo-push
+                            application_id: '1:1234567890:android:abcdef1234567890'
+                            sender_id: '1234567890'
+                        web_push:
+                          channel: web_push
+                          metadata_revision: 5
+                          public_runtime_metadata:
+                            vapid_public_key: 'BE9tfo-aCxwtPk9QYXKDlAUGBwgJCgsMDQ4PEBESExQVobLD1OX2BxgpMEFSY3SFlgcYKTBLXG1-j5ABAgMEBQY'
         '422':
           $ref: '#/components/responses/ValidationError'
         '426':
