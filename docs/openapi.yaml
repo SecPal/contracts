@@ -4061,8 +4061,9 @@ components:
         - public_runtime_metadata
       properties:
         channel:
-          type: string
-          enum: [android_fcm]
+          allOf:
+            - $ref: '#/components/schemas/NotificationChannel'
+            - const: android_fcm
         metadata_revision:
           type: integer
           minimum: 1
@@ -4084,9 +4085,10 @@ components:
       properties:
         vapid_public_key:
           type: string
-          maxLength: 255
-          description: Base64url-encoded VAPID public key that browser runtimes use when creating Push API subscriptions.
-          example: 'BD4A4BfM5m6N7o8P9q0R1s2T3u4V5w6X7y8Z9aBcDeFgHiJkLmNoPqRsTuVwXyZ1234'
+          minLength: 87
+          maxLength: 87
+          description: Base64url-encoded uncompressed P-256 VAPID public key (65 bytes, no padding) that browser runtimes use when creating Push API subscriptions.
+          example: 'BE9tfo-aCxwtPk9QYXKDlAUGBwgJCgsMDQ4PEBESExQVobLD1OX2BxgpMEFSY3SFlgcYKTBLXG1-j5ABAgMEBQY'
 
     WebPushNotificationChannelRuntime:
       type: object
@@ -4103,8 +4105,9 @@ components:
         - public_runtime_metadata
       properties:
         channel:
-          type: string
-          enum: [web_push]
+          allOf:
+            - $ref: '#/components/schemas/NotificationChannel'
+            - const: web_push
         metadata_revision:
           type: integer
           minimum: 1
@@ -4337,8 +4340,9 @@ components:
         - registration
       properties:
         channel:
-          type: string
-          enum: [android_fcm]
+          allOf:
+            - $ref: '#/components/schemas/NotificationChannel'
+            - const: android_fcm
         installation_name:
           type: string
           maxLength: 120
@@ -4368,8 +4372,9 @@ components:
         - registration
       properties:
         channel:
-          type: string
-          enum: [web_push]
+          allOf:
+            - $ref: '#/components/schemas/NotificationChannel'
+            - const: web_push
         installation_name:
           type: string
           maxLength: 120
@@ -4412,8 +4417,9 @@ components:
           format: uuid
           example: 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b'
         channel:
-          type: string
-          enum: [android_fcm]
+          allOf:
+            - $ref: '#/components/schemas/NotificationChannel'
+            - const: android_fcm
         installation_name:
           type: string
           maxLength: 120
@@ -4459,8 +4465,9 @@ components:
           format: uuid
           example: 'b1c2d3e4-f5a6-4789-8abc-1d2e3f4a5b6c'
         channel:
-          type: string
-          enum: [web_push]
+          allOf:
+            - $ref: '#/components/schemas/NotificationChannel'
+            - const: web_push
         installation_name:
           type: string
           maxLength: 120
@@ -10804,7 +10811,7 @@ paths:
                           channel: web_push
                           metadata_revision: 5
                           public_runtime_metadata:
-                            vapid_public_key: 'BD4A4BfM5m6N7o8P9q0R1s2T3u4V5w6X7y8Z9aBcDeFgHiJkLmNoPqRsTuVwXyZ1234'
+                            vapid_public_key: 'BE9tfo-aCxwtPk9QYXKDlAUGBwgJCgsMDQ4PEBESExQVobLD1OX2BxgpMEFSY3SFlgcYKTBLXG1-j5ABAgMEBQY'
         '422':
           $ref: '#/components/responses/ValidationError'
         '426':
