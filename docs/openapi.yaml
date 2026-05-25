@@ -4621,6 +4621,7 @@ components:
       description: Pre-login client platform requesting the public bootstrap document.
       enum:
         - android
+        - browser
 
     BootstrapVersion:
       type: string
@@ -6257,6 +6258,8 @@ paths:
         - Me
       security:
         - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
       parameters:
         - name: installationId
           in: path
@@ -6466,6 +6469,8 @@ paths:
         - Me
       security:
         - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
       parameters:
         - name: installationId
           in: path
@@ -10735,11 +10740,16 @@ paths:
         bootstrap/schema version information, minimum supported app version, pre-login feature flags, and optional
         per-channel notification runtime metadata before any login attempt.
 
+        Android callers request this surface with `client_platform=android` and send `app_version` plus
+        `app_build` so the deployment can reject unsupported native runtimes deterministically. Browser callers
+        request the same surface with `client_platform=browser` to fetch Web Push public runtime metadata before
+        login or subscription refresh and omit the Android-specific version parameters.
+
         The response contains only public deployment metadata. It never exposes tenant-personalized values, private
         notification delivery credentials, registration secrets, or server secrets.
 
-        Clients must send their current app version so the deployment can reject unsupported runtimes deterministically
-        instead of relying on undocumented fallback behavior.
+        Android clients must send their current app version so the deployment can reject unsupported runtimes
+        deterministically instead of relying on undocumented fallback behavior.
 
         Under SecPal's current `0.x` policy, obsolete bootstrap/mobile fields are not preserved for compatibility.
         Clients must consume this canonical `v1` response shape and should not assume aliases or fallback keys survive.
@@ -10751,21 +10761,21 @@ paths:
         - name: client_platform
           in: query
           required: true
-          description: Pre-login client platform requesting the bootstrap document.
+          description: Pre-login client platform requesting the bootstrap document. Use `android` for native-app bootstrap and `browser` for Web Push-capable browser bootstrap.
           schema:
             $ref: '#/components/schemas/BootstrapClientPlatform'
         - name: app_version
           in: query
-          required: true
-          description: SecPal app version name currently running on the client.
+          required: false
+          description: Required when `client_platform=android`. SecPal Android app version name currently running on the client. Browser callers omit this parameter.
           schema:
             type: string
             maxLength: 50
             example: 1.4.0
         - name: app_build
           in: query
-          required: true
-          description: SecPal Android version code currently running on the client.
+          required: false
+          description: Required when `client_platform=android`. SecPal Android version code currently running on the client. Browser callers omit this parameter.
           schema:
             type: integer
             minimum: 1
@@ -10783,6 +10793,40 @@ paths:
                   value:
                     data:
                       client_platform: android
+                      api_base_url: 'https://api.secpal.dev/v1'
+                      instance:
+                        display_name: SecPal Demo
+                      compatibility:
+                        bootstrap_version: v1
+                        schema_version: 3
+                        minimum_supported_app_version: 1.4.0
+                        minimum_supported_app_build: 10400
+                      features:
+                        password_login: true
+                        passkey_login: true
+                        managed_android_enrollment: true
+                        notification_channels:
+                          android_fcm: true
+                          web_push: true
+                      notification_channels:
+                        android_fcm:
+                          channel: android_fcm
+                          metadata_revision: 3
+                          public_runtime_metadata:
+                            api_key: 'public-client-api-key-demo-1234567890'
+                            project_id: secpal-demo-push
+                            application_id: '1:1234567890:android:abcdef1234567890'
+                            sender_id: '1234567890'
+                        web_push:
+                          channel: web_push
+                          metadata_revision: 5
+                          public_runtime_metadata:
+                            vapid_public_key: 'BE9tfo-aCxwtPk9QYXKDlAUGBwgJCgsMDQ4PEBESExQVobLD1OX2BxgpMEFSY3SFlgcYKTBLXG1-j5ABAgMEBQY'
+                supportedBrowserClient:
+                  summary: Supported browser client receives the same canonical bootstrap document for Web Push runtime bootstrap.
+                  value:
+                    data:
+                      client_platform: browser
                       api_base_url: 'https://api.secpal.dev/v1'
                       instance:
                         display_name: SecPal Demo
