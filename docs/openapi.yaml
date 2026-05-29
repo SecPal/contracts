@@ -3621,8 +3621,7 @@ components:
         provisioning_profile:
           $ref: '#/components/schemas/AndroidProvisioningProfile'
         bootstrap_token_expires_at:
-          allOf:
-            - $ref: '#/components/schemas/ApiTimestamp'
+          $ref: '#/components/schemas/ApiTimestamp'
           description: Expiry timestamp for the one-time bootstrap token embedded in the private provisioning QR payload.
           example: '2026-04-06T12:15:00Z'
         bootstrap_token_last_eight:
@@ -4335,10 +4334,9 @@ components:
           description: Origin of the stored browser subscription endpoint for support and audit workflows.
           example: 'https://fcm.googleapis.com'
         subscription_expires_at:
-          allOf:
-            - $ref: '#/components/schemas/NullableApiTimestamp'
+          $ref: '#/components/schemas/NullableApiTimestamp'
           description: Subscription expiration timestamp derived from the browser payload when one exists.
-          example: '2026-06-23T11:30:00Z'
+          example: null
 
     AndroidFcmNotificationInstallationUpsertRequest:
       type: object
