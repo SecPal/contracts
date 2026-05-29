@@ -19,7 +19,8 @@ info:
 
     ## API Policies
 
-    - All timestamps use ISO 8601 format (UTC)
+    - Response timestamps: unless a response field explicitly documents an approved exception, timestamps serialize as RFC 3339 / ISO 8601 UTC strings with a literal trailing `Z` and whole-second precision (`YYYY-MM-DDTHH:MM:SSZ`). Fractional seconds, including milliseconds, are not emitted.
+    - Timestamp exceptions: a response field may only emit a non-UTC offset or fractional seconds when that individual field schema explicitly opts out of the canonical UTC-second format and ships a matching example. No current response schema opts out.
     - Pagination: offset-based (page/per_page) for most endpoints, cursor-based for large datasets
     - Maximum page size: 100 items
   version: 0.0.1
@@ -492,6 +493,20 @@ components:
           format: date-time
           description: Timestamp of the health check
           example: '2025-10-25T19:25:00Z'
+
+    ApiTimestamp:
+      type: string
+      format: date-time
+      pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$'
+      description: Canonical SecPal API response timestamp. Responses serialize timestamps as UTC RFC 3339 / ISO 8601 strings with a trailing `Z` and whole-second precision (`YYYY-MM-DDTHH:MM:SSZ`). Fractional seconds, including milliseconds, are not emitted unless an individual response field explicitly documents an approved exception.
+      example: '2026-05-23T11:30:00Z'
+
+    NullableApiTimestamp:
+      description: Canonical SecPal API response timestamp or `null` when the response has no value for that field.
+      oneOf:
+        - $ref: '#/components/schemas/ApiTimestamp'
+        - type: 'null'
+      example: null
 
     # =============================================================================
     # Employee Management Schemas
@@ -3606,8 +3621,8 @@ components:
         provisioning_profile:
           $ref: '#/components/schemas/AndroidProvisioningProfile'
         bootstrap_token_expires_at:
-          type: string
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
           description: Expiry timestamp for the one-time bootstrap token embedded in the private provisioning QR payload.
           example: '2026-04-06T12:15:00Z'
         bootstrap_token_last_eight:
@@ -3616,12 +3631,10 @@ components:
           pattern: '^[A-Z0-9]{8}$'
           example: 7K2P9Q4M
         exchanged_at:
-          type: [string, 'null']
-          format: date-time
+          $ref: '#/components/schemas/NullableApiTimestamp'
           example: null
         revoked_at:
-          type: [string, 'null']
-          format: date-time
+          $ref: '#/components/schemas/NullableApiTimestamp'
           example: null
         revocation_reason:
           type: [string, 'null']
@@ -3632,12 +3645,10 @@ components:
           maxLength: 1000
           example: Dedicated tablet for the customer reception desk.
         created_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-04-06T12:00:00Z'
         updated_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-04-06T12:00:00Z'
 
     AndroidProvisioningOperatorExtras:
@@ -4324,8 +4335,8 @@ components:
           description: Origin of the stored browser subscription endpoint for support and audit workflows.
           example: 'https://fcm.googleapis.com'
         subscription_expires_at:
-          type: [string, 'null']
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/NullableApiTimestamp'
           description: Subscription expiration timestamp derived from the browser payload when one exists.
           example: '2026-06-23T11:30:00Z'
 
@@ -4443,12 +4454,10 @@ components:
         runtime:
           $ref: '#/components/schemas/NotificationRuntimeState'
         created_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-05-23T11:30:00Z'
         updated_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-05-23T11:45:00Z'
 
     WebPushNotificationInstallation:
@@ -4491,12 +4500,10 @@ components:
         runtime:
           $ref: '#/components/schemas/NotificationRuntimeState'
         created_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-05-23T14:15:00Z'
         updated_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-05-23T14:25:00Z'
 
     NotificationInstallation:
@@ -4533,8 +4540,7 @@ components:
         channel:
           $ref: '#/components/schemas/NotificationChannel'
         revoked_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-05-23T12:00:00Z'
 
     NotificationInstallationRevocationResponse:
