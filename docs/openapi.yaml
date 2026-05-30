@@ -19,7 +19,8 @@ info:
 
     ## API Policies
 
-    - All timestamps use ISO 8601 format (UTC)
+    - Response timestamps: unless a response field explicitly documents an approved exception, timestamps serialize as RFC 3339 / ISO 8601 UTC strings with a literal trailing `Z` and whole-second precision (`YYYY-MM-DDTHH:MM:SSZ`). Fractional seconds, including milliseconds, are not emitted.
+    - Timestamp exceptions: a response field may only emit a non-UTC offset or fractional seconds when that individual field schema explicitly opts out of the canonical UTC-second format and ships a matching example. No current response schema opts out.
     - Pagination: offset-based (page/per_page) for most endpoints, cursor-based for large datasets
     - Maximum page size: 100 items
   version: 0.0.1
@@ -136,8 +137,8 @@ components:
           description: Attribution text that downstream clients must preserve when required, if recorded.
           example: OpenPLZ API Data / OpenStreetMap contributors
         imported_at:
-          type: string
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
           description: Activation timestamp of the currently active import.
           example: '2026-05-11T03:30:00Z'
         version_hash:
@@ -243,8 +244,8 @@ components:
           minimum: 0
           example: 1845234
         imported_at:
-          type: string
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
           description: |
             Timestamp at which this country's data batch was ingested (raw import time).
             Mirrors `meta.imported_at` for this country entry; both values originate from the same import record and will always be equal.
@@ -356,13 +357,13 @@ components:
           description: User agent captured for the activity
           example: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
         created_at:
-          type: string
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
           description: Timestamp when the activity was created
           example: '2025-11-16T10:00:00Z'
         updated_at:
-          type: string
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
           description: Timestamp when the activity was last updated
           example: '2025-11-16T10:00:00Z'
         previous_hash:
@@ -388,13 +389,13 @@ components:
           description: Merkle root this activity is part of
           example: '7b9e6cd2aece9679gb333c8g6g5g5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e'
         ots_submitted_at:
-          type: [string, 'null']
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/NullableApiTimestamp'
           description: Timestamp when the OpenTimestamp proof was submitted
           example: '2025-11-16T10:03:00Z'
         ots_confirmed_at:
-          type: [string, 'null']
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/NullableApiTimestamp'
           description: Timestamp when OpenTimestamp verification completed
           example: '2025-11-16T10:05:23Z'
         has_ots_proof:
@@ -410,8 +411,8 @@ components:
           description: Reason why the activity became an orphaned genesis entry
           example: 'Predecessor archived (retention: authentication, 2026-03-01)'
         orphaned_at:
-          type: [string, 'null']
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/NullableApiTimestamp'
           description: Timestamp when the activity was marked as orphaned genesis
           example: '2025-11-16T10:07:00Z'
         verification:
@@ -464,8 +465,8 @@ components:
           description: Batch identifier for the Merkle tree grouping
           example: 1742203200
         ots_confirmed_at:
-          type: [string, 'null']
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/NullableApiTimestamp'
           description: Timestamp when OpenTimestamp verification completed
           example: '2025-01-15T12:30:45Z'
         is_orphaned_genesis:
@@ -488,10 +489,24 @@ components:
           description: Health status of the API
           example: ok
         timestamp:
-          type: string
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
           description: Timestamp of the health check
           example: '2025-10-25T19:25:00Z'
+
+    ApiTimestamp:
+      type: string
+      format: date-time
+      pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$'
+      description: Canonical SecPal API response timestamp. Responses serialize timestamps as UTC RFC 3339 / ISO 8601 strings with a trailing `Z` and whole-second precision (`YYYY-MM-DDTHH:MM:SSZ`). Fractional seconds, including milliseconds, are not emitted unless an individual response field explicitly documents an approved exception.
+      example: '2026-05-23T11:30:00Z'
+
+    NullableApiTimestamp:
+      description: Canonical SecPal API response timestamp or `null` when the response has no value for that field.
+      oneOf:
+        - $ref: '#/components/schemas/ApiTimestamp'
+        - type: 'null'
+      example: null
 
     # =============================================================================
     # Employee Management Schemas
@@ -653,11 +668,9 @@ components:
           $ref: '#/components/schemas/EmployeeUserSummary'
           description: Present when the `uploader` relationship is loaded (list, show, and create responses load it).
         created_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
         updated_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
 
     EmployeeDocumentCollectionResponse:
       type: object
@@ -766,11 +779,9 @@ components:
         sort_order:
           type: integer
         created_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
         updated_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
 
     QualificationCollectionResponse:
       type: object
@@ -914,11 +925,9 @@ components:
         status:
           $ref: '#/components/schemas/EmployeeQualificationStatus'
         created_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
         updated_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
         qualification:
           description: Embedded catalog row when the `qualification` relation is loaded.
           $ref: '#/components/schemas/QualificationResource'
@@ -1152,8 +1161,7 @@ components:
             enum: [totp, recovery_code]
           example: [totp, recovery_code]
         expires_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-04-01T09:30:00Z'
 
     LoginMfaChallengeResponse:
@@ -1242,12 +1250,12 @@ components:
           minimum: 0
           example: 8
         recovery_codes_generated_at:
-          type: [string, 'null']
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/NullableApiTimestamp'
           example: '2026-04-01T09:12:00Z'
         enrolled_at:
-          type: [string, 'null']
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/NullableApiTimestamp'
           example: '2026-04-01T09:10:00Z'
 
     MfaStatusResponse:
@@ -1312,8 +1320,7 @@ components:
           description: otpauth URI that clients can encode as a QR code.
           example: 'otpauth://totp/SecPal:john.doe@secpal.app?secret=JBSWY3DPEHPK3PXP&issuer=SecPal'
         expires_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-04-01T09:25:00Z'
 
     MfaTotpEnrollmentResponse:
@@ -1353,8 +1360,7 @@ components:
             - 'V7NK5HF9'
             - 'X3CE1RM6'
         generated_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-04-01T09:12:00Z'
 
     MfaRecoveryCodeRevealResponse:
@@ -1446,12 +1452,11 @@ components:
           description: Human-friendly label chosen by the client or generated by the server.
           example: Work MacBook Touch ID
         created_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-04-05T13:40:00Z'
         last_used_at:
-          type: [string, 'null']
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/NullableApiTimestamp'
           example: '2026-04-05T14:10:00Z'
         transports:
           type: array
@@ -1621,8 +1626,7 @@ components:
             public_key:
               $ref: '#/components/schemas/PasskeyRegistrationPublicKeyOptions'
             expires_at:
-              type: string
-              format: date-time
+              $ref: '#/components/schemas/ApiTimestamp'
               example: '2026-04-05T13:45:00Z'
 
     PasskeyAttestationResponse:
@@ -1771,8 +1775,7 @@ components:
               enum: [conditional, optional, required, silent]
               example: conditional
             expires_at:
-              type: string
-              format: date-time
+              $ref: '#/components/schemas/ApiTimestamp'
               example: '2026-04-05T13:45:00Z'
 
     PasskeyAuthenticationChallengeRequest:
@@ -2006,12 +2009,10 @@ components:
           type: boolean
           example: true
         created_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-03-27T10:15:00Z'
         updated_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-03-27T10:15:00Z'
         organizational_unit:
           type: object
@@ -2076,11 +2077,9 @@ components:
             type: object
             additionalProperties: true
         created_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
         updated_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
 
     EmployeeAddress:
       type: object
@@ -2627,17 +2626,13 @@ components:
           description: Human-readable explanation of the onboarding invitation rule for the current employee status.
           example: Onboarding invitations are only available while the employee is in pre_contract status.
         requested_at:
-          type: [string, 'null']
-          format: date-time
+          $ref: '#/components/schemas/NullableApiTimestamp'
         token_created_at:
-          type: [string, 'null']
-          format: date-time
+          $ref: '#/components/schemas/NullableApiTimestamp'
         mail_sent_at:
-          type: [string, 'null']
-          format: date-time
+          $ref: '#/components/schemas/NullableApiTimestamp'
         mail_failed_at:
-          type: [string, 'null']
-          format: date-time
+          $ref: '#/components/schemas/NullableApiTimestamp'
         failure_reason:
           type: [string, 'null']
 
@@ -2720,8 +2715,7 @@ components:
           type: [string, 'null']
           enum: [not_registered, pending, active, suspended, revoked]
         bwr_registered_at:
-          type: [string, 'null']
-          format: date-time
+          $ref: '#/components/schemas/NullableApiTimestamp'
         bwr_submission_date:
           type: [string, 'null']
           format: date
@@ -2865,11 +2859,9 @@ components:
         user_account_active:
           type: boolean
         user_account_activated_at:
-          type: [string, 'null']
-          format: date-time
+          $ref: '#/components/schemas/NullableApiTimestamp'
         user_account_deactivated_at:
-          type: [string, 'null']
-          format: date-time
+          $ref: '#/components/schemas/NullableApiTimestamp'
         onboarding_completed:
           type: boolean
           description: Whether all required onboarding dossier artifacts have been completed. This is not the same as activation readiness.
@@ -2877,11 +2869,9 @@ components:
           type: [object, 'null']
           description: Client-facing onboarding progress payload stored on the employee record.
         onboarding_started_at:
-          type: [string, 'null']
-          format: date-time
+          $ref: '#/components/schemas/NullableApiTimestamp'
         onboarding_completed_at:
-          type: [string, 'null']
-          format: date-time
+          $ref: '#/components/schemas/NullableApiTimestamp'
         onboarding_workflow:
           $ref: '#/components/schemas/OnboardingWorkflow'
           description: >-
@@ -2901,14 +2891,11 @@ components:
             - $ref: '#/components/schemas/EmployeeOrganizationalUnitSummary'
             - type: 'null'
         created_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
         updated_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
         deleted_at:
-          type: [string, 'null']
-          format: date-time
+          $ref: '#/components/schemas/NullableApiTimestamp'
 
     # =============================================================================
     # Onboarding Runtime Surface Schemas (Issue #180)
@@ -3055,15 +3042,13 @@ components:
               additionalProperties: true
               description: Runtime onboarding steps payload stored on the employee record.
             onboarding_started_at:
-              type: [string, 'null']
-              format: date-time
+              $ref: '#/components/schemas/NullableApiTimestamp'
               example: '2025-03-08T10:00:00Z'
             onboarding_completed:
               type: boolean
               example: false
             onboarding_completed_at:
-              type: [string, 'null']
-              format: date-time
+              $ref: '#/components/schemas/NullableApiTimestamp'
               example: null
 
     OnboardingFormTemplate:
@@ -3122,12 +3107,12 @@ components:
           type: boolean
           example: false
         created_at:
-          type: [string, 'null']
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/NullableApiTimestamp'
           example: '2025-03-08T10:00:00Z'
         updated_at:
-          type: [string, 'null']
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/NullableApiTimestamp'
           example: '2025-03-08T10:00:00Z'
 
     OnboardingFormTemplateCollectionResponse:
@@ -3194,8 +3179,8 @@ components:
         status:
           $ref: '#/components/schemas/OnboardingSubmissionStatus'
         submitted_at:
-          type: [string, 'null']
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/NullableApiTimestamp'
           example: '2025-03-08T10:00:00Z'
         reviewed_by:
           type: [string, 'null']
@@ -3203,8 +3188,8 @@ components:
           description: UUID of the HR reviewer who last acted on this submission.
           example: null
         reviewed_at:
-          type: [string, 'null']
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/NullableApiTimestamp'
           example: null
         review_notes:
           type: [string, 'null']
@@ -3221,12 +3206,10 @@ components:
             - type: 'null'
           description: Optionally embedded reviewer user summary.
         created_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2025-03-08T10:00:00Z'
         updated_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2025-03-08T10:00:00Z'
 
     OnboardingSubmissionCollection:
@@ -3606,8 +3589,7 @@ components:
         provisioning_profile:
           $ref: '#/components/schemas/AndroidProvisioningProfile'
         bootstrap_token_expires_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           description: Expiry timestamp for the one-time bootstrap token embedded in the private provisioning QR payload.
           example: '2026-04-06T12:15:00Z'
         bootstrap_token_last_eight:
@@ -3616,12 +3598,10 @@ components:
           pattern: '^[A-Z0-9]{8}$'
           example: 7K2P9Q4M
         exchanged_at:
-          type: [string, 'null']
-          format: date-time
+          $ref: '#/components/schemas/NullableApiTimestamp'
           example: null
         revoked_at:
-          type: [string, 'null']
-          format: date-time
+          $ref: '#/components/schemas/NullableApiTimestamp'
           example: null
         revocation_reason:
           type: [string, 'null']
@@ -3632,12 +3612,10 @@ components:
           maxLength: 1000
           example: Dedicated tablet for the customer reception desk.
         created_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-04-06T12:00:00Z'
         updated_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-04-06T12:00:00Z'
 
     AndroidProvisioningOperatorExtras:
@@ -4324,10 +4302,9 @@ components:
           description: Origin of the stored browser subscription endpoint for support and audit workflows.
           example: 'https://fcm.googleapis.com'
         subscription_expires_at:
-          type: [string, 'null']
-          format: date-time
+          $ref: '#/components/schemas/NullableApiTimestamp'
           description: Subscription expiration timestamp derived from the browser payload when one exists.
-          example: '2026-06-23T11:30:00Z'
+          example: null
 
     AndroidFcmNotificationInstallationUpsertRequest:
       type: object
@@ -4443,12 +4420,10 @@ components:
         runtime:
           $ref: '#/components/schemas/NotificationRuntimeState'
         created_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-05-23T11:30:00Z'
         updated_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-05-23T11:45:00Z'
 
     WebPushNotificationInstallation:
@@ -4491,12 +4466,10 @@ components:
         runtime:
           $ref: '#/components/schemas/NotificationRuntimeState'
         created_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-05-23T14:15:00Z'
         updated_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-05-23T14:25:00Z'
 
     NotificationInstallation:
@@ -4533,8 +4506,7 @@ components:
         channel:
           $ref: '#/components/schemas/NotificationChannel'
         revoked_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
           example: '2026-05-23T12:00:00Z'
 
     NotificationInstallationRevocationResponse:
@@ -4986,18 +4958,18 @@ components:
           description: Number of sites (when counted)
           example: 5
         created_at:
-          type: string
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
           description: Creation timestamp
           example: '2025-12-05T10:00:00Z'
         updated_at:
-          type: string
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
           description: Last update timestamp
           example: '2025-12-15T14:30:00Z'
         deleted_at:
-          type: [string, 'null']
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/NullableApiTimestamp'
           description: Soft deletion timestamp
           example: null
 
@@ -5090,18 +5062,18 @@ components:
           description: Formatted full address string (computed)
           example: 'Hauptstraße 123, 10115, Berlin'
         created_at:
-          type: string
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
           description: Creation timestamp
           example: '2025-12-05T11:00:00Z'
         updated_at:
-          type: string
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
           description: Last update timestamp
           example: '2025-12-15T15:00:00Z'
         deleted_at:
-          type: [string, 'null']
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/NullableApiTimestamp'
           description: Soft deletion timestamp
           example: null
 
@@ -5151,13 +5123,13 @@ components:
           description: Optional assignment notes
           example: 'Primary contact for escalations'
         created_at:
-          type: string
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
           description: Creation timestamp
           example: '2025-12-05T12:00:00Z'
         updated_at:
-          type: string
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
           description: Last update timestamp
           example: '2025-12-15T16:00:00Z'
 
@@ -5212,13 +5184,13 @@ components:
           description: Optional assignment notes
           example: 'On-site presence required'
         created_at:
-          type: string
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
           description: Creation timestamp
           example: '2025-12-05T13:00:00Z'
         updated_at:
-          type: string
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
           description: Last update timestamp
           example: '2025-12-15T17:00:00Z'
 
@@ -5268,18 +5240,18 @@ components:
           description: Whether cost center is active
           example: true
         created_at:
-          type: string
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
           description: Creation timestamp
           example: '2025-12-05T14:00:00Z'
         updated_at:
-          type: string
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
           description: Last update timestamp
           example: '2025-12-15T18:00:00Z'
         deleted_at:
-          type: [string, 'null']
-          format: date-time
+          allOf:
+            - $ref: '#/components/schemas/NullableApiTimestamp'
           description: Soft deletion timestamp
           example: null
 
