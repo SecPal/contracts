@@ -21,7 +21,7 @@
     "validate": "npm run lint && prettier --check '**/*.{md,yml,yaml,json}'"
   },
   "devDependencies": {
-    "@redocly/cli": "^2.34.0",
+    "@redocly/cli": "^2.35.1",
     "js-yaml": "^5.1.0",
     "prettier": "^3.8.4"
   },
