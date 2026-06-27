@@ -86,3 +86,13 @@ if (!preflightScript.includes("node_modules/.bin/markdownlint")) {
 if (preflightScript.includes("npx --yes --package markdownlint-cli")) {
   fail("scripts/preflight.sh must not resolve markdownlint-cli through npx --package.");
 }
+
+if (
+  !/\[\s*! -x "\$MARKDOWNLINT_BIN"\s*\] && \[\s*-f package-lock\.json\s*\]; then\s+echo "Installing Node dependencies required for markdownlint\."\s+npm ci\s+NODE_DEPS_READY=1/s.test(
+    preflightScript,
+  )
+) {
+  fail(
+    "scripts/preflight.sh must install package-lock.json dependencies before running the local markdownlint binary when it is missing.",
+  );
+}

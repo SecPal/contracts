@@ -78,8 +78,15 @@ fi
 
 # 0) Formatting & Compliance
 FORMAT_EXIT=0
+NODE_DEPS_READY=0
 if command -v npm >/dev/null 2>&1; then
   MARKDOWNLINT_BIN="$ROOT_DIR/node_modules/.bin/markdownlint"
+
+  if [ ! -x "$MARKDOWNLINT_BIN" ] && [ -f package-lock.json ]; then
+    echo "Installing Node dependencies required for markdownlint."
+    npm ci
+    NODE_DEPS_READY=1
+  fi
 
   if command -v prettier >/dev/null 2>&1; then
     prettier --check '**/*.{md,yml,yaml,json,ts,tsx,js,jsx}' || FORMAT_EXIT=1
@@ -161,7 +168,9 @@ if [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then
   pnpm run --if-present typecheck
   pnpm run --if-present test
 elif [ -f package-lock.json ] && command -v npm >/dev/null 2>&1; then
-  npm ci
+  if [ "$NODE_DEPS_READY" -eq 0 ]; then
+    npm ci
+  fi
   npm run --if-present lint
   npm run --if-present typecheck
   npm run --if-present test

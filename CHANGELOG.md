@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Updated `scripts/preflight.sh` to run `npm ci` before the repo-local `node_modules/.bin/markdownlint` check when the pinned markdownlint toolchain is not installed yet, so fresh clones and post-lockfile updates can bootstrap validation successfully again
 - Removed `document_path` from `AttachQualificationRequest`, `UpdateEmployeeQualificationRequest`, and `EmployeeQualificationResource`; the API stores certificate files at an internal storage path that must not be exposed to consumers, consistent with `EmployeeDocumentResource` omitting `file_path` (closes #233)
 - Migrated all `nullable: true` fields in the `Activity` component schema and the `verifyActivityLog` response `details` inline object to OpenAPI 3.1 union-type syntax (`type: [T, 'null']`); extracted the `details` object into the reusable `ActivityVerificationDetails` component schema to eliminate inline duplication (`docs/openapi.yaml`)
 - Corrected onboarding submission contract consistency in `docs/openapi.yaml`: replaced duplicated inline `form_data` objects with shared `OnboardingSubmissionFormData`, removed contradictory tax-ID-only `anyOf` modeling that could be bypassed, and enforced that `PATCH /onboarding/submissions/{submission}` requires `form_data` when `status` is set to `submitted`
