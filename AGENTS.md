@@ -23,9 +23,10 @@ Do not assume instructions from sibling repositories or comment-based inheritanc
 - Run `git status --short --branch` before any write action. For new work,
   start from a clean, up-to-date local `main`: switch to `main`, pull with
   fast-forward only, verify a clean state, then create the dedicated topic
-  branch. When continuing existing work in a dirty worktree, first identify the
-  existing changes, keep the current topic scope, and never overwrite changes
-  you did not make.
+  branch. Never start implementation on local `main`. When continuing existing
+  work in a dirty non-`main` worktree, first identify the existing changes,
+  stop if unrelated work is present, keep the current topic scope, and never
+  overwrite changes you did not make.
 - TDD and contract-first discipline are mandatory. Update the smallest relevant failing contract, example,
   or validation FIRST, then implement downstream changes and refactor with validation green.
 - Quality first. Do not trade correctness, review depth, validation depth, or issue tracking for speed.
