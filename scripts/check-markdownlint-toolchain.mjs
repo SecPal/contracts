@@ -87,10 +87,14 @@ if (preflightScript.includes("npx --yes --package markdownlint-cli")) {
   fail("scripts/preflight.sh must not resolve markdownlint-cli through npx --package.");
 }
 
-if (!preflightScript.includes("install_node_dependencies()")) {
-  fail("scripts/preflight.sh must centralize Node dependency installation in an install_node_dependencies helper.");
+if (!preflightScript.includes("ensure_markdownlint_dependencies()")) {
+  fail(
+    "scripts/preflight.sh must centralize markdownlint bootstrap in an ensure_markdownlint_dependencies helper.",
+  );
 }
 
-if (!preflightScript.includes("install_node_dependencies\n")) {
-  fail("scripts/preflight.sh must install Node dependencies before running the local markdownlint binary.");
+if (!preflightScript.includes("ensure_markdownlint_dependencies\n")) {
+  fail(
+    "scripts/preflight.sh must only install Node dependencies for markdownlint when the local binary is missing.",
+  );
 }

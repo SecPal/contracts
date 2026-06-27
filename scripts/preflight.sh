@@ -77,6 +77,16 @@ install_node_dependencies() {
   NODE_DEPS_READY=1
 }
 
+ensure_markdownlint_dependencies() {
+  local markdownlint_bin="$ROOT_DIR/node_modules/.bin/markdownlint"
+
+  if [ -x "$markdownlint_bin" ]; then
+    return
+  fi
+
+  install_node_dependencies
+}
+
 # Fetch base branch for PR size check with 30s timeout (prevents indefinite hang; failure is handled later)
 timeout 30 git fetch origin "$BASE" 2>/dev/null || true
 
@@ -113,7 +123,7 @@ fi
 # 0) Formatting & Compliance
 FORMAT_EXIT=0
 if command -v npm >/dev/null 2>&1; then
-  install_node_dependencies
+  ensure_markdownlint_dependencies
   MARKDOWNLINT_BIN="$ROOT_DIR/node_modules/.bin/markdownlint"
 
   if command -v prettier >/dev/null 2>&1; then
