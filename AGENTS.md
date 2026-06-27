@@ -12,6 +12,7 @@ Edit this file first. Keep the focused overlay files below aligned when a rule a
 
 - `.github/instructions/org-shared.instructions.md`
 - `.github/instructions/openapi.instructions.md`
+- `.github/instructions/github-workflows.instructions.md`
 
 ## Core Runtime Baseline
 

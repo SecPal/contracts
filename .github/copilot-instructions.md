@@ -15,6 +15,7 @@ for path-specific or stack-specific rules.
 - `AGENTS.md`
 - `.github/instructions/org-shared.instructions.md`
 - `.github/instructions/openapi.instructions.md`
+- `.github/instructions/github-workflows.instructions.md`
 
 ## Core Runtime Baseline
 
