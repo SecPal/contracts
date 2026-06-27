@@ -79,12 +79,20 @@ fi
 # 0) Formatting & Compliance
 FORMAT_EXIT=0
 if command -v npm >/dev/null 2>&1; then
+  MARKDOWNLINT_BIN="$ROOT_DIR/node_modules/.bin/markdownlint"
+
   if command -v prettier >/dev/null 2>&1; then
     prettier --check '**/*.{md,yml,yaml,json,ts,tsx,js,jsx}' || FORMAT_EXIT=1
   else
     npx --yes prettier --check '**/*.{md,yml,yaml,json,ts,tsx,js,jsx}' || FORMAT_EXIT=1
   fi
-  npx --yes --package markdownlint-cli@0.49.0 markdownlint --config .markdownlint.json --dot '**/*.md' --ignore node_modules --ignore vendor --ignore storage --ignore build --ignore .git || FORMAT_EXIT=1
+
+  if [ ! -x "$MARKDOWNLINT_BIN" ]; then
+    echo "Error: markdownlint-cli is not installed. Run npm ci before validation." >&2
+    FORMAT_EXIT=1
+  else
+    "$MARKDOWNLINT_BIN" --config .markdownlint.json --dot '**/*.md' --ignore node_modules --ignore vendor --ignore storage --ignore build --ignore .git || FORMAT_EXIT=1
+  fi
 fi
 # Workflow linting (part of documented gates)
 # NOTE: actionlint is disabled in local preflight due to known hanging issues

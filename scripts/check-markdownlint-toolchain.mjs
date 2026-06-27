@@ -19,6 +19,7 @@ const preCommitConfig = readFileSync(
   new URL("../.pre-commit-config.yaml", import.meta.url),
   "utf8",
 );
+const preflightScript = readFileSync(new URL("../scripts/preflight.sh", import.meta.url), "utf8");
 
 const declaredVersion = packageJson.devDependencies?.["markdownlint-cli"] ?? "";
 if (declaredVersion !== EXPECTED_VERSION) {
@@ -76,4 +77,12 @@ if (hook.includes("language: system")) {
 
 if (hook.includes("npx ")) {
   fail("the markdownlint pre-commit hook must not shell out through npx.");
+}
+
+if (!preflightScript.includes("node_modules/.bin/markdownlint")) {
+  fail("scripts/preflight.sh must run the local locked node_modules/.bin/markdownlint binary.");
+}
+
+if (preflightScript.includes("npx --yes --package markdownlint-cli")) {
+  fail("scripts/preflight.sh must not resolve markdownlint-cli through npx --package.");
 }
