@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced the repo-local `markdownlint-cli2` pre-commit and preflight wiring with pinned `markdownlint-cli@0.49.0` usage so markdown validation now aligns with the shared `.github` governance baseline.
 - Corrected the contracts repo's workflow-governance baseline so reusable workflow caller jobs follow the valid timeout policy, pinned shared `.github` reusable workflows in `.github/workflows/quality.yml` to an immutable commit SHA with matching governance refs for reproducible AI-instructions and markdown-lint checks, and restored `.github/instructions/github-workflows.instructions.md` to the AGENTS/Copilot authoritative-source lists.
 - Defined the canonical API response timestamp serialization policy in `docs/openapi.yaml`: response timestamps now explicitly document UTC RFC 3339 / ISO 8601 strings with a trailing `Z`, whole-second precision, no fractional seconds unless a field-level exception is documented, and shared `ApiTimestamp` / `NullableApiTimestamp` schemas now anchor response timestamp fields across the published contract surface (closes #292; parent epic `SecPal/api#1137`)
 - Clarified `NotificationChannelFeatureFlags` in `docs/openapi.yaml`: bootstrap responses must continue to enumerate every known channel flag for the active `schema_version`, even when a channel is unavailable on a deployment, and any future channel addition must ship as an explicit breaking `schema_version` bump with a matching changelog entry (closes #290)
@@ -32,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Updated `scripts/preflight.sh` to run `npm ci` before the repo-local `node_modules/.bin/markdownlint` check when the pinned markdownlint toolchain is not installed yet, so fresh clones and post-lockfile updates can bootstrap validation successfully again
 - Removed `document_path` from `AttachQualificationRequest`, `UpdateEmployeeQualificationRequest`, and `EmployeeQualificationResource`; the API stores certificate files at an internal storage path that must not be exposed to consumers, consistent with `EmployeeDocumentResource` omitting `file_path` (closes #233)
 - Migrated all `nullable: true` fields in the `Activity` component schema and the `verifyActivityLog` response `details` inline object to OpenAPI 3.1 union-type syntax (`type: [T, 'null']`); extracted the `details` object into the reusable `ActivityVerificationDetails` component schema to eliminate inline duplication (`docs/openapi.yaml`)
 - Corrected onboarding submission contract consistency in `docs/openapi.yaml`: replaced duplicated inline `form_data` objects with shared `OnboardingSubmissionFormData`, removed contradictory tax-ID-only `anyOf` modeling that could be bypassed, and enforced that `PATCH /onboarding/submissions/{submission}` requires `form_data` when `status` is set to `submitted`

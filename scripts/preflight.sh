@@ -43,6 +43,50 @@ BASE="$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/rem
 
 echo "Using base branch: $BASE"
 
+NODE_PACKAGE_MANAGER=""
+NODE_DEPS_READY=0
+
+if [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then
+  NODE_PACKAGE_MANAGER="pnpm"
+elif [ -f package-lock.json ] && command -v npm >/dev/null 2>&1; then
+  NODE_PACKAGE_MANAGER="npm"
+elif [ -f yarn.lock ] && command -v yarn >/dev/null 2>&1; then
+  NODE_PACKAGE_MANAGER="yarn"
+fi
+
+install_node_dependencies() {
+  if [ "$NODE_DEPS_READY" -eq 1 ]; then
+    return
+  fi
+
+  case "$NODE_PACKAGE_MANAGER" in
+    pnpm)
+      pnpm install --frozen-lockfile
+      ;;
+    npm)
+      npm ci
+      ;;
+    yarn)
+      yarn install --frozen-lockfile
+      ;;
+    *)
+      return
+      ;;
+  esac
+
+  NODE_DEPS_READY=1
+}
+
+ensure_markdownlint_dependencies() {
+  local markdownlint_bin="$ROOT_DIR/node_modules/.bin/markdownlint"
+
+  if [ -x "$markdownlint_bin" ]; then
+    return
+  fi
+
+  install_node_dependencies
+}
+
 # Fetch base branch for PR size check with 30s timeout (prevents indefinite hang; failure is handled later)
 timeout 30 git fetch origin "$BASE" 2>/dev/null || true
 
@@ -79,12 +123,21 @@ fi
 # 0) Formatting & Compliance
 FORMAT_EXIT=0
 if command -v npm >/dev/null 2>&1; then
+  ensure_markdownlint_dependencies
+  MARKDOWNLINT_BIN="$ROOT_DIR/node_modules/.bin/markdownlint"
+
   if command -v prettier >/dev/null 2>&1; then
     prettier --check '**/*.{md,yml,yaml,json,ts,tsx,js,jsx}' || FORMAT_EXIT=1
   else
     npx --yes prettier --check '**/*.{md,yml,yaml,json,ts,tsx,js,jsx}' || FORMAT_EXIT=1
   fi
-  npx --yes markdownlint-cli2 '**/*.md' '#node_modules' '#vendor' '#storage' '#build' || FORMAT_EXIT=1
+
+  if [ ! -x "$MARKDOWNLINT_BIN" ]; then
+    echo "Error: markdownlint-cli is not installed. Run npm ci before validation." >&2
+    FORMAT_EXIT=1
+  else
+    "$MARKDOWNLINT_BIN" --config .markdownlint.json --dot '**/*.md' --ignore node_modules --ignore vendor --ignore storage --ignore build --ignore .git || FORMAT_EXIT=1
+  fi
 fi
 # Workflow linting (part of documented gates)
 # NOTE: actionlint is disabled in local preflight due to known hanging issues
@@ -147,18 +200,18 @@ fi
 
 # 2) Node / React
 if [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then
-  pnpm install --frozen-lockfile
+  install_node_dependencies
   # Check if scripts exist before running (pnpm run <script> exits 0 with --if-present)
   pnpm run --if-present lint
   pnpm run --if-present typecheck
   pnpm run --if-present test
 elif [ -f package-lock.json ] && command -v npm >/dev/null 2>&1; then
-  npm ci
+  install_node_dependencies
   npm run --if-present lint
   npm run --if-present typecheck
   npm run --if-present test
 elif [ -f yarn.lock ] && command -v yarn >/dev/null 2>&1; then
-  yarn install --frozen-lockfile
+  install_node_dependencies
   # Yarn doesn't have --if-present, check package.json using jq or Node.js
   if command -v jq >/dev/null 2>&1; then
     jq -e '.scripts.lint' package.json >/dev/null 2>&1 && yarn lint
