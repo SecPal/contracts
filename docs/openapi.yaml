@@ -4734,7 +4734,8 @@ components:
         source_url:
           type: string
           format: uri
-          description: Immutable corresponding-source archive URL for the currently active API release.
+          pattern: '^https?://(?![^/?#]*@)(?!localhost(?:[/:?#]|$))[^\s]+$'
+          description: Immutable corresponding-source archive URL for the currently active API release. Only absolute `http` or `https` URLs are valid; `localhost` hosts and URI userinfo are treated as invalid deployment metadata and fail closed.
           example: 'https://github.com/SecPal/api/releases/download/api-2026-07-03/source.tar.gz'
 
     ApiReleaseResponse:
