@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Documented the public `GET /release` contract in `docs/openapi.yaml`, including the narrow deployed API release response (`version` plus immutable `source_url`), the shared source-offer throttle `429` message-only response shape, and the explicit `500 RELEASE_STATE_INVALID` fail-closed shape for incomplete deployment metadata, so frontend and other clients can discover the active backend release without widening the existing public bootstrap contract surface
+
 ### Changed
 
 - Replaced the repo-local `markdownlint-cli2` pre-commit and preflight wiring with pinned `markdownlint-cli@0.49.0` usage so markdown validation now aligns with the shared `.github` governance baseline.

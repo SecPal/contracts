@@ -4713,6 +4713,73 @@ components:
         data:
           $ref: '#/components/schemas/BootstrapConfiguration'
 
+    ApiReleaseMetadata:
+      type: object
+      description: |
+        Narrow public deployment metadata returned by `GET /release`.
+
+        This document is intentionally smaller than the bootstrap contract. It exists so clients can identify
+        the currently deployed API release and fetch the immutable corresponding-source archive for that exact
+        backend release without exposing broader runtime diagnostics.
+      additionalProperties: false
+      required:
+        - version
+        - source_url
+      properties:
+        version:
+          type: string
+          maxLength: 255
+          description: Deployment-defined identifier for the currently active API release.
+          example: api-2026-07-03
+        source_url:
+          type: string
+          format: uri
+          description: Immutable corresponding-source archive URL for the currently active API release.
+          example: 'https://github.com/SecPal/api/releases/download/api-2026-07-03/source.tar.gz'
+
+    ApiReleaseResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/ApiReleaseMetadata'
+
+    ReleaseStateInvalidDetails:
+      type: object
+      description: Structured detail fields for an invalid public API release configuration response.
+      additionalProperties: false
+      required:
+        - missing_fields
+      properties:
+        missing_fields:
+          type: array
+          minItems: 1
+          items:
+            type: string
+          example:
+            - api_release.version
+            - api_release.source_url
+
+    ReleaseStateInvalidError:
+      type: object
+      additionalProperties: false
+      required:
+        - message
+        - code
+        - details
+      properties:
+        message:
+          type: string
+          example: Public API release metadata is incomplete for this deployment.
+        code:
+          type: string
+          enum:
+            - RELEASE_STATE_INVALID
+        details:
+          $ref: '#/components/schemas/ReleaseStateInvalidDetails'
+
     BootstrapStateInvalidDetails:
       type: object
       description: Structured detail fields for an invalid bootstrap configuration response.
@@ -5536,6 +5603,23 @@ components:
                 details:
                   retryable: true
                   retry_after_seconds: 60
+
+    ReleaseStateInvalid:
+      description: Internal Server Error - public API release metadata is enabled but deployment configuration is internally inconsistent.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ReleaseStateInvalidError'
+          examples:
+            missingRequiredReleaseFields:
+              summary: Deployment-local API release metadata is enabled but incomplete.
+              value:
+                message: Public API release metadata is incomplete for this deployment.
+                code: RELEASE_STATE_INVALID
+                details:
+                  missing_fields:
+                    - api_release.version
+                    - api_release.source_url
 
   securitySchemes:
     BearerAuth:
@@ -10844,6 +10928,44 @@ paths:
           $ref: '#/components/responses/BootstrapStateInvalid'
         '503':
           $ref: '#/components/responses/BootstrapConfigurationUnavailable'
+
+  /release:
+    get:
+      summary: Get Public API Release Metadata
+      description: |
+        Returns the narrow public release-metadata document for the currently deployed SecPal API instance.
+
+        Clients use this endpoint to identify the active API release and retrieve the immutable corresponding-source
+        archive URL for that exact backend release. The response intentionally stays smaller than `GET /bootstrap`
+        and does not expose deployment display names, feature flags, schema negotiation data, or broader diagnostics.
+
+        Under SecPal's current `0.x` policy, clients must consume this canonical response shape and should not assume
+        undocumented aliases, fallback keys, or extra release metadata fields survive.
+
+        **Rate limiting:** This route uses the shared `source-offer` throttle bucket. When exceeded, Laravel returns
+        HTTP 429 with a JSON body that contains only `message`, not the richer reusable `Error` shape.
+      operationId: getPublicApiRelease
+      tags:
+        - Bootstrap
+      security: []
+      responses:
+        '200':
+          description: Public API release metadata returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiReleaseResponse'
+              examples:
+                deployedApiRelease:
+                  summary: Public client receives the active API release identifier and immutable corresponding-source URL.
+                  value:
+                    data:
+                      version: api-2026-07-03
+                      source_url: 'https://github.com/SecPal/api/releases/download/api-2026-07-03/source.tar.gz'
+        '429':
+          $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/ReleaseStateInvalid'
 
   /android/channels/{channel}/latest.json:
     get:
