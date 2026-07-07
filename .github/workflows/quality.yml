@@ -35,7 +35,7 @@ jobs:
   markdown-lint:
     name: Markdown Lint
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/reusable-markdown-lint.yml@2cc65df6215af0c4238d2d463869cfebfdc246ba
+    uses: SecPal/.github/.github/workflows/reusable-markdown-lint.yml@f9c5276c9fd9a6965a4ddd641c9fae10184e03df
     with:
       # yamllint disable-line rule:line-length
       governance-ref: '6f8e13a7a62cee356811a7f58d6b92119941652f'
