@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Grouped `github-actions` Dependabot updates in `.github/dependabot.yml` under readable identifiers (`secpal-workflows`, `github-actions`, `third-party-actions`) and added a repo-local validation guard so future PR and branch names do not fall back to full reusable-workflow paths plus pinned SHAs.
 - Replaced the repo-local `markdownlint-cli2` pre-commit and preflight wiring with pinned `markdownlint-cli@0.49.0` usage so markdown validation now aligns with the shared `.github` governance baseline.
 - Corrected the contracts repo's workflow-governance baseline so reusable workflow caller jobs follow the valid timeout policy, pinned shared `.github` reusable workflows in `.github/workflows/quality.yml` to an immutable commit SHA with matching governance refs for reproducible AI-instructions and markdown-lint checks, and restored `.github/instructions/github-workflows.instructions.md` to the AGENTS/Copilot authoritative-source lists.
 - Defined the canonical API response timestamp serialization policy in `docs/openapi.yaml`: response timestamps now explicitly document UTC RFC 3339 / ISO 8601 strings with a trailing `Z`, whole-second precision, no fractional seconds unless a field-level exception is documented, and shared `ApiTimestamp` / `NullableApiTimestamp` schemas now anchor response timestamp fields across the published contract surface (closes #292; parent epic `SecPal/api#1137`)

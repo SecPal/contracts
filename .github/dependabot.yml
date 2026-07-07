@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2025 SecPal
+# SPDX-FileCopyrightText: 2025-2026 SecPal
 # SPDX-License-Identifier: CC0-1.0
 
 # Dependabot configuration for SecPal Contracts (OpenAPI specs)
@@ -13,6 +13,19 @@ updates:
       interval: 'daily'
       time: '04:00'
       timezone: 'Europe/Berlin'
+    groups:
+      secpal-workflows:
+        patterns:
+          - 'SecPal/.github*'
+      github-actions:
+        patterns:
+          - 'actions/*'
+      third-party-actions:
+        patterns:
+          - '*'
+        exclude-patterns:
+          - 'SecPal/.github*'
+          - 'actions/*'
     commit-message:
       prefix: 'chore'
       include: 'scope'
