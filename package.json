@@ -18,6 +18,7 @@
     "lint": "redocly lint docs/openapi.yaml && node scripts/check-openapi-verified-endpoints.mjs docs/openapi.yaml",
     "format": "prettier --write '**/*.{md,yml,yaml,json}'",
     "format:check": "prettier --check '**/*.{md,yml,yaml,json}'",
+    "test": "npm run validate",
     "validate": "npm run lint && prettier --check '**/*.{md,yml,yaml,json}'"
   },
   "devDependencies": {
