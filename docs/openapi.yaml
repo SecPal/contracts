@@ -5035,6 +5035,20 @@ components:
           default: false
           description: Optional independent establishment flag. Missing values are treated as `false`; not derived from `type`.
           example: true
+      allOf:
+        - if:
+            properties:
+              type:
+                const: custom
+            required:
+              - type
+          then:
+            properties:
+              custom_type_name:
+                type: string
+                maxLength: 255
+            required:
+              - custom_type_name
 
     OrganizationalUnitUpdateRequest:
       type: object
@@ -8874,7 +8888,7 @@ paths:
         - name: parent_id
           in: query
           required: false
-          description: Filter by accessible parent UUID. Use `null` to list roots of the caller's accessible tree.
+          description: Filter by accessible parent UUID. Use the literal query-string value `null` (`parent_id=null`) to list roots of the caller's accessible tree.
           schema:
             anyOf:
               - type: string

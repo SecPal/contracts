@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: CC0-1.0
 
 /**
- * Regression guard: fail if docs/openapi.yaml omits any verified API operation
- * (email verification resend + German address reference data + employee
- * documents + qualification catalog + employee qualifications +
- * organizational units).
+ * Regression guard: fail if docs/openapi.yaml omits verified API operations
+ * or regresses their critical contract invariants (email verification resend +
+ * German address reference data + employee documents + qualification catalog +
+ * employee qualifications + organizational units).
  *
  * Usage: node scripts/check-openapi-verified-endpoints.mjs <path-to-openapi.yaml>
  */
@@ -98,6 +98,7 @@ if (missing.length) {
 const schemas = doc?.components?.schemas ?? {}
 const responses = doc?.components?.responses ?? {}
 const organizationalUnit = schemas.OrganizationalUnit ?? {}
+const createRequest = schemas.OrganizationalUnitCreateRequest ?? {}
 const updateRequest = schemas.OrganizationalUnitUpdateRequest ?? {}
 const parentIdParameter = paths['/organizational-units']?.get?.parameters?.find(
   (parameter) => parameter?.name === 'parent_id'
@@ -115,11 +116,34 @@ for (const relationship of [
     relationship === 'parent'
       ? property?.anyOf?.find((schema) => schema?.$ref)?.$ref
       : property?.items?.$ref
-  if (reference !== '#/components/schemas/OrganizationalUnit') {
+  const mustBeNullable = relationship === 'parent'
+  const isNullable = property?.anyOf?.some(
+    (schema) => schema?.type === 'null'
+  )
+  if (
+    reference !== '#/components/schemas/OrganizationalUnit' ||
+    (mustBeNullable && !isNullable)
+  ) {
     contractErrors.push(
-      `OrganizationalUnit.${relationship} must use the full OrganizationalUnit resource schema.`
+      `OrganizationalUnit.${relationship} must use the full OrganizationalUnit resource schema${
+        mustBeNullable ? ' and allow null.' : '.'
+      }`
     )
   }
+}
+
+const customTypeNameRule = createRequest.allOf?.find(
+  (schema) =>
+    schema?.if?.properties?.type?.const === 'custom' &&
+    schema?.if?.required?.includes('type')
+)
+if (
+  !customTypeNameRule?.then?.required?.includes('custom_type_name') ||
+  customTypeNameRule?.then?.properties?.custom_type_name?.type !== 'string'
+) {
+  contractErrors.push(
+    'Creating a custom organizational unit must require a non-null custom_type_name.'
+  )
 }
 
 for (const flag of ['is_legal_entity', 'is_establishment']) {
@@ -132,6 +156,7 @@ for (const flag of ['is_legal_entity', 'is_establishment']) {
 
 const parentIdAlternatives = parentIdParameter?.schema?.anyOf ?? []
 if (
+  parentIdAlternatives.length !== 2 ||
   !parentIdAlternatives.some((schema) => schema?.const === 'null') ||
   !parentIdAlternatives.some(
     (schema) => schema?.type === 'string' && schema?.format === 'uuid'
