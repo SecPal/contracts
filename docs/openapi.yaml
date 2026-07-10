@@ -4911,41 +4911,6 @@ components:
           description: Whether the caller can manage organizational scopes for this unit.
           example: true
 
-    OrganizationalUnitParent:
-      type: object
-      additionalProperties: false
-      description: |
-        Need-to-know-filtered parent summary. The API returns `null` when the unit has no parent or the parent exists but is outside the caller's accessible organizational scope.
-      required:
-        - id
-        - type
-        - name
-        - is_legal_entity
-        - is_establishment
-      properties:
-        id:
-          type: string
-          format: uuid
-          example: '770e8400-e29b-41d4-a716-446655440000'
-        type:
-          $ref: '#/components/schemas/OrganizationalUnitType'
-        name:
-          type: string
-          maxLength: 255
-          example: SecPal Holding GmbH
-        custom_type_name:
-          type: [string, 'null']
-          maxLength: 255
-          example: Regional command center
-        is_legal_entity:
-          type: boolean
-          description: Required, non-null legal-entity flag. Valid independently of `type`.
-          example: true
-        is_establishment:
-          type: boolean
-          description: Required, non-null establishment flag. Valid independently of `type`.
-          example: false
-
     OrganizationalUnit:
       type: object
       additionalProperties: false
@@ -4996,8 +4961,9 @@ components:
           description: Required, non-null establishment marker; not derived from `type`.
           example: true
         parent:
+          description: Need-to-know-filtered full parent resource. The API returns `null` when the unit has no parent or the parent is outside the caller's accessible organizational scope.
           anyOf:
-            - $ref: '#/components/schemas/OrganizationalUnitParent'
+            - $ref: '#/components/schemas/OrganizationalUnit'
             - type: 'null'
         permissions:
           $ref: '#/components/schemas/OrganizationalUnitPermissions'
@@ -5005,17 +4971,17 @@ components:
           type: array
           description: Child units when the relationship is loaded.
           items:
-            $ref: '#/components/schemas/OrganizationalUnitParent'
+            $ref: '#/components/schemas/OrganizationalUnit'
         ancestors:
           type: array
           description: Ancestor units when the relationship is loaded.
           items:
-            $ref: '#/components/schemas/OrganizationalUnitParent'
+            $ref: '#/components/schemas/OrganizationalUnit'
         descendants:
           type: array
           description: Descendant units when the relationship is loaded.
           items:
-            $ref: '#/components/schemas/OrganizationalUnitParent'
+            $ref: '#/components/schemas/OrganizationalUnit'
         created_at:
           allOf:
             - $ref: '#/components/schemas/ApiTimestamp'
@@ -5096,14 +5062,34 @@ components:
             cost_center: NRW-002
         is_legal_entity:
           type: boolean
-          default: false
-          description: Optional independent legal-entity flag. When a client omits this field from an update payload, the flag is documented as absent/default `false` for generated request models and is not derived from `type`.
+          description: Optional independent legal-entity flag. Omission preserves the current value; the flag is not derived from `type`.
           example: true
         is_establishment:
           type: boolean
-          default: false
-          description: Optional independent establishment flag. When a client omits this field from an update payload, the flag is documented as absent/default `false` for generated request models and is not derived from `type`.
+          description: Optional independent establishment flag. Omission preserves the current value; the flag is not derived from `type`.
           example: false
+
+    OrganizationalUnitHasChildrenConflict:
+      type: object
+      additionalProperties: false
+      required:
+        - message
+        - child_count
+        - hint
+      properties:
+        message:
+          type: string
+          description: Localized explanation that active direct children block deletion.
+          example: 'Cannot delete: 2 child units exist'
+        child_count:
+          type: integer
+          minimum: 1
+          description: Number of active direct child units blocking deletion.
+          example: 2
+        hint:
+          type: string
+          description: Localized remediation guidance.
+          example: Delete or move child units first
 
     OrganizationalUnitAttachParentRequest:
       type: object
@@ -5667,6 +5653,13 @@ components:
           example:
             message: The request cannot be completed in the current resource state.
             code: CONFLICT
+
+    OrganizationalUnitHasChildrenConflict:
+      description: Conflict - Active direct child units must be moved or deleted first
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OrganizationalUnitHasChildrenConflict'
 
     Unauthorized:
       description: Unauthorized - Authentication required
@@ -8883,8 +8876,11 @@ paths:
           required: false
           description: Filter by accessible parent UUID. Use `null` to list roots of the caller's accessible tree.
           schema:
-            type: string
-            pattern: '^null|[0-9a-fA-F-]{36}$'
+            anyOf:
+              - type: string
+                const: 'null'
+              - type: string
+                format: uuid
       responses:
         '200':
           description: Organizational units retrieved successfully.
@@ -9055,7 +9051,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          $ref: '#/components/responses/Conflict'
+          $ref: '#/components/responses/OrganizationalUnitHasChildrenConflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 

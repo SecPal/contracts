@@ -95,6 +95,72 @@ if (missing.length) {
   process.exit(1)
 }
 
+const schemas = doc?.components?.schemas ?? {}
+const responses = doc?.components?.responses ?? {}
+const organizationalUnit = schemas.OrganizationalUnit ?? {}
+const updateRequest = schemas.OrganizationalUnitUpdateRequest ?? {}
+const parentIdParameter = paths['/organizational-units']?.get?.parameters?.find(
+  (parameter) => parameter?.name === 'parent_id'
+)
+const contractErrors = []
+
+for (const relationship of [
+  'parent',
+  'children',
+  'ancestors',
+  'descendants',
+]) {
+  const property = organizationalUnit.properties?.[relationship]
+  const reference =
+    relationship === 'parent'
+      ? property?.anyOf?.find((schema) => schema?.$ref)?.$ref
+      : property?.items?.$ref
+  if (reference !== '#/components/schemas/OrganizationalUnit') {
+    contractErrors.push(
+      `OrganizationalUnit.${relationship} must use the full OrganizationalUnit resource schema.`
+    )
+  }
+}
+
+for (const flag of ['is_legal_entity', 'is_establishment']) {
+  if ('default' in (updateRequest.properties?.[flag] ?? {})) {
+    contractErrors.push(
+      `OrganizationalUnitUpdateRequest.${flag} must not default an omitted PATCH field.`
+    )
+  }
+}
+
+const parentIdAlternatives = parentIdParameter?.schema?.anyOf ?? []
+if (
+  !parentIdAlternatives.some((schema) => schema?.const === 'null') ||
+  !parentIdAlternatives.some(
+    (schema) => schema?.type === 'string' && schema?.format === 'uuid'
+  )
+) {
+  contractErrors.push(
+    'The parent_id filter must accept only the exact string "null" or a UUID.'
+  )
+}
+
+if (
+  paths['/organizational-units/{organizational_unit}']?.delete?.responses?.[
+    '409'
+  ]?.$ref !== '#/components/responses/OrganizationalUnitHasChildrenConflict' ||
+  responses.OrganizationalUnitHasChildrenConflict == null
+) {
+  contractErrors.push(
+    'Organizational-unit deletion must document its child-conflict response shape.'
+  )
+}
+
+if (contractErrors.length) {
+  console.error('OpenAPI organizational-unit contract guard failed:')
+  for (const line of contractErrors) {
+    console.error(`  - ${line}`)
+  }
+  process.exit(1)
+}
+
 console.log(
   `Verified-endpoint presence guard OK (${REQUIRED_OPERATIONS.length} operations).`
 )
