@@ -24,7 +24,7 @@
     "@redocly/cli": "^2.38.0",
     "js-yaml": "^5.2.1",
     "markdownlint-cli": "0.49.0",
-    "prettier": "^3.9.4"
+    "prettier": "^3.9.5"
   },
   "overrides": {
     "@redocly/cli": {
