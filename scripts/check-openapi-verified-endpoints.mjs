@@ -5,7 +5,8 @@
 /**
  * Regression guard: fail if docs/openapi.yaml omits any verified API operation
  * (email verification resend + German address reference data + employee
- * documents + qualification catalog + employee qualifications).
+ * documents + qualification catalog + employee qualifications +
+ * organizational units).
  *
  * Usage: node scripts/check-openapi-verified-endpoints.mjs <path-to-openapi.yaml>
  */
@@ -35,6 +36,15 @@ const REQUIRED_OPERATIONS = [
   ['get', '/employee-qualifications/{employeeQualification}'],
   ['patch', '/employee-qualifications/{employeeQualification}'],
   ['delete', '/employee-qualifications/{employeeQualification}'],
+  ['get', '/organizational-units'],
+  ['post', '/organizational-units'],
+  ['get', '/organizational-units/{organizational_unit}'],
+  ['patch', '/organizational-units/{organizational_unit}'],
+  ['delete', '/organizational-units/{organizational_unit}'],
+  ['get', '/organizational-units/{organizational_unit}/descendants'],
+  ['get', '/organizational-units/{organizational_unit}/ancestors'],
+  ['post', '/organizational-units/{organizational_unit}/parent'],
+  ['delete', '/organizational-units/{organizational_unit}/parent/{parent}'],
 ]
 
 const target = process.argv[2]
