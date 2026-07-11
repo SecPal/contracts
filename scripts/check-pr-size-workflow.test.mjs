@@ -71,6 +71,20 @@ jobs:
   assert.notEqual(result.status, 0, result.stderr || result.stdout);
 });
 
+test("rejects a permission override in another job", () => {
+  const result = runGuard(`permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  pr-size: {}
+  unexpected-job:
+    permissions:
+      issues: write
+`);
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout);
+});
+
 test("rejects malformed YAML", () => {
   const result = runGuard("permissions: [\n");
 

@@ -49,10 +49,12 @@ for (const [scope, access] of Object.entries(expectedPermissions)) {
   }
 }
 
-if (Object.hasOwn(workflow?.jobs?.["pr-size"] ?? {}, "permissions")) {
-  fail(
-    ".github/workflows/pr-size.yml jobs.pr-size must not override permissions.",
-  );
+for (const [jobName, job] of Object.entries(workflow?.jobs ?? {})) {
+  if (job && typeof job === "object" && Object.hasOwn(job, "permissions")) {
+    fail(
+      `.github/workflows/pr-size.yml jobs.${jobName} must not override permissions.`,
+    );
+  }
 }
 
 console.log("PR-size workflow permission guard OK.");
