@@ -71,7 +71,19 @@ npm install
 
 ### Validation
 
-To validate the OpenAPI specification locally, run:
+Run the standard contract-test entry point:
+
+```bash
+npm test
+```
+
+This runs the repository's complete contract validation pipeline: OpenAPI linting, verified-endpoint checks, and formatting checks. To run the same pipeline explicitly, use:
+
+```bash
+npm run validate
+```
+
+To run only the OpenAPI lint and verified-endpoint checks, use:
 
 ```bash
 npm run lint
