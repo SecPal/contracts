@@ -180,10 +180,22 @@ for (const flag of ['is_active', 'is_assignable']) {
     }
   }
 
+  if (createRequest.properties?.[flag]?.default !== true) {
+    contractErrors.push(
+      `OrganizationalUnitCreateRequest.${flag} must default an omitted field to true.`
+    )
+  }
+
+  if ('default' in (updateRequest.properties?.[flag] ?? {})) {
+    contractErrors.push(
+      `OrganizationalUnitUpdateRequest.${flag} must not default an omitted PATCH field.`
+    )
+  }
+
   const parameter = organizationalUnitListParameters.find(
     (candidate) => candidate?.name === flag && candidate?.in === 'query'
   )
-  if (parameter?.schema?.type !== 'boolean') {
+  if (parameter?.schema?.type !== 'boolean' || parameter.required !== false) {
     contractErrors.push(
       `GET /organizational-units must define ${flag} as an optional boolean query filter.`
     )
@@ -216,6 +228,12 @@ if (
 
 const organizationalUnitDeleteDescription =
   paths['/organizational-units/{organizational_unit}']?.delete?.description ?? ''
+const organizationalUnitHierarchyDescriptions = [
+  paths['/organizational-units/{organizational_unit}/descendants']?.get
+    ?.description ?? '',
+  paths['/organizational-units/{organizational_unit}/ancestors']?.get
+    ?.description ?? '',
+]
 const childConflictSchema = schemas.OrganizationalUnitHasChildrenConflict ?? {}
 const childConflictDescriptions = [
   childConflictSchema.properties?.message?.description ?? '',
@@ -223,12 +241,26 @@ const childConflictDescriptions = [
 ]
 if (
   !organizationalUnitDeleteDescription.includes('non-deleted direct child') ||
+  !responses.OrganizationalUnitHasChildrenConflict?.description
+    ?.toLowerCase()
+    .includes('non-deleted direct child') ||
   childConflictDescriptions.some(
     (description) => !description.includes('non-deleted direct child')
   )
 ) {
   contractErrors.push(
     'Organizational-unit deletion must describe every non-deleted direct child as blocking, independently of is_active.'
+  )
+}
+
+if (
+  organizationalUnitHierarchyDescriptions.some(
+    (description) =>
+      !description.includes('is_active') || !description.includes('is_assignable')
+  )
+) {
+  contractErrors.push(
+    'Organizational-unit ancestor and descendant responses must document both independent operational status flags.'
   )
 }
 
