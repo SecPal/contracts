@@ -159,6 +159,7 @@ if (
   !updateCustomTypeNameRule?.then?.required?.includes('custom_type_name') ||
   updateCustomTypeNameSchema?.type !== 'string' ||
   updateCustomTypeNameSchema?.minLength !== 1 ||
+  updateCustomTypeNameSchema?.maxLength !== 255 ||
   updateCustomTypeNameSchema?.pattern !== '.*\\S.*'
 ) {
   contractErrors.push(
@@ -169,6 +170,13 @@ if (
 const updateValidationExamples = updateRequest['x-validation-examples'] ?? {}
 const acceptedUpdateExamples = updateValidationExamples.accepted ?? []
 const rejectedUpdateExamples = updateValidationExamples.rejected ?? []
+
+const hasExistingCustomUnitClearExample = rejectedUpdateExamples.some(
+  (example) =>
+    example?.existing_type === 'custom' &&
+    !Object.hasOwn(example?.value ?? {}, 'type') &&
+    example?.value?.custom_type_name === null
+)
 
 function acceptsCustomTypeNameExample(example) {
   const payload = example?.value ?? {}
@@ -193,10 +201,13 @@ if (
     (example) => !acceptsCustomTypeNameExample(example)
   ) ||
   rejectedUpdateExamples.length < 4 ||
-  rejectedUpdateExamples.some((example) => acceptsCustomTypeNameExample(example))
+  rejectedUpdateExamples.some((example) =>
+    acceptsCustomTypeNameExample(example)
+  ) ||
+  !hasExistingCustomUnitClearExample
 ) {
   contractErrors.push(
-    'OrganizationalUnitUpdateRequest must include executable accepted and rejected examples for custom_type_name validation.'
+    'OrganizationalUnitUpdateRequest must include executable accepted and rejected examples, including a standalone clear for an existing custom unit.'
   )
 }
 
