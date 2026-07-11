@@ -103,6 +103,8 @@ const updateRequest = schemas.OrganizationalUnitUpdateRequest ?? {}
 const parentIdParameter = paths['/organizational-units']?.get?.parameters?.find(
   (parameter) => parameter?.name === 'parent_id'
 )
+const organizationalUnitListParameters =
+  paths['/organizational-units']?.get?.parameters ?? []
 const contractErrors = []
 
 for (const relationship of [
@@ -150,6 +152,40 @@ for (const flag of ['is_legal_entity', 'is_establishment']) {
   if ('default' in (updateRequest.properties?.[flag] ?? {})) {
     contractErrors.push(
       `OrganizationalUnitUpdateRequest.${flag} must not default an omitted PATCH field.`
+    )
+  }
+}
+
+for (const flag of ['is_active', 'is_assignable']) {
+  if (
+    !organizationalUnit.required?.includes(flag) ||
+    organizationalUnit.properties?.[flag]?.type !== 'boolean'
+  ) {
+    contractErrors.push(
+      `OrganizationalUnit.${flag} must be a required boolean response field.`
+    )
+  }
+
+  for (const [schemaName, schema] of [
+    ['OrganizationalUnitCreateRequest', createRequest],
+    ['OrganizationalUnitUpdateRequest', updateRequest],
+  ]) {
+    if (
+      schema.properties?.[flag]?.type !== 'boolean' ||
+      schema.required?.includes(flag)
+    ) {
+      contractErrors.push(
+        `${schemaName}.${flag} must be an optional boolean request field.`
+      )
+    }
+  }
+
+  const parameter = organizationalUnitListParameters.find(
+    (candidate) => candidate?.name === flag && candidate?.in === 'query'
+  )
+  if (parameter?.schema?.type !== 'boolean') {
+    contractErrors.push(
+      `GET /organizational-units must define ${flag} as an optional boolean query filter.`
     )
   }
 }
