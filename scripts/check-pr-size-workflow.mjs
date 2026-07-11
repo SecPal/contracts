@@ -10,10 +10,9 @@ function fail(message) {
   process.exit(1);
 }
 
-const workflowPath = new URL(
-  "../.github/workflows/pr-size.yml",
-  import.meta.url,
-);
+const workflowPath = process.argv[2]
+  ? new URL(process.argv[2], `file://${process.cwd()}/`)
+  : new URL("../.github/workflows/pr-size.yml", import.meta.url);
 
 let workflow;
 try {
@@ -31,6 +30,15 @@ const expectedPermissions = {
 
 if (!workflow?.permissions || typeof workflow.permissions !== "object") {
   fail(".github/workflows/pr-size.yml must define top-level permissions.");
+}
+
+if (
+  Object.keys(workflow.permissions).length !==
+  Object.keys(expectedPermissions).length
+) {
+  fail(
+    ".github/workflows/pr-size.yml must define exactly the required permissions.",
+  );
 }
 
 for (const [scope, access] of Object.entries(expectedPermissions)) {
