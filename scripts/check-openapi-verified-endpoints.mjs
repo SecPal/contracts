@@ -148,6 +148,83 @@ if (
   )
 }
 
+const updateCustomTypeNameRule = updateRequest.allOf?.find(
+  (schema) =>
+    schema?.if?.properties?.type?.const === 'custom' &&
+    schema?.if?.required?.includes('type')
+)
+const updateCustomTypeNameSchema =
+  updateCustomTypeNameRule?.then?.properties?.custom_type_name
+if (
+  !updateCustomTypeNameRule?.then?.required?.includes('custom_type_name') ||
+  updateCustomTypeNameSchema?.type !== 'string' ||
+  updateCustomTypeNameSchema?.minLength !== 1 ||
+  updateCustomTypeNameSchema?.maxLength !== 255 ||
+  updateCustomTypeNameSchema?.pattern !== '.*\\S.*'
+) {
+  contractErrors.push(
+    'Updating an organizational unit to custom must require a non-blank custom_type_name.'
+  )
+}
+
+const updateValidationExamples = updateRequest['x-validation-examples'] ?? {}
+const acceptedUpdateExamples = updateValidationExamples.accepted ?? []
+const rejectedUpdateExamples = updateValidationExamples.rejected ?? []
+
+const hasExistingCustomUnitClearExample = rejectedUpdateExamples.some(
+  (example) =>
+    example?.existing_type === 'custom' &&
+    !Object.hasOwn(example?.value ?? {}, 'type') &&
+    example?.value?.custom_type_name === null
+)
+
+function acceptsCustomTypeNameExample(example) {
+  const payload = example?.value ?? {}
+  const effectiveType = payload.type ?? example?.existing_type
+  const touchesCustomTypeName =
+    Object.hasOwn(payload, 'type') || Object.hasOwn(payload, 'custom_type_name')
+
+  if (effectiveType !== 'custom' || !touchesCustomTypeName) {
+    return true
+  }
+
+  return (
+    typeof payload.custom_type_name === 'string' &&
+    payload.custom_type_name.trim().length > 0 &&
+    payload.custom_type_name.length <= 255
+  )
+}
+
+if (
+  acceptedUpdateExamples.length === 0 ||
+  acceptedUpdateExamples.some(
+    (example) => !acceptsCustomTypeNameExample(example)
+  ) ||
+  rejectedUpdateExamples.length < 4 ||
+  rejectedUpdateExamples.some((example) =>
+    acceptsCustomTypeNameExample(example)
+  ) ||
+  !hasExistingCustomUnitClearExample
+) {
+  contractErrors.push(
+    'OrganizationalUnitUpdateRequest must include executable accepted and rejected examples, including a standalone clear for an existing custom unit.'
+  )
+}
+
+const organizationalUnitUpdateDescription =
+  paths['/organizational-units/{organizational_unit}']?.patch?.description ?? ''
+const customTypeNameDescription =
+  updateRequest.properties?.custom_type_name?.description ?? ''
+if (
+  !organizationalUnitUpdateDescription.includes('custom_type_name') ||
+  !organizationalUnitUpdateDescription.includes('422') ||
+  !customTypeNameDescription.includes('existing custom unit')
+) {
+  contractErrors.push(
+    'Organizational-unit PATCH must document the custom_type_name validation errors.'
+  )
+}
+
 for (const flag of ['is_legal_entity', 'is_establishment']) {
   if ('default' in (updateRequest.properties?.[flag] ?? {})) {
     contractErrors.push(

@@ -5073,7 +5073,7 @@ components:
     OrganizationalUnitUpdateRequest:
       type: object
       additionalProperties: false
-      description: PATCH payload; all fields are optional and omitted fields keep their current values.
+      description: PATCH payload; all fields are optional and omitted fields keep their current values. When `type` is set to `custom`, `custom_type_name` is required and must contain a non-whitespace character. Clearing `custom_type_name` with `null`, an empty string, or whitespace-only text is invalid for an existing custom unit.
       properties:
         name:
           type: string
@@ -5084,6 +5084,7 @@ components:
         custom_type_name:
           type: [string, 'null']
           maxLength: 255
+          description: Optional custom type label. It is required and must contain a non-whitespace character when this payload sets `type` to `custom`; an existing custom unit cannot clear it with `null`, an empty string, or whitespace-only text.
           example: Special operations cell
         description:
           type: [string, 'null']
@@ -5110,6 +5111,52 @@ components:
           type: boolean
           description: Optional eligibility for new operational assignments, scopes, and related workflows. Omission preserves the current value; independent of `is_active`, hierarchy, soft deletion, parent status, and unit type.
           example: true
+      allOf:
+        - if:
+            properties:
+              type:
+                const: custom
+            required:
+              - type
+          then:
+            properties:
+              custom_type_name:
+                type: string
+                minLength: 1
+                maxLength: 255
+                pattern: '.*\S.*'
+            required:
+              - custom_type_name
+      x-validation-examples:
+        accepted:
+          - name: Change a unit to a custom type
+            value:
+              type: custom
+              custom_type_name: Special operations cell
+          - name: Preserve the name while changing another field on a custom unit
+            existing_type: custom
+            value:
+              description: Updated regional operating unit.
+        rejected:
+          - name: Missing name while changing to a custom type
+            value:
+              type: custom
+          - name: Null name while changing to a custom type
+            value:
+              type: custom
+              custom_type_name: null
+          - name: Empty name while changing to a custom type
+            value:
+              type: custom
+              custom_type_name: ''
+          - name: Whitespace-only name while changing to a custom type
+            value:
+              type: custom
+              custom_type_name: '   '
+          - name: Clear the name of an existing custom unit
+            existing_type: custom
+            value:
+              custom_type_name: null
 
     OrganizationalUnitHasChildrenConflict:
       type: object
@@ -9034,7 +9081,7 @@ paths:
       description: |
         Update organizational-unit fields with PATCH semantics.
 
-        `OrganizationalUnitPolicy::update` enforces same-tenant access plus write scope. If `type` is changed, the API validates the structural type enum; status flags remain independent and are never inferred from `type`.
+        `OrganizationalUnitPolicy::update` enforces same-tenant access plus write scope. If `type` is changed, the API validates the structural type enum; changing it to `custom` requires a `custom_type_name` containing a non-whitespace character in the same payload. The API returns `422` if the name is absent, `null`, empty, or whitespace-only when changing to `custom`, or if a caller clears the name of an existing custom unit. Status flags remain independent and are never inferred from `type`.
       operationId: updateOrganizationalUnit
       tags:
         - Organizational Units
