@@ -58,7 +58,7 @@ tags:
   - name: Sites
     description: Site management endpoints and site-related nested resources.
   - name: Organizational Units
-    description: Internal tenant-scoped organizational hierarchy, legal-status flags, and parent relationships.
+    description: Internal tenant-scoped organizational hierarchy, independent status flags, and parent relationships.
   - name: Assignments
     description: Customer, site, and self-service assignment operations.
   - name: Me
@@ -4880,7 +4880,7 @@ components:
         - department
         - custom
       description: |
-        Structural type used for hierarchy validation only. Legal-status flags are independent business facts and are not derived from this type.
+        Structural type used for hierarchy validation only. Status flags are independent business facts and are not derived from this type.
 
         Parent-child hierarchy must move downward in rank: holding -> company -> region -> branch -> division -> department -> custom.
       example: company
@@ -4915,13 +4915,15 @@ components:
       type: object
       additionalProperties: false
       description: |
-        Tenant-scoped organizational unit response. `is_legal_entity` and `is_establishment` are required, non-null booleans; all four combinations are valid (`false/false`, `true/false`, `false/true`, `true/true`) and neither flag is inferred from `type`.
+        Tenant-scoped organizational unit response. `is_legal_entity`, `is_establishment`, `is_active`, and `is_assignable` are required, non-null booleans. `is_active` and `is_assignable` are independent: either may be `true` or `false` regardless of the other, hierarchy, soft-deletion state, parent status, or unit type.
       required:
         - id
         - type
         - name
         - is_legal_entity
         - is_establishment
+        - is_active
+        - is_assignable
         - parent
         - permissions
         - created_at
@@ -4960,6 +4962,14 @@ components:
           type: boolean
           description: Required, non-null establishment marker; not derived from `type`.
           example: true
+        is_active:
+          type: boolean
+          description: Required, non-null administrative status; independent of `is_assignable`, hierarchy, soft deletion, parent status, and unit type.
+          example: true
+        is_assignable:
+          type: boolean
+          description: Required, non-null assignment eligibility for new operational assignments, scopes, and related workflows; independent of `is_active`, hierarchy, soft deletion, parent status, and unit type.
+          example: false
         parent:
           description: Need-to-know-filtered full parent resource. The API returns `null` when the unit has no parent or the parent is outside the caller's accessible organizational scope.
           anyOf:
@@ -5035,6 +5045,16 @@ components:
           default: false
           description: Optional independent establishment flag. Missing values are treated as `false`; not derived from `type`.
           example: true
+        is_active:
+          type: boolean
+          default: true
+          description: Optional administrative status. Missing values are treated as `true`; independent of `is_assignable`, hierarchy, soft deletion, parent status, and unit type.
+          example: true
+        is_assignable:
+          type: boolean
+          default: true
+          description: Optional eligibility for new operational assignments, scopes, and related workflows. Missing values are treated as `true`; independent of `is_active`, hierarchy, soft deletion, parent status, and unit type.
+          example: false
       allOf:
         - if:
             properties:
@@ -5082,6 +5102,14 @@ components:
           type: boolean
           description: Optional independent establishment flag. Omission preserves the current value; the flag is not derived from `type`.
           example: false
+        is_active:
+          type: boolean
+          description: Optional administrative status. Omission preserves the current value; independent of `is_assignable`, hierarchy, soft deletion, parent status, and unit type.
+          example: false
+        is_assignable:
+          type: boolean
+          description: Optional eligibility for new operational assignments, scopes, and related workflows. Omission preserves the current value; independent of `is_active`, hierarchy, soft deletion, parent status, and unit type.
+          example: true
 
     OrganizationalUnitHasChildrenConflict:
       type: object
@@ -5093,12 +5121,12 @@ components:
       properties:
         message:
           type: string
-          description: Localized explanation that active direct children block deletion.
+          description: Localized explanation that non-deleted direct children block deletion, regardless of their `is_active` value.
           example: 'Cannot delete: 2 child units exist'
         child_count:
           type: integer
           minimum: 1
-          description: Number of active direct child units blocking deletion.
+          description: Number of non-deleted direct child units blocking deletion, regardless of their `is_active` value.
           example: 2
         hint:
           type: string
@@ -5669,7 +5697,7 @@ components:
             code: CONFLICT
 
     OrganizationalUnitHasChildrenConflict:
-      description: Conflict - Active direct child units must be moved or deleted first
+      description: Conflict - Non-deleted direct child units must be moved or deleted first, regardless of their `is_active` values
       content:
         application/json:
           schema:
@@ -8854,7 +8882,7 @@ paths:
 
         **Need-to-know filtering:** Results are limited to units returned by the caller's organizational scopes. Parent data is filtered independently; when a parent exists but is outside the caller's accessible tree, `parent` is returned as `null`. `meta.root_unit_ids` contains roots of the caller's accessible tree, not necessarily global tenant roots.
 
-        **Status flags:** `is_legal_entity` and `is_establishment` are required booleans on each response item. They are independent of `type`; all four boolean combinations are valid.
+        **Status flags:** `is_legal_entity`, `is_establishment`, `is_active`, and `is_assignable` are required booleans on each response item. `is_active` and `is_assignable` are independent: neither is inferred from the other, hierarchy, soft deletion, parent status, or unit type.
       operationId: listOrganizationalUnits
       tags:
         - Organizational Units
@@ -8895,6 +8923,18 @@ paths:
                 const: 'null'
               - type: string
                 format: uuid
+        - name: is_active
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Filter by independent administrative status.
+        - name: is_assignable
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Filter by independent eligibility for new operational assignments, scopes, and related workflows.
       responses:
         '200':
           description: Organizational units retrieved successfully.
@@ -8920,7 +8960,7 @@ paths:
 
         **Type hierarchy:** Child `type` rank must be lower than the parent rank (`holding` -> `company` -> `region` -> `branch` -> `division` -> `department` -> `custom`). Same-level nesting is rejected with `422`.
 
-        **Status flags:** `is_legal_entity` and `is_establishment` are optional request booleans. Missing values are documented as `false`; all four combinations are valid and neither flag is derived from `type`.
+        **Status flags:** `is_legal_entity`, `is_establishment`, `is_active`, and `is_assignable` are optional request booleans. Missing `is_legal_entity` and `is_establishment` values are documented as `false`; missing `is_active` and `is_assignable` values are documented as `true`. The status flags are independent; in particular, neither `is_active` nor `is_assignable` is derived from the other, hierarchy, soft deletion, parent status, or unit type.
       operationId: createOrganizationalUnit
       tags:
         - Organizational Units
@@ -9039,7 +9079,7 @@ paths:
       description: |
         Soft-delete an organizational unit.
 
-        `OrganizationalUnitPolicy::delete` requires same-tenant manage access. The API rejects deletion while active direct child units exist; callers must move or delete children first.
+        `OrganizationalUnitPolicy::delete` requires same-tenant manage access. The API rejects deletion while non-deleted direct child units exist, regardless of each child's `is_active` value; callers must move or delete children first.
       operationId: deleteOrganizationalUnit
       tags:
         - Organizational Units
@@ -9075,7 +9115,7 @@ paths:
       description: |
         Return descendants of one same-tenant organizational unit.
 
-        The base unit is authorized with `OrganizationalUnitPolicy::view`. Descendant rows belong to the same tenant through the closure-table hierarchy and carry the same required independent legal-status flags as normal OU responses.
+        The base unit is authorized with `OrganizationalUnitPolicy::view`. Descendant rows belong to the same tenant through the closure-table hierarchy and use the reusable OU schema, including required independent `is_legal_entity`, `is_establishment`, `is_active`, and `is_assignable` flags.
       operationId: listOrganizationalUnitDescendants
       tags:
         - Organizational Units
@@ -9112,7 +9152,7 @@ paths:
       description: |
         Return ancestors of one same-tenant organizational unit, ordered by closure-table depth with the closest parent first.
 
-        The base unit is authorized with `OrganizationalUnitPolicy::view`. Ancestor responses use the same reusable OU schema and therefore include non-null `is_legal_entity` and `is_establishment` flags.
+        The base unit is authorized with `OrganizationalUnitPolicy::view`. Ancestor responses use the same reusable OU schema and therefore include required, non-null `is_legal_entity`, `is_establishment`, `is_active`, and `is_assignable` flags.
       operationId: listOrganizationalUnitAncestors
       tags:
         - Organizational Units
