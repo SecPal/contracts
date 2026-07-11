@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Documented the organizational-unit OpenAPI surface in `docs/openapi.yaml`, including all nine verified OU operations, reusable response/request/permissions/collection/pagination/conflict schemas, full-resource relationship shapes, PATCH-safe independent `is_legal_entity` and `is_establishment` boolean flags, the conditional custom type-name requirement, exact root-or-UUID filtering, tenant isolation, need-to-know parent filtering, policy behavior, type hierarchy validation, and semantic verified-endpoint guard coverage for the OU routes.
+- Added `npm test` as the standard contract-test entry point; it runs the repository's canonical lint and formatting validation pipeline (closes #339).
 - Documented the public `GET /release` contract in `docs/openapi.yaml`, including the narrow deployed API release response (`version` plus immutable `source_url`), the tightened absolute `http`/`https` `source_url` constraint that fails closed for invalid localhost or userinfo metadata, the shared source-offer throttle `429` message-only response shape, and the explicit `500 RELEASE_STATE_INVALID` fail-closed shape for incomplete deployment metadata, so frontend and other clients can discover the active backend release without widening the existing public bootstrap contract surface
 
 ### Changed
@@ -39,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Declared the least-privilege `contents: read` and `pull-requests: read` token permissions for the PR-size reusable-workflow caller and added a validation guard that rejects either scope being removed (closes #337)
+- Removed the tracked `.preflight-allow-large-pr` file left by the completed customer-and-site contract PR, so the documented gitignored local override once again requires an explicit, temporary opt-in for each exceptional large PR (closes #340)
 - Updated `scripts/preflight.sh` to run `npm ci` before the repo-local `node_modules/.bin/markdownlint` check when the pinned markdownlint toolchain is not installed yet, so fresh clones and post-lockfile updates can bootstrap validation successfully again
 - Removed `document_path` from `AttachQualificationRequest`, `UpdateEmployeeQualificationRequest`, and `EmployeeQualificationResource`; the API stores certificate files at an internal storage path that must not be exposed to consumers, consistent with `EmployeeDocumentResource` omitting `file_path` (closes #233)
 - Migrated all `nullable: true` fields in the `Activity` component schema and the `verifyActivityLog` response `details` inline object to OpenAPI 3.1 union-type syntax (`type: [T, 'null']`); extracted the `details` object into the reusable `ActivityVerificationDetails` component schema to eliminate inline duplication (`docs/openapi.yaml`)
