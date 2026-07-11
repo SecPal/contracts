@@ -214,6 +214,24 @@ if (
   )
 }
 
+const organizationalUnitDeleteDescription =
+  paths['/organizational-units/{organizational_unit}']?.delete?.description ?? ''
+const childConflictSchema = schemas.OrganizationalUnitHasChildrenConflict ?? {}
+const childConflictDescriptions = [
+  childConflictSchema.properties?.message?.description ?? '',
+  childConflictSchema.properties?.child_count?.description ?? '',
+]
+if (
+  !organizationalUnitDeleteDescription.includes('non-deleted direct child') ||
+  childConflictDescriptions.some(
+    (description) => !description.includes('non-deleted direct child')
+  )
+) {
+  contractErrors.push(
+    'Organizational-unit deletion must describe every non-deleted direct child as blocking, independently of is_active.'
+  )
+}
+
 if (contractErrors.length) {
   console.error('OpenAPI organizational-unit contract guard failed:')
   for (const line of contractErrors) {

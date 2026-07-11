@@ -5119,12 +5119,12 @@ components:
       properties:
         message:
           type: string
-          description: Localized explanation that active direct children block deletion.
+          description: Localized explanation that non-deleted direct children block deletion, regardless of their `is_active` value.
           example: 'Cannot delete: 2 child units exist'
         child_count:
           type: integer
           minimum: 1
-          description: Number of active direct child units blocking deletion.
+          description: Number of non-deleted direct child units blocking deletion, regardless of their `is_active` value.
           example: 2
         hint:
           type: string
@@ -8958,7 +8958,7 @@ paths:
 
         **Type hierarchy:** Child `type` rank must be lower than the parent rank (`holding` -> `company` -> `region` -> `branch` -> `division` -> `department` -> `custom`). Same-level nesting is rejected with `422`.
 
-        **Status flags:** `is_legal_entity` and `is_establishment` are optional request booleans. Missing values are documented as `false`; all four combinations are valid and neither flag is derived from `type`.
+        **Status flags:** `is_legal_entity`, `is_establishment`, `is_active`, and `is_assignable` are optional request booleans. Missing `is_legal_entity` and `is_establishment` values are documented as `false`. The status flags are independent; in particular, neither `is_active` nor `is_assignable` is derived from the other, hierarchy, soft deletion, parent status, or unit type.
       operationId: createOrganizationalUnit
       tags:
         - Organizational Units
@@ -9077,7 +9077,7 @@ paths:
       description: |
         Soft-delete an organizational unit.
 
-        `OrganizationalUnitPolicy::delete` requires same-tenant manage access. The API rejects deletion while active direct child units exist; callers must move or delete children first.
+        `OrganizationalUnitPolicy::delete` requires same-tenant manage access. The API rejects deletion while non-deleted direct child units exist, regardless of each child's `is_active` value; callers must move or delete children first.
       operationId: deleteOrganizationalUnit
       tags:
         - Organizational Units
