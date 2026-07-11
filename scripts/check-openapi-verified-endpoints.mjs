@@ -153,14 +153,50 @@ const updateCustomTypeNameRule = updateRequest.allOf?.find(
     schema?.if?.properties?.type?.const === 'custom' &&
     schema?.if?.required?.includes('type')
 )
+const updateCustomTypeNameSchema =
+  updateCustomTypeNameRule?.then?.properties?.custom_type_name
 if (
   !updateCustomTypeNameRule?.then?.required?.includes('custom_type_name') ||
-  updateCustomTypeNameRule?.then?.properties?.custom_type_name?.type !==
-    'string' ||
-  updateCustomTypeNameRule?.then?.properties?.custom_type_name?.minLength !== 1
+  updateCustomTypeNameSchema?.type !== 'string' ||
+  updateCustomTypeNameSchema?.minLength !== 1 ||
+  updateCustomTypeNameSchema?.pattern !== '.*\\S.*'
 ) {
   contractErrors.push(
-    'Updating an organizational unit to custom must require a non-empty custom_type_name.'
+    'Updating an organizational unit to custom must require a non-blank custom_type_name.'
+  )
+}
+
+const updateValidationExamples = updateRequest['x-validation-examples'] ?? {}
+const acceptedUpdateExamples = updateValidationExamples.accepted ?? []
+const rejectedUpdateExamples = updateValidationExamples.rejected ?? []
+
+function acceptsCustomTypeNameExample(example) {
+  const payload = example?.value ?? {}
+  const effectiveType = payload.type ?? example?.existing_type
+  const touchesCustomTypeName =
+    Object.hasOwn(payload, 'type') || Object.hasOwn(payload, 'custom_type_name')
+
+  if (effectiveType !== 'custom' || !touchesCustomTypeName) {
+    return true
+  }
+
+  return (
+    typeof payload.custom_type_name === 'string' &&
+    payload.custom_type_name.trim().length > 0 &&
+    payload.custom_type_name.length <= 255
+  )
+}
+
+if (
+  acceptedUpdateExamples.length === 0 ||
+  acceptedUpdateExamples.some(
+    (example) => !acceptsCustomTypeNameExample(example)
+  ) ||
+  rejectedUpdateExamples.length < 4 ||
+  rejectedUpdateExamples.some((example) => acceptsCustomTypeNameExample(example))
+) {
+  contractErrors.push(
+    'OrganizationalUnitUpdateRequest must include executable accepted and rejected examples for custom_type_name validation.'
   )
 }
 
