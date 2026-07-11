@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Documented organizational-unit PATCH validation: changing a unit to `type: custom` requires a non-empty `custom_type_name`, and callers cannot clear the name of an existing custom unit (#346).
 - Grouped `github-actions` Dependabot updates in `.github/dependabot.yml` under readable identifiers (`secpal-workflows`, `github-actions`, `third-party-actions`) and added a repo-local validation guard so future PR and branch names do not fall back to full reusable-workflow paths plus pinned SHAs.
 - Replaced the repo-local `markdownlint-cli2` pre-commit and preflight wiring with pinned `markdownlint-cli@0.49.0` usage so markdown validation now aligns with the shared `.github` governance baseline.
 - Corrected the contracts repo's workflow-governance baseline so reusable workflow caller jobs follow the valid timeout policy, pinned shared `.github` reusable workflows in `.github/workflows/quality.yml` to an immutable commit SHA with matching governance refs for reproducible AI-instructions and markdown-lint checks, and restored `.github/instructions/github-workflows.instructions.md` to the AGENTS/Copilot authoritative-source lists.

@@ -5073,7 +5073,7 @@ components:
     OrganizationalUnitUpdateRequest:
       type: object
       additionalProperties: false
-      description: PATCH payload; all fields are optional and omitted fields keep their current values.
+      description: PATCH payload; all fields are optional and omitted fields keep their current values. When `type` is set to `custom`, `custom_type_name` is required and must be non-empty. Clearing `custom_type_name` with `null` or an empty string is invalid for an existing custom unit.
       properties:
         name:
           type: string
@@ -5084,6 +5084,7 @@ components:
         custom_type_name:
           type: [string, 'null']
           maxLength: 255
+          description: Optional custom type label. It is required and non-empty when this payload sets `type` to `custom`; an existing custom unit cannot clear it with `null` or an empty string.
           example: Special operations cell
         description:
           type: [string, 'null']
@@ -5110,6 +5111,21 @@ components:
           type: boolean
           description: Optional eligibility for new operational assignments, scopes, and related workflows. Omission preserves the current value; independent of `is_active`, hierarchy, soft deletion, parent status, and unit type.
           example: true
+      allOf:
+        - if:
+            properties:
+              type:
+                const: custom
+            required:
+              - type
+          then:
+            properties:
+              custom_type_name:
+                type: string
+                minLength: 1
+                maxLength: 255
+            required:
+              - custom_type_name
 
     OrganizationalUnitHasChildrenConflict:
       type: object
@@ -9034,7 +9050,7 @@ paths:
       description: |
         Update organizational-unit fields with PATCH semantics.
 
-        `OrganizationalUnitPolicy::update` enforces same-tenant access plus write scope. If `type` is changed, the API validates the structural type enum; status flags remain independent and are never inferred from `type`.
+        `OrganizationalUnitPolicy::update` enforces same-tenant access plus write scope. If `type` is changed, the API validates the structural type enum; changing it to `custom` requires a non-empty `custom_type_name` in the same payload. The API returns `422` if the name is absent, `null`, or empty when changing to `custom`, or if a caller clears the name of an existing custom unit. Status flags remain independent and are never inferred from `type`.
       operationId: updateOrganizationalUnit
       tags:
         - Organizational Units

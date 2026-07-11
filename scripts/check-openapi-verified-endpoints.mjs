@@ -148,6 +148,36 @@ if (
   )
 }
 
+const updateCustomTypeNameRule = updateRequest.allOf?.find(
+  (schema) =>
+    schema?.if?.properties?.type?.const === 'custom' &&
+    schema?.if?.required?.includes('type')
+)
+if (
+  !updateCustomTypeNameRule?.then?.required?.includes('custom_type_name') ||
+  updateCustomTypeNameRule?.then?.properties?.custom_type_name?.type !==
+    'string' ||
+  updateCustomTypeNameRule?.then?.properties?.custom_type_name?.minLength !== 1
+) {
+  contractErrors.push(
+    'Updating an organizational unit to custom must require a non-empty custom_type_name.'
+  )
+}
+
+const organizationalUnitUpdateDescription =
+  paths['/organizational-units/{organizational_unit}']?.patch?.description ?? ''
+const customTypeNameDescription =
+  updateRequest.properties?.custom_type_name?.description ?? ''
+if (
+  !organizationalUnitUpdateDescription.includes('custom_type_name') ||
+  !organizationalUnitUpdateDescription.includes('422') ||
+  !customTypeNameDescription.includes('existing custom unit')
+) {
+  contractErrors.push(
+    'Organizational-unit PATCH must document the custom_type_name validation errors.'
+  )
+}
+
 for (const flag of ['is_legal_entity', 'is_establishment']) {
   if ('default' in (updateRequest.properties?.[flag] ?? {})) {
     contractErrors.push(
