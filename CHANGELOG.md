@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Documented the organizational-unit OpenAPI surface in `docs/openapi.yaml`, including all nine verified OU operations, reusable response/request/permissions/collection/pagination/conflict schemas, full-resource relationship shapes, PATCH-safe independent `is_legal_entity` and `is_establishment` boolean flags, the conditional custom type-name requirement, exact root-or-UUID filtering, tenant isolation, need-to-know parent filtering, policy behavior, type hierarchy validation, and semantic verified-endpoint guard coverage for the OU routes.
 - Added `npm test` as the standard contract-test entry point; it runs the repository's canonical lint and formatting validation pipeline (closes #339).
 - Documented the public `GET /release` contract in `docs/openapi.yaml`, including the narrow deployed API release response (`version` plus immutable `source_url`), the tightened absolute `http`/`https` `source_url` constraint that fails closed for invalid localhost or userinfo metadata, the shared source-offer throttle `429` message-only response shape, and the explicit `500 RELEASE_STATE_INVALID` fail-closed shape for incomplete deployment metadata, so frontend and other clients can discover the active backend release without widening the existing public bootstrap contract surface
 

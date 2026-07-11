@@ -57,6 +57,8 @@ tags:
     description: Customer management and related customer-scoped resources.
   - name: Sites
     description: Site management endpoints and site-related nested resources.
+  - name: Organizational Units
+    description: Internal tenant-scoped organizational hierarchy, legal-status flags, and parent relationships.
   - name: Assignments
     description: Customer, site, and self-service assignment operations.
   - name: Me
@@ -4863,6 +4865,328 @@ components:
         details:
           $ref: '#/components/schemas/BootstrapUnsupportedClientVersionDetails'
 
+    # =============================================================================
+    # Organizational Unit Schemas
+    # =============================================================================
+
+    OrganizationalUnitType:
+      type: string
+      enum:
+        - holding
+        - company
+        - region
+        - branch
+        - division
+        - department
+        - custom
+      description: |
+        Structural type used for hierarchy validation only. Legal-status flags are independent business facts and are not derived from this type.
+
+        Parent-child hierarchy must move downward in rank: holding -> company -> region -> branch -> division -> department -> custom.
+      example: company
+
+    OrganizationalUnitPermissions:
+      type: object
+      additionalProperties: false
+      required:
+        - create_child
+        - update
+        - delete
+        - manage_scopes
+      properties:
+        create_child:
+          type: boolean
+          description: Whether the caller can create a child unit below this unit.
+          example: true
+        update:
+          type: boolean
+          description: Whether the caller can update this unit.
+          example: true
+        delete:
+          type: boolean
+          description: Whether the caller can delete this unit.
+          example: false
+        manage_scopes:
+          type: boolean
+          description: Whether the caller can manage organizational scopes for this unit.
+          example: true
+
+    OrganizationalUnit:
+      type: object
+      additionalProperties: false
+      description: |
+        Tenant-scoped organizational unit response. `is_legal_entity` and `is_establishment` are required, non-null booleans; all four combinations are valid (`false/false`, `true/false`, `false/true`, `true/true`) and neither flag is inferred from `type`.
+      required:
+        - id
+        - type
+        - name
+        - is_legal_entity
+        - is_establishment
+        - parent
+        - permissions
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique organizational unit identifier.
+          example: '880e8400-e29b-41d4-a716-446655440000'
+        type:
+          $ref: '#/components/schemas/OrganizationalUnitType'
+        name:
+          type: string
+          maxLength: 255
+          example: NRW Branch
+        custom_type_name:
+          type: [string, 'null']
+          maxLength: 255
+          description: Required by validation when `type` is `custom`; otherwise nullable.
+          example: Special operations cell
+        description:
+          type: [string, 'null']
+          maxLength: 1000
+          example: Regional operating unit for North Rhine-Westphalia.
+        metadata:
+          type: [object, 'null']
+          additionalProperties: true
+          example:
+            cost_center: NRW-001
+        is_legal_entity:
+          type: boolean
+          description: Required, non-null legal-entity marker; not derived from `type`.
+          example: false
+        is_establishment:
+          type: boolean
+          description: Required, non-null establishment marker; not derived from `type`.
+          example: true
+        parent:
+          description: Need-to-know-filtered full parent resource. The API returns `null` when the unit has no parent or the parent is outside the caller's accessible organizational scope.
+          anyOf:
+            - $ref: '#/components/schemas/OrganizationalUnit'
+            - type: 'null'
+        permissions:
+          $ref: '#/components/schemas/OrganizationalUnitPermissions'
+        children:
+          type: array
+          description: Child units when the relationship is loaded.
+          items:
+            $ref: '#/components/schemas/OrganizationalUnit'
+        ancestors:
+          type: array
+          description: Ancestor units when the relationship is loaded.
+          items:
+            $ref: '#/components/schemas/OrganizationalUnit'
+        descendants:
+          type: array
+          description: Descendant units when the relationship is loaded.
+          items:
+            $ref: '#/components/schemas/OrganizationalUnit'
+        created_at:
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
+          description: Creation timestamp.
+          example: '2026-07-10T10:00:00Z'
+        updated_at:
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
+          description: Last update timestamp.
+          example: '2026-07-10T11:00:00Z'
+
+    OrganizationalUnitCreateRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          example: NRW Branch
+        type:
+          $ref: '#/components/schemas/OrganizationalUnitType'
+        custom_type_name:
+          type: [string, 'null']
+          maxLength: 255
+          description: Required when `type` is `custom`.
+          example: Special operations cell
+        description:
+          type: [string, 'null']
+          maxLength: 1000
+          example: Regional operating unit for North Rhine-Westphalia.
+        metadata:
+          type: [object, 'null']
+          additionalProperties: true
+          example:
+            cost_center: NRW-001
+        parent_id:
+          type: [string, 'null']
+          format: uuid
+          description: Optional same-tenant parent. Omit or send `null` to create a root unit.
+          example: '770e8400-e29b-41d4-a716-446655440000'
+        is_legal_entity:
+          type: boolean
+          default: false
+          description: Optional independent legal-entity flag. Missing values are treated as `false`; not derived from `type`.
+          example: false
+        is_establishment:
+          type: boolean
+          default: false
+          description: Optional independent establishment flag. Missing values are treated as `false`; not derived from `type`.
+          example: true
+      allOf:
+        - if:
+            properties:
+              type:
+                const: custom
+            required:
+              - type
+          then:
+            properties:
+              custom_type_name:
+                type: string
+                maxLength: 255
+            required:
+              - custom_type_name
+
+    OrganizationalUnitUpdateRequest:
+      type: object
+      additionalProperties: false
+      description: PATCH payload; all fields are optional and omitted fields keep their current values.
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          example: NRW Branch West
+        type:
+          $ref: '#/components/schemas/OrganizationalUnitType'
+        custom_type_name:
+          type: [string, 'null']
+          maxLength: 255
+          example: Special operations cell
+        description:
+          type: [string, 'null']
+          maxLength: 1000
+          example: Updated regional operating unit.
+        metadata:
+          type: [object, 'null']
+          additionalProperties: true
+          example:
+            cost_center: NRW-002
+        is_legal_entity:
+          type: boolean
+          description: Optional independent legal-entity flag. Omission preserves the current value; the flag is not derived from `type`.
+          example: true
+        is_establishment:
+          type: boolean
+          description: Optional independent establishment flag. Omission preserves the current value; the flag is not derived from `type`.
+          example: false
+
+    OrganizationalUnitHasChildrenConflict:
+      type: object
+      additionalProperties: false
+      required:
+        - message
+        - child_count
+        - hint
+      properties:
+        message:
+          type: string
+          description: Localized explanation that active direct children block deletion.
+          example: 'Cannot delete: 2 child units exist'
+        child_count:
+          type: integer
+          minimum: 1
+          description: Number of active direct child units blocking deletion.
+          example: 2
+        hint:
+          type: string
+          description: Localized remediation guidance.
+          example: Delete or move child units first
+
+    OrganizationalUnitAttachParentRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - parent_id
+      properties:
+        parent_id:
+          type: string
+          format: uuid
+          description: Same-tenant, non-deleted parent organizational unit.
+          example: '770e8400-e29b-41d4-a716-446655440000'
+
+    OrganizationalUnitSingleResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/OrganizationalUnit'
+
+    OrganizationalUnitPaginationMeta:
+      type: object
+      additionalProperties: false
+      required:
+        - current_page
+        - last_page
+        - per_page
+        - total
+        - root_unit_ids
+      properties:
+        current_page:
+          type: integer
+          minimum: 1
+          example: 1
+        last_page:
+          type: integer
+          minimum: 1
+          example: 3
+        per_page:
+          type: integer
+          minimum: 1
+          maximum: 100
+          example: 15
+        total:
+          type: integer
+          minimum: 0
+          example: 42
+        root_unit_ids:
+          type: array
+          description: Unit IDs that are roots within the caller's accessible need-to-know tree.
+          items:
+            type: string
+            format: uuid
+          example:
+            - '880e8400-e29b-41d4-a716-446655440000'
+
+    OrganizationalUnitCollectionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationalUnit'
+        meta:
+          $ref: '#/components/schemas/OrganizationalUnitPaginationMeta'
+
+    OrganizationalUnitHierarchyCollectionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationalUnit'
+
     BootstrapConfigurationUnavailableDetails:
       type: object
       description: Structured detail fields for a temporarily unavailable bootstrap response.
@@ -5343,6 +5667,13 @@ components:
           example:
             message: The request cannot be completed in the current resource state.
             code: CONFLICT
+
+    OrganizationalUnitHasChildrenConflict:
+      description: Conflict - Active direct child units must be moved or deleted first
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OrganizationalUnitHasChildrenConflict'
 
     Unauthorized:
       description: Unauthorized - Authentication required
@@ -8500,6 +8831,400 @@ paths:
               schema:
                 type: string
                 format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # =============================================================================
+  # Organizational Unit Endpoints
+  # =============================================================================
+
+  /organizational-units:
+    get:
+      summary: List Organizational Units
+      description: |
+        Retrieve a paginated, tenant-isolated list of organizational units visible to the authenticated caller.
+
+        **Authorization and isolation:** The route requires Sanctum authentication, the `api-access` token ability, verified email middleware, and the API's tenant injection. `OrganizationalUnitPolicy::viewAny` requires at least one organizational scope. The query is additionally constrained to the active tenant.
+
+        **Need-to-know filtering:** Results are limited to units returned by the caller's organizational scopes. Parent data is filtered independently; when a parent exists but is outside the caller's accessible tree, `parent` is returned as `null`. `meta.root_unit_ids` contains roots of the caller's accessible tree, not necessarily global tenant roots.
+
+        **Status flags:** `is_legal_entity` and `is_establishment` are required booleans on each response item. They are independent of `type`; all four boolean combinations are valid.
+      operationId: listOrganizationalUnits
+      tags:
+        - Organizational Units
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number.
+        - name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 15
+          description: Items per page.
+        - name: type
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/OrganizationalUnitType'
+          description: Filter by structural type.
+        - name: parent_id
+          in: query
+          required: false
+          description: Filter by accessible parent UUID. Use the literal query-string value `null` (`parent_id=null`) to list roots of the caller's accessible tree.
+          schema:
+            anyOf:
+              - type: string
+                const: 'null'
+              - type: string
+                format: uuid
+      responses:
+        '200':
+          description: Organizational units retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationalUnitCollectionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create Organizational Unit
+      description: |
+        Create a same-tenant organizational unit as either a root unit or a child below `parent_id`.
+
+        **Authorization and policies:** Creating a root unit requires `OrganizationalUnitPolicy::createRoot` (an existing manage-capable scope). Creating a child requires `OrganizationalUnitPolicy::create` on the selected parent. The parent lookup is tenant-scoped and excludes soft-deleted units.
+
+        **Type hierarchy:** Child `type` rank must be lower than the parent rank (`holding` -> `company` -> `region` -> `branch` -> `division` -> `department` -> `custom`). Same-level nesting is rejected with `422`.
+
+        **Status flags:** `is_legal_entity` and `is_establishment` are optional request booleans. Missing values are documented as `false`; all four combinations are valid and neither flag is derived from `type`.
+      operationId: createOrganizationalUnit
+      tags:
+        - Organizational Units
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationalUnitCreateRequest'
+      responses:
+        '201':
+          description: Organizational unit created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationalUnitSingleResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /organizational-units/{organizational_unit}:
+    get:
+      summary: Get Organizational Unit
+      description: |
+        Retrieve one same-tenant organizational unit.
+
+        `OrganizationalUnitPolicy::view` enforces tenant isolation first, then read access through direct or inherited organizational scopes. Parent data remains need-to-know-filtered in the response.
+      operationId: getOrganizationalUnit
+      tags:
+        - Organizational Units
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      parameters:
+        - name: organizational_unit
+          in: path
+          required: true
+          description: Organizational unit UUID.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Organizational unit retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationalUnitSingleResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      summary: Update Organizational Unit
+      description: |
+        Update organizational-unit fields with PATCH semantics.
+
+        `OrganizationalUnitPolicy::update` enforces same-tenant access plus write scope. If `type` is changed, the API validates the structural type enum; status flags remain independent and are never inferred from `type`.
+      operationId: updateOrganizationalUnit
+      tags:
+        - Organizational Units
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - name: organizational_unit
+          in: path
+          required: true
+          description: Organizational unit UUID.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationalUnitUpdateRequest'
+      responses:
+        '200':
+          description: Organizational unit updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationalUnitSingleResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete Organizational Unit
+      description: |
+        Soft-delete an organizational unit.
+
+        `OrganizationalUnitPolicy::delete` requires same-tenant manage access. The API rejects deletion while active direct child units exist; callers must move or delete children first.
+      operationId: deleteOrganizationalUnit
+      tags:
+        - Organizational Units
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - name: organizational_unit
+          in: path
+          required: true
+          description: Organizational unit UUID.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Organizational unit deleted successfully.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/OrganizationalUnitHasChildrenConflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /organizational-units/{organizational_unit}/descendants:
+    get:
+      summary: List Organizational Unit Descendants
+      description: |
+        Return descendants of one same-tenant organizational unit.
+
+        The base unit is authorized with `OrganizationalUnitPolicy::view`. Descendant rows belong to the same tenant through the closure-table hierarchy and carry the same required independent legal-status flags as normal OU responses.
+      operationId: listOrganizationalUnitDescendants
+      tags:
+        - Organizational Units
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      parameters:
+        - name: organizational_unit
+          in: path
+          required: true
+          description: Organizational unit UUID.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Descendants retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationalUnitHierarchyCollectionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /organizational-units/{organizational_unit}/ancestors:
+    get:
+      summary: List Organizational Unit Ancestors
+      description: |
+        Return ancestors of one same-tenant organizational unit, ordered by closure-table depth with the closest parent first.
+
+        The base unit is authorized with `OrganizationalUnitPolicy::view`. Ancestor responses use the same reusable OU schema and therefore include non-null `is_legal_entity` and `is_establishment` flags.
+      operationId: listOrganizationalUnitAncestors
+      tags:
+        - Organizational Units
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      parameters:
+        - name: organizational_unit
+          in: path
+          required: true
+          description: Organizational unit UUID.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Ancestors retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationalUnitHierarchyCollectionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /organizational-units/{organizational_unit}/parent:
+    post:
+      summary: Attach Organizational Unit Parent
+      description: |
+        Attach or replace the direct parent of an organizational unit.
+
+        The child requires `OrganizationalUnitPolicy::update`; the selected same-tenant, non-deleted parent also requires `OrganizationalUnitPolicy::create` because reparenting creates a child under that parent. The reparent operation updates closure-table hierarchy and preserves tenant isolation.
+      operationId: attachOrganizationalUnitParent
+      tags:
+        - Organizational Units
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - name: organizational_unit
+          in: path
+          required: true
+          description: Organizational unit UUID.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationalUnitAttachParentRequest'
+      responses:
+        '200':
+          description: Parent attached successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationalUnitSingleResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /organizational-units/{organizational_unit}/parent/{parent}:
+    delete:
+      summary: Detach Organizational Unit Parent
+      description: |
+        Detach a parent relationship and make the organizational unit a root unit.
+
+        `OrganizationalUnitPolicy::update` must pass for the child. The API also verifies the caller keeps direct access to the child after detaching; if access would only have been inherited from the parent, the operation returns `403` instead of allowing accidental self-lockout.
+      operationId: detachOrganizationalUnitParent
+      tags:
+        - Organizational Units
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - name: organizational_unit
+          in: path
+          required: true
+          description: Child organizational unit UUID.
+          schema:
+            type: string
+            format: uuid
+        - name: parent
+          in: path
+          required: true
+          description: Current parent organizational unit UUID.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Parent detached successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationalUnitSingleResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
