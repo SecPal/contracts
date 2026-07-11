@@ -54,12 +54,25 @@ for (const [name, permissions] of [
     const workflow = `permissions:\n  ${permissions.replaceAll("\n", "\n  ")}\n`;
     const result = runGuard(workflow);
 
-    assert.notEqual(result.status, 0, result.stdout);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
   });
 }
+
+test("rejects a PR-size job-level permission override", () => {
+  const result = runGuard(`permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  pr-size:
+    permissions:
+      contents: write
+`);
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout);
+});
 
 test("rejects malformed YAML", () => {
   const result = runGuard("permissions: [\n");
 
-  assert.notEqual(result.status, 0, result.stdout);
+  assert.notEqual(result.status, 0, result.stderr || result.stdout);
 });
