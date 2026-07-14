@@ -577,7 +577,10 @@ for (const flag of ['is_legal_entity', 'is_establishment']) {
   }
 }
 
-for (const flag of ['is_active', 'is_assignable']) {
+for (const [flag, trueExample, falseExample] of [
+  ['is_active', 'active', 'inactive'],
+  ['is_assignable', 'assignable', 'unassignable'],
+]) {
   if (
     !organizationalUnit.required?.includes(flag) ||
     organizationalUnit.properties?.[flag]?.type !== 'boolean'
@@ -619,6 +622,20 @@ for (const flag of ['is_active', 'is_assignable']) {
   if (parameter?.schema?.type !== 'boolean' || parameter.required !== false) {
     contractErrors.push(
       `GET /organizational-units must define ${flag} as an optional boolean query filter.`
+    )
+  }
+
+  const wireExamples = parameter?.['x-wire-examples'] ?? {}
+  if (
+    !parameter?.description?.includes(
+      'Query-string values must be `1` for `true` and `0` for `false`; textual `true` and `false` are not accepted.'
+    ) ||
+    Object.keys(wireExamples).length !== 2 ||
+    wireExamples[trueExample]?.value !== '1' ||
+    wireExamples[falseExample]?.value !== '0'
+  ) {
+    contractErrors.push(
+      `GET /organizational-units must document ${flag} true and false as query-string values 1 and 0.`
     )
   }
 }

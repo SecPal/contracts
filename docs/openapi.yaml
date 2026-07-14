@@ -9121,13 +9121,27 @@ paths:
           required: false
           schema:
             type: boolean
-          description: Filter by independent administrative status.
+          description: Filter by independent administrative status. Query-string values must be `1` for `true` and `0` for `false`; textual `true` and `false` are not accepted.
+          x-wire-examples:
+            active:
+              summary: Filter for active units.
+              value: '1'
+            inactive:
+              summary: Filter for inactive units.
+              value: '0'
         - name: is_assignable
           in: query
           required: false
           schema:
             type: boolean
-          description: Filter by independent eligibility for new operational assignments, scopes, and related workflows.
+          description: Filter by independent eligibility for new operational assignments, scopes, and related workflows. Query-string values must be `1` for `true` and `0` for `false`; textual `true` and `false` are not accepted.
+          x-wire-examples:
+            assignable:
+              summary: Filter for assignable units.
+              value: '1'
+            unassignable:
+              summary: Filter for unassignable units.
+              value: '0'
       responses:
         '200':
           description: Organizational units retrieved successfully.
