@@ -208,7 +208,7 @@ function matchesSchema(schema, value) {
     if (!value.every((entry) => matchesSchema(schema.items, entry)))
       return false
   }
-  if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+  if (typeof value === 'object' && !Array.isArray(value)) {
     if (
       (schema.required ?? []).some(
         (property) => !Object.hasOwn(value, property)
