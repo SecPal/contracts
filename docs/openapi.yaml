@@ -5453,6 +5453,7 @@ components:
 
     CustomerLegalEntityLookup:
       type: object
+      additionalProperties: false
       description: Minimal Legal Entity option for creating customers. This intentionally does not expose the general organizational-unit resource.
       required:
         - id
@@ -5506,6 +5507,36 @@ components:
           type: [object, 'null']
           additionalProperties: true
           example: { 'industry': 'retail' }
+
+    CustomerUpdateRequest:
+      type: object
+      properties:
+        legal_entity_id:
+          type: string
+          format: uuid
+          description: Same-tenant active, non-deleted Legal Entity organizational unit to assign to the customer
+          example: '770e8400-e29b-41d4-a716-446655440000'
+        vat_id:
+          type: [string, 'null']
+          maxLength: 32
+          description: Customer VAT identification number
+          example: 'DE123456789'
+        name:
+          type: string
+          maxLength: 255
+        billing_address:
+          $ref: '#/components/schemas/Address'
+        contact:
+          anyOf:
+            - $ref: '#/components/schemas/Contact'
+            - type: 'null'
+        is_active:
+          type: boolean
+        notes:
+          type: [string, 'null']
+        metadata:
+          type: [object, 'null']
+          additionalProperties: true
 
     Site:
       type: object
@@ -9514,6 +9545,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: false
                 required:
                   - data
                 properties:
@@ -9579,7 +9611,7 @@ paths:
       summary: Update Customer
       description: |
         Update customer fields (PATCH semantics - all fields optional).
-        Requires customers.update permission and view access to customer.
+        Requires `customers.update` and view access to the customer. If supplied, `legal_entity_id` must be a same tenant, active, non-deleted Legal Entity organizational unit, and the caller must have organizational write access for that Legal Entity.
       operationId: updateCustomer
       tags:
         - Customers
@@ -9598,26 +9630,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                  maxLength: 255
-                vat_id:
-                  type: [string, 'null']
-                  maxLength: 32
-                  description: Customer VAT identification number
-                billing_address:
-                  $ref: '#/components/schemas/Address'
-                contact:
-                  $ref: '#/components/schemas/Contact'
-                is_active:
-                  type: boolean
-                notes:
-                  type: string
-                metadata:
-                  type: object
-                  additionalProperties: true
+              $ref: '#/components/schemas/CustomerUpdateRequest'
       responses:
         '200':
           description: Customer updated successfully

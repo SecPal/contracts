@@ -100,11 +100,12 @@ const schemas = doc?.components?.schemas ?? {}
 const responses = doc?.components?.responses ?? {}
 const customer = schemas.Customer ?? {}
 const customerCreateRequest = schemas.CustomerCreateRequest ?? {}
-const customerUpdateRequest =
+const customerUpdateSchema =
   paths['/customers/{customer}']?.patch?.requestBody?.content?.[
     'application/json'
   ]?.schema ?? {}
 const customerLegalEntityLookup = schemas.CustomerLegalEntityLookup ?? {}
+const customerUpdateRequest = schemas.CustomerUpdateRequest ?? {}
 const organizationalUnit = schemas.OrganizationalUnit ?? {}
 const createRequest = schemas.OrganizationalUnitCreateRequest ?? {}
 const updateRequest = schemas.OrganizationalUnitUpdateRequest ?? {}
@@ -149,7 +150,10 @@ if (
   )
 }
 
-if (!isNullableVatId(customerUpdateRequest.properties?.vat_id)) {
+if (
+  customerUpdateRequest.required?.includes('vat_id') ||
+  !isNullableVatId(customerUpdateRequest.properties?.vat_id)
+) {
   contractErrors.push(
     'PATCH /customers/{customer} vat_id must be an optional nullable string field with maxLength 32.'
   )
@@ -171,6 +175,7 @@ const legalEntityLookupProperties = Object.keys(
 const legalEntityLookupAllowed = new Set(['id', 'name'])
 if (
   customerLegalEntityLookup.type !== 'object' ||
+  customerLegalEntityLookup.additionalProperties !== false ||
   legalEntityLookupProperties.some(
     (property) => !legalEntityLookupAllowed.has(property)
   ) ||
@@ -193,6 +198,7 @@ const customerLegalEntitiesItems =
   customerLegalEntitiesResponse?.properties?.data?.items
 if (
   customerLegalEntitiesResponse?.type !== 'object' ||
+  customerLegalEntitiesResponse?.additionalProperties !== false ||
   !customerLegalEntitiesResponse?.required?.includes('data') ||
   customerLegalEntitiesResponse?.properties?.data?.type !== 'array' ||
   customerLegalEntitiesItems?.$ref !==
@@ -203,15 +209,38 @@ if (
   )
 }
 
+if (
+  customerUpdateSchema?.$ref !==
+    '#/components/schemas/CustomerUpdateRequest' ||
+  customerUpdateRequest.required?.includes('legal_entity_id') ||
+  customerUpdateRequest.properties?.legal_entity_id?.type !== 'string' ||
+  customerUpdateRequest.properties?.legal_entity_id?.format !== 'uuid'
+) {
+  contractErrors.push(
+    'PATCH /customers/{customer} must reference CustomerUpdateRequest with an optional legal_entity_id UUID.'
+  )
+}
+
 const customerCreateDescription = paths['/customers']?.post?.description ?? ''
+const customerUpdateDescription =
+  paths['/customers/{customer}']?.patch?.description ?? ''
 const legalEntitiesDescription =
   paths['/customers/legal-entities']?.get?.description ?? ''
-for (const [label, description] of [
-  ['POST /customers', customerCreateDescription],
-  ['GET /customers/legal-entities', legalEntitiesDescription],
+for (const [label, description, requiredPermission] of [
+  ['POST /customers', customerCreateDescription, 'customers.create'],
+  [
+    'PATCH /customers/{customer}',
+    customerUpdateDescription,
+    'customers.update',
+  ],
+  [
+    'GET /customers/legal-entities',
+    legalEntitiesDescription,
+    'customers.create',
+  ],
 ]) {
   for (const requiredText of [
-    'customers.create',
+    requiredPermission,
     'same tenant',
     'active',
     'non-deleted Legal Entity',
