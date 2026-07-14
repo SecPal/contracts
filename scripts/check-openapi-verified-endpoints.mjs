@@ -277,8 +277,7 @@ for (const [label, description, requiredPermission] of [
   for (const requiredText of [
     requiredPermission,
     'same tenant',
-    'active',
-    'non-deleted Legal Entity',
+    'active, assignable, non-deleted Legal Entity',
     'organizational write access',
   ]) {
     if (!description.includes(requiredText)) {

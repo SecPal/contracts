@@ -5480,7 +5480,7 @@ components:
         legal_entity_id:
           type: string
           format: uuid
-          description: Same-tenant active, non-deleted Legal Entity organizational unit for the new customer
+          description: Same-tenant active, assignable, non-deleted Legal Entity organizational unit for the new customer
           example: '770e8400-e29b-41d4-a716-446655440000'
         vat_id:
           type: [string, 'null']
@@ -5514,7 +5514,7 @@ components:
         legal_entity_id:
           type: string
           format: uuid
-          description: Same-tenant active, non-deleted Legal Entity organizational unit to assign to the customer
+          description: Target Legal Entity for reassignment. When different from the customer's current value, it must be same-tenant, active, assignable, and non-deleted.
           example: '770e8400-e29b-41d4-a716-446655440000'
         vat_id:
           type: [string, 'null']
@@ -9491,7 +9491,7 @@ paths:
       summary: Create Customer
       description: |
         Create a new customer. Customer number is auto-generated (KD-YYYY-####).
-        Requires `customers.create`. The supplied `legal_entity_id` must be a same tenant, active, non-deleted Legal Entity organizational unit, and the caller must have organizational write access for that Legal Entity.
+        Requires `customers.create`. The supplied `legal_entity_id` must be a same tenant, active, assignable, non-deleted Legal Entity organizational unit, and the caller must have organizational write access for that Legal Entity.
       operationId: createCustomer
       tags:
         - Customers
@@ -9532,7 +9532,7 @@ paths:
       description: |
         Return only the Legal Entity options allowed for customer creation.
 
-        Requires `customers.create`. Results are limited to same tenant, active, non-deleted Legal Entity organizational units for which the caller has organizational write access. The response is intentionally minimal and does not expose the general organizational-unit resource or hierarchy metadata.
+        Requires `customers.create`. Results are limited to same tenant, active, assignable, non-deleted Legal Entity organizational units for which the caller has organizational write access. The response is intentionally minimal and does not expose the general organizational-unit resource or hierarchy metadata.
       operationId: listCustomerLegalEntities
       tags:
         - Customers
@@ -9611,7 +9611,7 @@ paths:
       summary: Update Customer
       description: |
         Update customer fields (PATCH semantics - all fields optional).
-        Requires `customers.update` and view access to the customer. If supplied, `legal_entity_id` must be a same tenant, active, non-deleted Legal Entity organizational unit, and the caller must have organizational write access for that Legal Entity.
+        Requires `customers.update` and view access to the customer. If `legal_entity_id` differs from the customer's current value, it must identify a same tenant, active, assignable, non-deleted Legal Entity organizational unit, and the caller must have organizational write access for that Legal Entity.
       operationId: updateCustomer
       tags:
         - Customers
