@@ -5376,7 +5376,12 @@ components:
 
     Customer:
       type: object
-      description: Customer (client organization) entity
+      description: |
+        Customer (client organization) entity with an explicit Legal Entity assignment.
+
+        No default Legal Entity assignment is permitted for existing customers. A customer
+        may be backfilled only after a product-approved deterministic tenant-consistent rule
+        identifies an explicit Legal Entity from the customer's own tenant.
       required:
         - id
         - customer_number
@@ -5400,7 +5405,10 @@ components:
         legal_entity_id:
           type: string
           format: uuid
-          description: Same-tenant Legal Entity organizational unit assigned to this customer
+          description: |
+            Same-tenant Legal Entity organizational unit explicitly assigned to this customer.
+            No default Legal Entity assignment is permitted for existing customers; backfill
+            requires a product-approved deterministic tenant-consistent rule.
           example: '770e8400-e29b-41d4-a716-446655440000'
         vat_id:
           type: [string, 'null']
@@ -5507,6 +5515,32 @@ components:
           type: [object, 'null']
           additionalProperties: true
           example: { 'industry': 'retail' }
+      x-validation-examples:
+        accepted:
+          - name: Explicit Legal Entity from the customer's tenant
+            customer_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            legal_entity_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            value:
+              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+              name: ACME Corporation GmbH
+              billing_address:
+                street: Hauptstraße 123
+                city: Berlin
+                postal_code: '10115'
+                country: DE
+        rejected:
+          - name: Legal Entity from another tenant
+            customer_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            legal_entity_tenant_id: '660e8400-e29b-41d4-a716-446655440002'
+            status: 422
+            value:
+              legal_entity_id: '770e8400-e29b-41d4-a716-446655440002'
+              name: ACME Corporation GmbH
+              billing_address:
+                street: Hauptstraße 123
+                city: Berlin
+                postal_code: '10115'
+                country: DE
 
     CustomerUpdateRequest:
       type: object
@@ -5537,6 +5571,20 @@ components:
         metadata:
           type: [object, 'null']
           additionalProperties: true
+      x-validation-examples:
+        accepted:
+          - name: Reassign to a Legal Entity from the customer's tenant
+            customer_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            legal_entity_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            value:
+              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+        rejected:
+          - name: Reassign to a Legal Entity from another tenant
+            customer_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            legal_entity_tenant_id: '660e8400-e29b-41d4-a716-446655440002'
+            status: 422
+            value:
+              legal_entity_id: '770e8400-e29b-41d4-a716-446655440002'
 
     Site:
       type: object

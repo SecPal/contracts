@@ -256,11 +256,42 @@ if (
   )
 }
 
+for (const [schemaName, schema] of [
+  ['CustomerCreateRequest', customerCreateRequest],
+  ['CustomerUpdateRequest', customerUpdateRequest],
+]) {
+  const validationExamples = schema['x-validation-examples'] ?? {}
+  const acceptedExamples = validationExamples.accepted ?? []
+  const rejectedExamples = validationExamples.rejected ?? []
+  const hasSameTenantExample = acceptedExamples.some(
+    (example) =>
+      example?.customer_tenant_id &&
+      example.customer_tenant_id === example?.legal_entity_tenant_id &&
+      typeof example?.value?.legal_entity_id === 'string'
+  )
+  const hasCrossTenantRejection = rejectedExamples.some(
+    (example) =>
+      example?.customer_tenant_id &&
+      example.customer_tenant_id !== example?.legal_entity_tenant_id &&
+      typeof example?.value?.legal_entity_id === 'string' &&
+      example?.status === 422
+  )
+
+  if (!hasSameTenantExample || !hasCrossTenantRejection) {
+    contractErrors.push(
+      `${schemaName} must include accepted same-tenant and rejected cross-tenant Legal Entity assignment examples.`
+    )
+  }
+}
+
 const customerCreateDescription = paths['/customers']?.post?.description ?? ''
 const customerUpdateDescription =
   paths['/customers/{customer}']?.patch?.description ?? ''
 const legalEntitiesDescription =
   paths['/customers/legal-entities']?.get?.description ?? ''
+const customerDescription = customer.description ?? ''
+const customerLegalEntityDescription =
+  customer.properties?.legal_entity_id?.description ?? ''
 for (const [label, description, requiredPermission] of [
   ['POST /customers', customerCreateDescription, 'customers.create'],
   [
@@ -282,6 +313,22 @@ for (const [label, description, requiredPermission] of [
   ]) {
     if (!description.includes(requiredText)) {
       contractErrors.push(`${label} must document ${requiredText}.`)
+    }
+  }
+}
+
+for (const [label, description] of [
+  ['Customer', customerDescription],
+  ['Customer.legal_entity_id', customerLegalEntityDescription],
+]) {
+  for (const requiredText of [
+    'No default Legal Entity assignment',
+    'product-approved deterministic tenant-consistent rule',
+  ]) {
+    if (!description.includes(requiredText)) {
+      contractErrors.push(
+        `${label} must document the blocked no-default customer backfill invariant.`
+      )
     }
   }
 }
