@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Breaking:** Required `legal_entity_id` on customer responses and
+  `POST /customers` request payloads, and documented the narrow
+  `GET /customers/legal-entities` lookup for same-tenant, active,
+  non-deleted Legal Entity options with organizational write access (US-002).
 - Defined independent organizational-unit `is_active` (administrative status) and `is_assignable` (eligibility for new operational assignments, scopes, and related workflows) flags across response, create, update, and list-filter contracts (closes #338). Both response fields are required booleans and neither is derived from hierarchy, soft deletion, parent status, unit type, or the other flag; create requests default both omitted status fields to `true`, and deletion remains blocked by every non-deleted direct child regardless of its `is_active` value. This is an additive response change: clients generated from older contracts should regenerate types before relying on the fields, while clients that may deserialize cached or staged older responses must tolerate either newly documented field being absent until their deployment is fully aligned.
 - Documented the organizational-unit OpenAPI surface in `docs/openapi.yaml`, including all nine verified OU operations, reusable response/request/permissions/collection/pagination/conflict schemas, full-resource relationship shapes, PATCH-safe independent `is_legal_entity` and `is_establishment` boolean flags, the conditional custom type-name requirement, exact root-or-UUID filtering, tenant isolation, need-to-know parent filtering, policy behavior, type hierarchy validation, and semantic verified-endpoint guard coverage for the OU routes.
 - Added `npm test` as the standard contract-test entry point; it runs the repository's canonical lint and formatting validation pipeline (closes #339).

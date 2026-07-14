@@ -45,6 +45,7 @@ const REQUIRED_OPERATIONS = [
   ['get', '/organizational-units/{organizational_unit}/ancestors'],
   ['post', '/organizational-units/{organizational_unit}/parent'],
   ['delete', '/organizational-units/{organizational_unit}/parent/{parent}'],
+  ['get', '/customers/legal-entities'],
 ]
 
 const target = process.argv[2]
@@ -97,6 +98,9 @@ if (missing.length) {
 
 const schemas = doc?.components?.schemas ?? {}
 const responses = doc?.components?.responses ?? {}
+const customer = schemas.Customer ?? {}
+const customerCreateRequest = schemas.CustomerCreateRequest ?? {}
+const customerLegalEntityLookup = schemas.CustomerLegalEntityLookup ?? {}
 const organizationalUnit = schemas.OrganizationalUnit ?? {}
 const createRequest = schemas.OrganizationalUnitCreateRequest ?? {}
 const updateRequest = schemas.OrganizationalUnitUpdateRequest ?? {}
@@ -106,6 +110,84 @@ const parentIdParameter = paths['/organizational-units']?.get?.parameters?.find(
 const organizationalUnitListParameters =
   paths['/organizational-units']?.get?.parameters ?? []
 const contractErrors = []
+
+if (
+  !customer.required?.includes('legal_entity_id') ||
+  customer.properties?.legal_entity_id?.type !== 'string' ||
+  customer.properties?.legal_entity_id?.format !== 'uuid'
+) {
+  contractErrors.push(
+    'Customer.legal_entity_id must be a required UUID response field.'
+  )
+}
+
+if (
+  !customerCreateRequest.required?.includes('legal_entity_id') ||
+  customerCreateRequest.properties?.legal_entity_id?.type !== 'string' ||
+  customerCreateRequest.properties?.legal_entity_id?.format !== 'uuid'
+) {
+  contractErrors.push(
+    'CustomerCreateRequest.legal_entity_id must be a required UUID request field.'
+  )
+}
+
+const legalEntityLookupProperties = Object.keys(
+  customerLegalEntityLookup.properties ?? {}
+)
+const legalEntityLookupAllowed = new Set(['id', 'name'])
+if (
+  customerLegalEntityLookup.type !== 'object' ||
+  legalEntityLookupProperties.some(
+    (property) => !legalEntityLookupAllowed.has(property)
+  ) ||
+  !customerLegalEntityLookup.required?.includes('id') ||
+  !customerLegalEntityLookup.required?.includes('name') ||
+  customerLegalEntityLookup.properties?.id?.type !== 'string' ||
+  customerLegalEntityLookup.properties?.id?.format !== 'uuid' ||
+  customerLegalEntityLookup.properties?.name?.type !== 'string'
+) {
+  contractErrors.push(
+    'CustomerLegalEntityLookup must expose only required id and name fields.'
+  )
+}
+
+const customerLegalEntitiesResponse =
+  paths['/customers/legal-entities']?.get?.responses?.['200']?.content?.[
+    'application/json'
+  ]?.schema
+const customerLegalEntitiesItems =
+  customerLegalEntitiesResponse?.properties?.data?.items
+if (
+  customerLegalEntitiesResponse?.type !== 'object' ||
+  !customerLegalEntitiesResponse?.required?.includes('data') ||
+  customerLegalEntitiesResponse?.properties?.data?.type !== 'array' ||
+  customerLegalEntitiesItems?.$ref !==
+    '#/components/schemas/CustomerLegalEntityLookup'
+) {
+  contractErrors.push(
+    'GET /customers/legal-entities must return data[] of CustomerLegalEntityLookup.'
+  )
+}
+
+const customerCreateDescription = paths['/customers']?.post?.description ?? ''
+const legalEntitiesDescription =
+  paths['/customers/legal-entities']?.get?.description ?? ''
+for (const [label, description] of [
+  ['POST /customers', customerCreateDescription],
+  ['GET /customers/legal-entities', legalEntitiesDescription],
+]) {
+  for (const requiredText of [
+    'customers.create',
+    'same tenant',
+    'active',
+    'non-deleted Legal Entity',
+    'organizational write access',
+  ]) {
+    if (!description.includes(requiredText)) {
+      contractErrors.push(`${label} must document ${requiredText}.`)
+    }
+  }
+}
 
 for (const relationship of [
   'parent',
