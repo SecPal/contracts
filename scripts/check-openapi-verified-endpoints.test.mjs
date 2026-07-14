@@ -68,6 +68,22 @@ test('rejects contradictory accepted and rejected Legal Entity IDs', () => {
   assert.notEqual(result.status, 0, result.stdout)
 })
 
+for (const [kind, legalEntityId] of [
+  ['accepted', '770e8400-e29b-41d4-a716-446655440000'],
+  ['rejected', '770e8400-e29b-41d4-a716-446655440002'],
+]) {
+  test(`reports malformed ${kind} assignment examples without throwing`, () => {
+    const candidate = contract.replaceAll(
+      `            value:\n              legal_entity_id: '${legalEntityId}'`,
+      `            malformed_value:\n              legal_entity_id: '${legalEntityId}'`
+    )
+    const result = runGuard(candidate)
+
+    assert.equal(result.status, 1, result.stderr)
+    assert.doesNotMatch(result.stderr, /TypeError/)
+  })
+}
+
 test('compares Legal Entity UUIDs case-insensitively', () => {
   const candidate = contract.replaceAll(
     "legal_entity_id: '770e8400-e29b-41d4-a716-446655440002'",

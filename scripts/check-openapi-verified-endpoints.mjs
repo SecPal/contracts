@@ -386,8 +386,8 @@ for (const [schemaName, schema] of [
   const usesDistinctLegalEntities = acceptedExamples.every((accepted) =>
     rejectedExamples.every(
       (rejected) =>
-        normalizeUuid(accepted.value.legal_entity_id) !==
-        normalizeUuid(rejected.value.legal_entity_id)
+        normalizeUuid(accepted?.value?.legal_entity_id) !==
+        normalizeUuid(rejected?.value?.legal_entity_id)
     )
   )
 

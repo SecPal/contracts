@@ -15,7 +15,7 @@
   },
   "scripts": {
     "prevalidate": "bash scripts/check-redocly-cli-sync.sh && node scripts/check-markdownlint-toolchain.mjs && node scripts/check-dependabot-config.mjs",
-    "lint": "node --test scripts/*.test.mjs && redocly lint docs/openapi.yaml && node scripts/check-openapi-verified-endpoints.mjs docs/openapi.yaml",
+    "lint": "node --test && redocly lint docs/openapi.yaml && node scripts/check-openapi-verified-endpoints.mjs docs/openapi.yaml",
     "format": "prettier --write '**/*.{md,yml,yaml,json}'",
     "format:check": "prettier --check '**/*.{md,yml,yaml,json}'",
     "test": "npm run validate",
