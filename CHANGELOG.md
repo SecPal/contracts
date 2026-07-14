@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Defined the customer Legal Entity assignment contract: customer responses and
+  customer create/update payloads carry the explicit same-tenant
+  `legal_entity_id` relationship, while the contract explicitly prohibits a
+  default assignment for existing customers. Any backfill remains blocked until
+  a product-approved deterministic tenant-consistent rule is available.
+  Create and reassignment schemas include accepted same-tenant and rejected
+  cross-tenant validation examples (closes #351; parent epic
+  `SecPal/frontend#1391`).
 - Added the optional nullable customer `vat_id` field to customer responses and
   create/update request contracts.
 - **Breaking:** Required `legal_entity_id` on customer responses and
@@ -49,6 +57,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Strengthened the customer Legal Entity validation-example guard to reject
+  malformed tenant metadata, request-schema violations, non-UUID assignment
+  values, and contradictory accepted/rejected examples that reuse the same
+  Legal Entity identifier, including case-only UUID differences.
 - Strengthened the customer contract regression guard so `POST /customers`
   and `PATCH /customers/{customer}` must use their reusable request schemas,
   and customer list/create/read/update responses must continue to reference
