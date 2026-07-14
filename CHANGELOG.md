@@ -49,6 +49,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Strengthened the customer contract regression guard so `POST /customers`
+  and `PATCH /customers/{customer}` must use their reusable request schemas,
+  and customer list/create/read/update responses must continue to reference
+  the reusable `Customer` response schema.
 - Declared the least-privilege `contents: read` and `pull-requests: read` token permissions for the PR-size reusable-workflow caller and added a validation guard that rejects either scope being removed (closes #337)
 - Removed the tracked `.preflight-allow-large-pr` file left by the completed customer-and-site contract PR, so the documented gitignored local override once again requires an explicit, temporary opt-in for each exceptional large PR (closes #340)
 - Updated `scripts/preflight.sh` to run `npm ci` before the repo-local `node_modules/.bin/markdownlint` check when the pinned markdownlint toolchain is not installed yet, so fresh clones and post-lockfile updates can bootstrap validation successfully again

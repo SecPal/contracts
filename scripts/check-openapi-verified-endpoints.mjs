@@ -100,10 +100,13 @@ const schemas = doc?.components?.schemas ?? {}
 const responses = doc?.components?.responses ?? {}
 const customer = schemas.Customer ?? {}
 const customerCreateRequest = schemas.CustomerCreateRequest ?? {}
+const customerCreateRequestBody = paths['/customers']?.post?.requestBody ?? {}
+const customerCreateSchema =
+  customerCreateRequestBody?.content?.['application/json']?.schema ?? {}
+const customerUpdateRequestBody =
+  paths['/customers/{customer}']?.patch?.requestBody ?? {}
 const customerUpdateSchema =
-  paths['/customers/{customer}']?.patch?.requestBody?.content?.[
-    'application/json'
-  ]?.schema ?? {}
+  customerUpdateRequestBody?.content?.['application/json']?.schema ?? {}
 const customerLegalEntityLookup = schemas.CustomerLegalEntityLookup ?? {}
 const customerUpdateRequest = schemas.CustomerUpdateRequest ?? {}
 const organizationalUnit = schemas.OrganizationalUnit ?? {}
@@ -160,13 +163,45 @@ if (
 }
 
 if (
+  customerCreateRequestBody.required !== true ||
+  customerCreateSchema?.$ref !== '#/components/schemas/CustomerCreateRequest' ||
   !customerCreateRequest.required?.includes('legal_entity_id') ||
   customerCreateRequest.properties?.legal_entity_id?.type !== 'string' ||
   customerCreateRequest.properties?.legal_entity_id?.format !== 'uuid'
 ) {
   contractErrors.push(
-    'CustomerCreateRequest.legal_entity_id must be a required UUID request field.'
+    'POST /customers must require and reference CustomerCreateRequest with a required legal_entity_id UUID.'
   )
+}
+
+const customerResponseRef = '#/components/schemas/Customer'
+for (const [label, responseSchema] of [
+  [
+    'GET /customers',
+    paths['/customers']?.get?.responses?.['200']?.content?.['application/json']
+      ?.schema?.properties?.data?.items,
+  ],
+  [
+    'POST /customers',
+    paths['/customers']?.post?.responses?.['201']?.content?.['application/json']
+      ?.schema?.properties?.data,
+  ],
+  [
+    'GET /customers/{customer}',
+    paths['/customers/{customer}']?.get?.responses?.['200']?.content?.[
+      'application/json'
+    ]?.schema?.properties?.data,
+  ],
+  [
+    'PATCH /customers/{customer}',
+    paths['/customers/{customer}']?.patch?.responses?.['200']?.content?.[
+      'application/json'
+    ]?.schema?.properties?.data,
+  ],
+]) {
+  if (responseSchema?.$ref !== customerResponseRef) {
+    contractErrors.push(`${label} must return the Customer schema.`)
+  }
 }
 
 const legalEntityLookupProperties = Object.keys(
@@ -210,14 +245,14 @@ if (
 }
 
 if (
-  customerUpdateSchema?.$ref !==
-    '#/components/schemas/CustomerUpdateRequest' ||
+  customerUpdateRequestBody.required !== true ||
+  customerUpdateSchema?.$ref !== '#/components/schemas/CustomerUpdateRequest' ||
   customerUpdateRequest.required?.includes('legal_entity_id') ||
   customerUpdateRequest.properties?.legal_entity_id?.type !== 'string' ||
   customerUpdateRequest.properties?.legal_entity_id?.format !== 'uuid'
 ) {
   contractErrors.push(
-    'PATCH /customers/{customer} must reference CustomerUpdateRequest with an optional legal_entity_id UUID.'
+    'PATCH /customers/{customer} must require and reference CustomerUpdateRequest with an optional legal_entity_id UUID.'
   )
 }
 
