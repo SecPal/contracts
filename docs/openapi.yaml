@@ -5402,6 +5402,11 @@ components:
           format: uuid
           description: Same-tenant Legal Entity organizational unit assigned to this customer
           example: '770e8400-e29b-41d4-a716-446655440000'
+        vat_id:
+          type: [string, 'null']
+          maxLength: 32
+          description: Customer VAT identification number
+          example: 'DE123456789'
         name:
           type: string
           maxLength: 255
@@ -5476,6 +5481,11 @@ components:
           format: uuid
           description: Same-tenant active, non-deleted Legal Entity organizational unit for the new customer
           example: '770e8400-e29b-41d4-a716-446655440000'
+        vat_id:
+          type: [string, 'null']
+          maxLength: 32
+          description: Customer VAT identification number
+          example: 'DE123456789'
         name:
           type: string
           maxLength: 255
@@ -9593,6 +9603,10 @@ paths:
                 name:
                   type: string
                   maxLength: 255
+                vat_id:
+                  type: [string, 'null']
+                  maxLength: 32
+                  description: Customer VAT identification number
                 billing_address:
                   $ref: '#/components/schemas/Address'
                 contact:

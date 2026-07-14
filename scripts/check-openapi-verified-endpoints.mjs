@@ -100,6 +100,10 @@ const schemas = doc?.components?.schemas ?? {}
 const responses = doc?.components?.responses ?? {}
 const customer = schemas.Customer ?? {}
 const customerCreateRequest = schemas.CustomerCreateRequest ?? {}
+const customerUpdateRequest =
+  paths['/customers/{customer}']?.patch?.requestBody?.content?.[
+    'application/json'
+  ]?.schema ?? {}
 const customerLegalEntityLookup = schemas.CustomerLegalEntityLookup ?? {}
 const organizationalUnit = schemas.OrganizationalUnit ?? {}
 const createRequest = schemas.OrganizationalUnitCreateRequest ?? {}
@@ -118,6 +122,30 @@ if (
 ) {
   contractErrors.push(
     'Customer.legal_entity_id must be a required UUID response field.'
+  )
+}
+
+const isNullableVatId = (schema) =>
+  Array.isArray(schema?.type) &&
+  schema.type.includes('string') &&
+  schema.type.includes('null') &&
+  schema.maxLength === 32
+
+if (!isNullableVatId(customer.properties?.vat_id)) {
+  contractErrors.push(
+    'Customer.vat_id must be a nullable string response field with maxLength 32.'
+  )
+}
+
+if (!isNullableVatId(customerCreateRequest.properties?.vat_id)) {
+  contractErrors.push(
+    'CustomerCreateRequest.vat_id must be an optional nullable string field with maxLength 32.'
+  )
+}
+
+if (!isNullableVatId(customerUpdateRequest.properties?.vat_id)) {
+  contractErrors.push(
+    'PATCH /customers/{customer} vat_id must be an optional nullable string field with maxLength 32.'
   )
 }
 

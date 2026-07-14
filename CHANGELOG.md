@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added the optional nullable customer `vat_id` field to customer responses and
+  create/update request contracts.
 - **Breaking:** Required `legal_entity_id` on customer responses and
   `POST /customers` request payloads, and documented the narrow
   `GET /customers/legal-entities` lookup for same-tenant, active,
