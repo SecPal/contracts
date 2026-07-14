@@ -55,9 +55,9 @@ test('defines organizational-unit filters as booleans', () => {
   }
 })
 
-test('rejects organizational-unit boolean filters without numeric wire encoding', () => {
+test('rejects organizational-unit boolean filters without dual wire encoding', () => {
   const candidate = contract.replaceAll(
-    'Query-string values must be `1` for `true` and `0` for `false`; textual `true` and `false` are not accepted.',
+    'Query-string values may be `1` or `true` for `true`, and `0` or `false` for `false`. No other values are accepted.',
     'Filter by independent administrative status.'
   )
   const result = runGuard(candidate)
@@ -72,11 +72,25 @@ test('rejects organizational-unit boolean filters without both numeric wire valu
   assert.notEqual(result.status, 0, result.stdout)
 })
 
-test('rejects organizational-unit boolean filters with inverted wire examples', () => {
+test('rejects organizational-unit boolean filters without both textual wire values', () => {
+  const candidate = contract.replaceAll("value: 'false'", "value: 'true'")
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+})
+
+test('rejects organizational-unit boolean filters with inverted numeric wire examples', () => {
   const candidate = contract
     .replaceAll("value: '1'", 'value: __placeholder__')
     .replaceAll("value: '0'", "value: '1'")
     .replaceAll('value: __placeholder__', "value: '0'")
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+})
+
+test('rejects organizational-unit boolean filters with unrelated wire values', () => {
+  const candidate = contract.replaceAll("value: 'false'", "value: 'yes'")
   const result = runGuard(candidate)
 
   assert.notEqual(result.status, 0, result.stdout)

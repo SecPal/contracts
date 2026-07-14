@@ -36,9 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Documented the `GET /organizational-units` `is_active` and `is_assignable`
-  boolean filters' numeric query encoding: clients send `1` for `true` and `0`
-  for `false`; textual boolean values are rejected (#348).
+- Documented interoperable `GET /organizational-units` `is_active` and
+  `is_assignable` boolean-query encodings: clients may send `1` or `true` for
+  `true`, and `0` or `false` for `false`; all other values are rejected (#358).
 - Documented organizational-unit PATCH validation: changing a unit to `type: custom` requires a non-blank `custom_type_name`, and callers cannot clear the name of an existing custom unit (#346).
 - Grouped `github-actions` Dependabot updates in `.github/dependabot.yml` under readable identifiers (`secpal-workflows`, `github-actions`, `third-party-actions`) and added a repo-local validation guard so future PR and branch names do not fall back to full reusable-workflow paths plus pinned SHAs.
 - Replaced the repo-local `markdownlint-cli2` pre-commit and preflight wiring with pinned `markdownlint-cli@0.49.0` usage so markdown validation now aligns with the shared `.github` governance baseline.

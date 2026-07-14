@@ -9121,7 +9121,7 @@ paths:
           required: false
           schema:
             type: boolean
-          description: Filter by independent administrative status. Query-string values must be `1` for `true` and `0` for `false`; textual `true` and `false` are not accepted.
+          description: Filter by independent administrative status. Query-string values may be `1` or `true` for `true`, and `0` or `false` for `false`. No other values are accepted.
           x-wire-examples:
             active:
               summary: Filter for active units.
@@ -9129,12 +9129,18 @@ paths:
             inactive:
               summary: Filter for inactive units.
               value: '0'
+            active_text:
+              summary: Filter for active units with textual encoding.
+              value: 'true'
+            inactive_text:
+              summary: Filter for inactive units with textual encoding.
+              value: 'false'
         - name: is_assignable
           in: query
           required: false
           schema:
             type: boolean
-          description: Filter by independent eligibility for new operational assignments, scopes, and related workflows. Query-string values must be `1` for `true` and `0` for `false`; textual `true` and `false` are not accepted.
+          description: Filter by independent eligibility for new operational assignments, scopes, and related workflows. Query-string values may be `1` or `true` for `true`, and `0` or `false` for `false`. No other values are accepted.
           x-wire-examples:
             assignable:
               summary: Filter for assignable units.
@@ -9142,6 +9148,12 @@ paths:
             unassignable:
               summary: Filter for unassignable units.
               value: '0'
+            assignable_text:
+              summary: Filter for assignable units with textual encoding.
+              value: 'true'
+            unassignable_text:
+              summary: Filter for unassignable units with textual encoding.
+              value: 'false'
       responses:
         '200':
           description: Organizational units retrieved successfully.

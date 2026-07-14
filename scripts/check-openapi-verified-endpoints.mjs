@@ -577,9 +577,21 @@ for (const flag of ['is_legal_entity', 'is_establishment']) {
   }
 }
 
-for (const [flag, trueExample, falseExample] of [
-  ['is_active', 'active', 'inactive'],
-  ['is_assignable', 'assignable', 'unassignable'],
+for (const [
+  flag,
+  numericTrueExample,
+  numericFalseExample,
+  textTrueExample,
+  textFalseExample,
+] of [
+  ['is_active', 'active', 'inactive', 'active_text', 'inactive_text'],
+  [
+    'is_assignable',
+    'assignable',
+    'unassignable',
+    'assignable_text',
+    'unassignable_text',
+  ],
 ]) {
   if (
     !organizationalUnit.required?.includes(flag) ||
@@ -628,14 +640,16 @@ for (const [flag, trueExample, falseExample] of [
   const wireExamples = parameter?.['x-wire-examples'] ?? {}
   if (
     !parameter?.description?.includes(
-      'Query-string values must be `1` for `true` and `0` for `false`; textual `true` and `false` are not accepted.'
+      'Query-string values may be `1` or `true` for `true`, and `0` or `false` for `false`. No other values are accepted.'
     ) ||
-    Object.keys(wireExamples).length !== 2 ||
-    wireExamples[trueExample]?.value !== '1' ||
-    wireExamples[falseExample]?.value !== '0'
+    Object.keys(wireExamples).length !== 4 ||
+    wireExamples[numericTrueExample]?.value !== '1' ||
+    wireExamples[numericFalseExample]?.value !== '0' ||
+    wireExamples[textTrueExample]?.value !== 'true' ||
+    wireExamples[textFalseExample]?.value !== 'false'
   ) {
     contractErrors.push(
-      `GET /organizational-units must document ${flag} true and false as query-string values 1 and 0.`
+      `GET /organizational-units must document ${flag} true and false as query-string values 1/true and 0/false only.`
     )
   }
 }
