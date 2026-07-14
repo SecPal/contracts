@@ -5380,6 +5380,7 @@ components:
       required:
         - id
         - customer_number
+        - legal_entity_id
         - name
         - billing_address
         - is_active
@@ -5396,6 +5397,16 @@ components:
           maxLength: 50
           description: Auto-generated customer number (KD-YYYY-####)
           example: 'KD-2025-0001'
+        legal_entity_id:
+          type: string
+          format: uuid
+          description: Same-tenant Legal Entity organizational unit assigned to this customer
+          example: '770e8400-e29b-41d4-a716-446655440000'
+        vat_id:
+          type: [string, 'null']
+          maxLength: 32
+          description: Customer VAT identification number
+          example: 'DE123456789'
         name:
           type: string
           maxLength: 255
@@ -5439,6 +5450,93 @@ components:
             - $ref: '#/components/schemas/NullableApiTimestamp'
           description: Soft deletion timestamp
           example: null
+
+    CustomerLegalEntityLookup:
+      type: object
+      additionalProperties: false
+      description: Minimal Legal Entity option for creating customers. This intentionally does not expose the general organizational-unit resource.
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Legal Entity organizational unit UUID
+          example: '770e8400-e29b-41d4-a716-446655440000'
+        name:
+          type: string
+          maxLength: 255
+          description: Display name for the Legal Entity option
+          example: 'SecPal GmbH'
+
+    CustomerCreateRequest:
+      type: object
+      required:
+        - legal_entity_id
+        - name
+        - billing_address
+      properties:
+        legal_entity_id:
+          type: string
+          format: uuid
+          description: Same-tenant active, assignable, non-deleted Legal Entity organizational unit for the new customer
+          example: '770e8400-e29b-41d4-a716-446655440000'
+        vat_id:
+          type: [string, 'null']
+          maxLength: 32
+          description: Customer VAT identification number
+          example: 'DE123456789'
+        name:
+          type: string
+          maxLength: 255
+          example: 'ACME Corporation GmbH'
+        billing_address:
+          $ref: '#/components/schemas/Address'
+        contact:
+          anyOf:
+            - $ref: '#/components/schemas/Contact'
+            - type: 'null'
+        is_active:
+          type: boolean
+          default: true
+        notes:
+          type: [string, 'null']
+          example: 'VIP customer'
+        metadata:
+          type: [object, 'null']
+          additionalProperties: true
+          example: { 'industry': 'retail' }
+
+    CustomerUpdateRequest:
+      type: object
+      properties:
+        legal_entity_id:
+          type: string
+          format: uuid
+          description: Target Legal Entity for reassignment. When different from the customer's current value, it must be same-tenant, active, assignable, and non-deleted.
+          example: '770e8400-e29b-41d4-a716-446655440000'
+        vat_id:
+          type: [string, 'null']
+          maxLength: 32
+          description: Customer VAT identification number
+          example: 'DE123456789'
+        name:
+          type: string
+          maxLength: 255
+        billing_address:
+          $ref: '#/components/schemas/Address'
+        contact:
+          anyOf:
+            - $ref: '#/components/schemas/Contact'
+            - type: 'null'
+        is_active:
+          type: boolean
+        notes:
+          type: [string, 'null']
+        metadata:
+          type: [object, 'null']
+          additionalProperties: true
 
     Site:
       type: object
@@ -9393,7 +9491,7 @@ paths:
       summary: Create Customer
       description: |
         Create a new customer. Customer number is auto-generated (KD-YYYY-####).
-        Requires customers.create permission.
+        Requires `customers.create`. The supplied `legal_entity_id` must be a same tenant, active, assignable, non-deleted Legal Entity organizational unit, and the caller must have organizational write access for that Legal Entity.
       operationId: createCustomer
       tags:
         - Customers
@@ -9404,26 +9502,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - name
-                - billing_address
-              properties:
-                name:
-                  type: string
-                  maxLength: 255
-                  example: 'ACME Corporation GmbH'
-                billing_address:
-                  $ref: '#/components/schemas/Address'
-                contact:
-                  $ref: '#/components/schemas/Contact'
-                notes:
-                  type: string
-                  example: 'VIP customer'
-                metadata:
-                  type: object
-                  additionalProperties: true
-                  example: { 'industry': 'retail' }
+              $ref: '#/components/schemas/CustomerCreateRequest'
       responses:
         '201':
           description: Customer created successfully
@@ -9444,6 +9523,40 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /customers/legal-entities:
+    get:
+      summary: List Customer Legal Entity Options
+      description: |
+        Return only the Legal Entity options allowed for customer creation.
+
+        Requires `customers.create`. Results are limited to same tenant, active, assignable, non-deleted Legal Entity organizational units for which the caller has organizational write access. The response is intentionally minimal and does not expose the general organizational-unit resource or hierarchy metadata.
+      operationId: listCustomerLegalEntities
+      tags:
+        - Customers
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Legal Entity options retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CustomerLegalEntityLookup'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -9498,7 +9611,7 @@ paths:
       summary: Update Customer
       description: |
         Update customer fields (PATCH semantics - all fields optional).
-        Requires customers.update permission and view access to customer.
+        Requires `customers.update` and view access to the customer. If `legal_entity_id` differs from the customer's current value, it must identify a same tenant, active, assignable, non-deleted Legal Entity organizational unit, and the caller must have organizational write access for that Legal Entity.
       operationId: updateCustomer
       tags:
         - Customers
@@ -9517,22 +9630,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                  maxLength: 255
-                billing_address:
-                  $ref: '#/components/schemas/Address'
-                contact:
-                  $ref: '#/components/schemas/Contact'
-                is_active:
-                  type: boolean
-                notes:
-                  type: string
-                metadata:
-                  type: object
-                  additionalProperties: true
+              $ref: '#/components/schemas/CustomerUpdateRequest'
       responses:
         '200':
           description: Customer updated successfully

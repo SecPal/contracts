@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added the optional nullable customer `vat_id` field to customer responses and
+  create/update request contracts.
+- **Breaking:** Required `legal_entity_id` on customer responses and
+  `POST /customers` request payloads, documented optional authorized
+  Legal Entity reassignment through `PATCH /customers/{customer}`, and documented the narrow
+  `GET /customers/legal-entities` lookup for same-tenant, active,
+  non-deleted Legal Entity options with organizational write access (US-002).
 - Defined independent organizational-unit `is_active` (administrative status) and `is_assignable` (eligibility for new operational assignments, scopes, and related workflows) flags across response, create, update, and list-filter contracts (closes #338). Both response fields are required booleans and neither is derived from hierarchy, soft deletion, parent status, unit type, or the other flag; create requests default both omitted status fields to `true`, and deletion remains blocked by every non-deleted direct child regardless of its `is_active` value. This is an additive response change: clients generated from older contracts should regenerate types before relying on the fields, while clients that may deserialize cached or staged older responses must tolerate either newly documented field being absent until their deployment is fully aligned.
 - Documented the organizational-unit OpenAPI surface in `docs/openapi.yaml`, including all nine verified OU operations, reusable response/request/permissions/collection/pagination/conflict schemas, full-resource relationship shapes, PATCH-safe independent `is_legal_entity` and `is_establishment` boolean flags, the conditional custom type-name requirement, exact root-or-UUID filtering, tenant isolation, need-to-know parent filtering, policy behavior, type hierarchy validation, and semantic verified-endpoint guard coverage for the OU routes.
 - Added `npm test` as the standard contract-test entry point; it runs the repository's canonical lint and formatting validation pipeline (closes #339).
@@ -42,6 +49,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Strengthened the customer contract regression guard so `POST /customers`
+  and `PATCH /customers/{customer}` must use their reusable request schemas,
+  and customer list/create/read/update responses must continue to reference
+  the reusable `Customer` response schema.
+- Aligned customer Legal Entity create, lookup, and reassignment semantics with
+  the API by documenting and guarding that eligible target units must also be
+  assignable.
 - Declared the least-privilege `contents: read` and `pull-requests: read` token permissions for the PR-size reusable-workflow caller and added a validation guard that rejects either scope being removed (closes #337)
 - Removed the tracked `.preflight-allow-large-pr` file left by the completed customer-and-site contract PR, so the documented gitignored local override once again requires an explicit, temporary opt-in for each exceptional large PR (closes #340)
 - Updated `scripts/preflight.sh` to run `npm ci` before the repo-local `node_modules/.bin/markdownlint` check when the pinned markdownlint toolchain is not installed yet, so fresh clones and post-lockfile updates can bootstrap validation successfully again
