@@ -621,6 +621,21 @@ for (const flag of ['is_active', 'is_assignable']) {
       `GET /organizational-units must define ${flag} as an optional boolean query filter.`
     )
   }
+
+  const wireExamples = Object.values(parameter?.['x-wire-examples'] ?? {})
+  const documentedWireValues = wireExamples.map((example) => example?.value)
+  if (
+    !parameter?.description?.includes(
+      'Query-string values must be `1` for `true` and `0` for `false`'
+    ) ||
+    documentedWireValues.length !== 2 ||
+    !documentedWireValues.includes('1') ||
+    !documentedWireValues.includes('0')
+  ) {
+    contractErrors.push(
+      `GET /organizational-units must document ${flag} true and false as query-string values 1 and 0.`
+    )
+  }
 }
 
 const parentIdAlternatives = parentIdParameter?.schema?.anyOf ?? []

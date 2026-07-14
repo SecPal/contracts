@@ -38,6 +38,23 @@ test('accepts the repository contract', () => {
   assert.equal(result.status, 0, result.stderr)
 })
 
+test('rejects organizational-unit boolean filters without numeric wire encoding', () => {
+  const candidate = contract.replaceAll(
+    'Query-string values must be `1` for `true` and `0` for `false`; textual `true` and `false` are not accepted.',
+    'Filter by independent administrative status.'
+  )
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+})
+
+test('rejects organizational-unit boolean filters without both numeric wire values', () => {
+  const candidate = contract.replaceAll("value: '0'", "value: '1'")
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+})
+
 test('accepts schema-valid nullable example fields', () => {
   const candidate = contract.replaceAll(
     '              name: ACME Corporation GmbH\n',
