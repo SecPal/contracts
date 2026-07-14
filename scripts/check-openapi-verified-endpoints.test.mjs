@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import * as yaml from 'js-yaml'
 
 const guardPath = fileURLToPath(
   new URL('./check-openapi-verified-endpoints.mjs', import.meta.url)
@@ -17,6 +18,10 @@ const contractPath = fileURLToPath(
   new URL('../docs/openapi.yaml', import.meta.url)
 )
 const contract = readFileSync(contractPath, 'utf8')
+
+const parsedContract = yaml.load(contract)
+const organizationalUnitListParameters =
+  parsedContract.paths['/organizational-units'].get.parameters
 
 function runGuard(source) {
   const directory = mkdtempSync(join(tmpdir(), 'verified-endpoints-'))
@@ -38,6 +43,18 @@ test('accepts the repository contract', () => {
   assert.equal(result.status, 0, result.stderr)
 })
 
+test('defines organizational-unit filters as booleans', () => {
+  for (const name of ['is_active', 'is_assignable']) {
+    const parameter = organizationalUnitListParameters.find(
+      (candidate) => candidate.name === name && candidate.in === 'query'
+    )
+
+    assert.deepEqual(parameter.schema, {
+      type: 'boolean',
+    })
+  }
+})
+
 test('rejects organizational-unit boolean filters without numeric wire encoding', () => {
   const candidate = contract.replaceAll(
     'Query-string values must be `1` for `true` and `0` for `false`; textual `true` and `false` are not accepted.',
@@ -50,6 +67,16 @@ test('rejects organizational-unit boolean filters without numeric wire encoding'
 
 test('rejects organizational-unit boolean filters without both numeric wire values', () => {
   const candidate = contract.replaceAll("value: '0'", "value: '1'")
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+})
+
+test('rejects organizational-unit boolean filters with inverted wire examples', () => {
+  const candidate = contract
+    .replaceAll("value: '1'", 'value: __placeholder__')
+    .replaceAll("value: '0'", "value: '1'")
+    .replaceAll('value: __placeholder__', "value: '0'")
   const result = runGuard(candidate)
 
   assert.notEqual(result.status, 0, result.stdout)
