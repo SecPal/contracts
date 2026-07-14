@@ -135,6 +135,98 @@ const isNullableVatId = (schema) =>
   schema.type.includes('null') &&
   schema.maxLength === 32
 
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const isUuid = (value) => typeof value === 'string' && uuidPattern.test(value)
+const normalizeUuid = (value) =>
+  typeof value === 'string' ? value.toLowerCase() : value
+
+function matchesType(type, value) {
+  if (type === 'null') return value === null
+  if (type === 'string') return typeof value === 'string'
+  if (type === 'boolean') return typeof value === 'boolean'
+  if (type === 'integer') return Number.isInteger(value)
+  if (type === 'number') return typeof value === 'number'
+  if (type === 'array') return Array.isArray(value)
+  if (type === 'object') {
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+  }
+  return false
+}
+
+function matchesSchema(schema, value) {
+  if (!schema || typeof schema !== 'object') return false
+
+  if (schema.$ref) {
+    const prefix = '#/components/schemas/'
+    if (!schema.$ref.startsWith(prefix)) return false
+    return matchesSchema(schemas[schema.$ref.slice(prefix.length)], value)
+  }
+  if (
+    schema.anyOf &&
+    !schema.anyOf.some((entry) => matchesSchema(entry, value))
+  ) {
+    return false
+  }
+  if (
+    schema.allOf &&
+    !schema.allOf.every((entry) => matchesSchema(entry, value))
+  ) {
+    return false
+  }
+  if (Object.hasOwn(schema, 'const') && value !== schema.const) return false
+  if (schema.enum && !schema.enum.includes(value)) return false
+
+  const declaredTypes = Array.isArray(schema.type)
+    ? schema.type
+    : schema.type
+      ? [schema.type]
+      : []
+  if (
+    declaredTypes.length > 0 &&
+    !declaredTypes.some((type) => matchesType(type, value))
+  ) {
+    return false
+  }
+  if (value === null) {
+    return declaredTypes.length === 0 || declaredTypes.includes('null')
+  }
+
+  if (typeof value === 'string') {
+    if (schema.minLength !== undefined && value.length < schema.minLength)
+      return false
+    if (schema.maxLength !== undefined && value.length > schema.maxLength)
+      return false
+    if (schema.pattern && !new RegExp(schema.pattern).test(value)) return false
+    if (schema.format === 'uuid' && !isUuid(value)) return false
+  }
+  if (typeof value === 'number') {
+    if (schema.minimum !== undefined && value < schema.minimum) return false
+    if (schema.maximum !== undefined && value > schema.maximum) return false
+  }
+  if (Array.isArray(value) && schema.items) {
+    if (!value.every((entry) => matchesSchema(schema.items, entry)))
+      return false
+  }
+  if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    if (
+      (schema.required ?? []).some(
+        (property) => !Object.hasOwn(value, property)
+      )
+    ) {
+      return false
+    }
+    for (const [property, propertyValue] of Object.entries(value)) {
+      const propertySchema = schema.properties?.[property]
+      if (propertySchema && !matchesSchema(propertySchema, propertyValue))
+        return false
+      if (!propertySchema && schema.additionalProperties === false) return false
+    }
+  }
+
+  return true
+}
+
 if (
   customer.required?.includes('vat_id') ||
   !isNullableVatId(customer.properties?.vat_id)
@@ -261,25 +353,51 @@ for (const [schemaName, schema] of [
   ['CustomerUpdateRequest', customerUpdateRequest],
 ]) {
   const validationExamples = schema['x-validation-examples'] ?? {}
-  const acceptedExamples = validationExamples.accepted ?? []
-  const rejectedExamples = validationExamples.rejected ?? []
-  const hasSameTenantExample = acceptedExamples.some(
-    (example) =>
-      example?.customer_tenant_id &&
-      example.customer_tenant_id === example?.legal_entity_tenant_id &&
-      typeof example?.value?.legal_entity_id === 'string'
-  )
-  const hasCrossTenantRejection = rejectedExamples.some(
-    (example) =>
-      example?.customer_tenant_id &&
-      example.customer_tenant_id !== example?.legal_entity_tenant_id &&
-      typeof example?.value?.legal_entity_id === 'string' &&
-      example?.status === 422
+  const acceptedExamples = Array.isArray(validationExamples.accepted)
+    ? validationExamples.accepted
+    : []
+  const rejectedExamples = Array.isArray(validationExamples.rejected)
+    ? validationExamples.rejected
+    : []
+  const isAssignmentExample = (example) =>
+    typeof example?.name === 'string' &&
+    example.name.trim().length > 0 &&
+    isUuid(example?.customer_tenant_id) &&
+    isUuid(example?.legal_entity_tenant_id) &&
+    isUuid(example?.value?.legal_entity_id) &&
+    matchesSchema(schema, example?.value)
+  const hasOnlySameTenantExamples =
+    acceptedExamples.length > 0 &&
+    acceptedExamples.every(
+      (example) =>
+        isAssignmentExample(example) &&
+        normalizeUuid(example.customer_tenant_id) ===
+          normalizeUuid(example.legal_entity_tenant_id)
+    )
+  const hasOnlyCrossTenantRejections =
+    rejectedExamples.length > 0 &&
+    rejectedExamples.every(
+      (example) =>
+        isAssignmentExample(example) &&
+        normalizeUuid(example.customer_tenant_id) !==
+          normalizeUuid(example.legal_entity_tenant_id) &&
+        example.status === 422
+    )
+  const usesDistinctLegalEntities = acceptedExamples.every((accepted) =>
+    rejectedExamples.every(
+      (rejected) =>
+        normalizeUuid(accepted.value.legal_entity_id) !==
+        normalizeUuid(rejected.value.legal_entity_id)
+    )
   )
 
-  if (!hasSameTenantExample || !hasCrossTenantRejection) {
+  if (
+    !hasOnlySameTenantExamples ||
+    !hasOnlyCrossTenantRejections ||
+    !usesDistinctLegalEntities
+  ) {
     contractErrors.push(
-      `${schemaName} must include accepted same-tenant and rejected cross-tenant Legal Entity assignment examples.`
+      `${schemaName} must include structurally valid accepted same-tenant and rejected cross-tenant Legal Entity assignment examples with distinct UUIDs.`
     )
   }
 }

@@ -57,6 +57,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Strengthened the customer Legal Entity validation-example guard to reject
+  malformed tenant metadata, request-schema violations, non-UUID assignment
+  values, and contradictory accepted/rejected examples that reuse the same
+  Legal Entity identifier, including case-only UUID differences.
 - Strengthened the customer contract regression guard so `POST /customers`
   and `PATCH /customers/{customer}` must use their reusable request schemas,
   and customer list/create/read/update responses must continue to reference
