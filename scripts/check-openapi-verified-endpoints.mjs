@@ -131,13 +131,19 @@ const isNullableVatId = (schema) =>
   schema.type.includes('null') &&
   schema.maxLength === 32
 
-if (!isNullableVatId(customer.properties?.vat_id)) {
+if (
+  customer.required?.includes('vat_id') ||
+  !isNullableVatId(customer.properties?.vat_id)
+) {
   contractErrors.push(
     'Customer.vat_id must be a nullable string response field with maxLength 32.'
   )
 }
 
-if (!isNullableVatId(customerCreateRequest.properties?.vat_id)) {
+if (
+  customerCreateRequest.required?.includes('vat_id') ||
+  !isNullableVatId(customerCreateRequest.properties?.vat_id)
+) {
   contractErrors.push(
     'CustomerCreateRequest.vat_id must be an optional nullable string field with maxLength 32.'
   )
