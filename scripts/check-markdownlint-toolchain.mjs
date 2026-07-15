@@ -20,6 +20,10 @@ const preCommitConfig = readFileSync(
   "utf8",
 );
 const preflightScript = readFileSync(new URL("../scripts/preflight.sh", import.meta.url), "utf8");
+const setupScript = readFileSync(
+  new URL("../scripts/setup-pre-commit.sh", import.meta.url),
+  "utf8",
+);
 
 const declaredVersion = packageJson.devDependencies?.["markdownlint-cli"] ?? "";
 if (declaredVersion !== EXPECTED_VERSION) {
@@ -53,8 +57,8 @@ if (!hookMatch?.groups?.hook) {
 
 const hook = hookMatch.groups.hook;
 
-if (!hook.includes("entry: node_modules/.bin/markdownlint")) {
-  fail("the markdownlint pre-commit hook must invoke the locked local markdownlint binary.");
+if (!hook.includes("entry: node node_modules/markdownlint-cli/markdownlint.js")) {
+  fail("the markdownlint pre-commit hook must invoke its locked JavaScript entrypoint.");
 }
 
 if (!hook.includes("language: system")) {
@@ -67,6 +71,20 @@ if (hook.includes("additional_dependencies:")) {
 
 if (hook.includes("npx ")) {
   fail("the markdownlint pre-commit hook must not shell out through npx.");
+}
+
+if (!preCommitConfig.includes("entry: node node_modules/prettier/bin/prettier.cjs")) {
+  fail("the Prettier pre-commit hook must invoke its locked JavaScript entrypoint.");
+}
+
+if (!setupScript.includes('cd "$ROOT_DIR"')) {
+  fail("scripts/setup-pre-commit.sh must run from the repository root.");
+}
+
+const npmCiIndex = setupScript.search(/^npm ci$/m);
+const installHooksIndex = setupScript.search(/^pre-commit install --install-hooks$/m);
+if (npmCiIndex === -1 || installHooksIndex === -1 || npmCiIndex > installHooksIndex) {
+  fail("scripts/setup-pre-commit.sh must run npm ci before installing hooks.");
 }
 
 if (!preflightScript.includes("node_modules/.bin/markdownlint")) {

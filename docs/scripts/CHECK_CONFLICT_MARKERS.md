@@ -46,6 +46,7 @@ The script runs automatically in CI via GitHub Actions on every PR and push to `
 ### Pre-commit Hook
 
 > **Performance Note:**
+>
 > By default, `check-conflict-markers.sh` scans **all tracked files** in the repository.
 > For large repositories, this can be slow when used as a pre-commit hook.
 
@@ -79,6 +80,7 @@ fi
 ```
 
 > **Tip:**
+>
 > The staged-files approach is much faster, but will only catch conflict markers in files you are about to commit.
 
 ## Detected Patterns
