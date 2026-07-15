@@ -60,6 +60,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Switched the Prettier and markdownlint pre-commit hooks to the pinned
+  repository-local toolchain so `pre-commit run --all-files` runs cleanly with
+  npm 12; removed trailing whitespace from the conflict-marker script
+  documentation so the formatting baseline is clean (closes #364, #366).
 - Strengthened the customer Legal Entity validation-example guard to reject
   malformed tenant metadata, request-schema violations, non-UUID assignment
   values, and contradictory accepted/rejected examples that reuse the same

@@ -53,26 +53,16 @@ if (!hookMatch?.groups?.hook) {
 
 const hook = hookMatch.groups.hook;
 
-if (!hook.includes("entry: markdownlint")) {
-  fail("the markdownlint pre-commit hook must invoke the markdownlint entrypoint directly.");
+if (!hook.includes("entry: node_modules/.bin/markdownlint")) {
+  fail("the markdownlint pre-commit hook must invoke the locked local markdownlint binary.");
 }
 
-if (!hook.includes("language: node")) {
-  fail("the markdownlint pre-commit hook must use language: node.");
+if (!hook.includes("language: system")) {
+  fail("the markdownlint pre-commit hook must use the repository-local toolchain.");
 }
 
-if (!hook.includes("additional_dependencies:")) {
-  fail("the markdownlint pre-commit hook must declare additional_dependencies.");
-}
-
-if (!hook.includes(`- markdownlint-cli@${EXPECTED_VERSION}`)) {
-  fail(
-    `the markdownlint pre-commit hook must pin additional_dependencies to markdownlint-cli@${EXPECTED_VERSION}.`,
-  );
-}
-
-if (hook.includes("language: system")) {
-  fail("the markdownlint pre-commit hook must not use language: system.");
+if (hook.includes("additional_dependencies:")) {
+  fail("the markdownlint pre-commit hook must not install a separate dependency tree.");
 }
 
 if (hook.includes("npx ")) {
