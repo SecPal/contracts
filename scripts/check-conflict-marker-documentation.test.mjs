@@ -10,22 +10,12 @@ import { fileURLToPath } from "node:url";
 const documentationPath = fileURLToPath(
   new URL("../docs/scripts/CHECK_CONFLICT_MARKERS.md", import.meta.url),
 );
-const conflictPatterns = [
-  "<<<<<<< ",
-  "======= ",
-  "=======\n",
-  "=======\r\n",
-  ">>>>>>> ",
-];
+const conflictMarkerPattern = /^(?:<<<<<<< |=======(?: |$)|>>>>>>> )/u;
 
 function conflictMarkerLines(source) {
-  return source
-    .match(/.*(?:\r?\n|$)/gu)
-    .flatMap((line, index) =>
-      conflictPatterns.some((pattern) => line.startsWith(pattern))
-        ? [index + 1]
-        : [],
-    );
+  return source.split(/\r?\n/u).flatMap((line, index) =>
+    conflictMarkerPattern.test(line) ? [index + 1] : [],
+  );
 }
 
 test("accepts the documented conflict-marker example", () => {
@@ -45,4 +35,8 @@ test("detects real unindented conflict markers", () => {
     ].join("\n") + "\n";
 
   assert.deepEqual(conflictMarkerLines(unresolvedConflict), [1, 3, 5]);
+});
+
+test("detects an unterminated separator marker", () => {
+  assert.deepEqual(conflictMarkerLines("======="), [1]);
 });
