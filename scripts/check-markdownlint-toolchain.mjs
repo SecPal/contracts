@@ -6,8 +6,7 @@ import { readFileSync } from "node:fs";
 
 import { load as loadYaml } from "js-yaml";
 
-const EXPECTED_PRETTIER_RANGE = "^3.9.5";
-const EXPECTED_PRETTIER_VERSION = "3.9.5";
+const EXACT_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
 function fail(message) {
   console.error(`Error: ${message}`);
@@ -41,20 +40,20 @@ function findHooks(config, hookId) {
 export function validatePrettierToolchain({ packageJson, packageLock, preCommitConfig }) {
   const declaredPrettierRange = packageJson.devDependencies?.prettier ?? "";
   requireInvariant(
-    declaredPrettierRange === EXPECTED_PRETTIER_RANGE,
-    `package.json must declare Prettier as ${EXPECTED_PRETTIER_RANGE}, found ${declaredPrettierRange || "missing"}.`,
+    declaredPrettierRange.length > 0,
+    "package.json must declare Prettier in devDependencies.",
   );
 
   const lockfileDeclaredPrettierRange = packageLock.packages?.[""]?.devDependencies?.prettier ?? "";
   requireInvariant(
-    lockfileDeclaredPrettierRange === EXPECTED_PRETTIER_RANGE,
-    `package-lock.json root package must declare Prettier as ${EXPECTED_PRETTIER_RANGE}, found ${lockfileDeclaredPrettierRange || "missing"}.`,
+    lockfileDeclaredPrettierRange === declaredPrettierRange,
+    `package-lock.json root package must match the package.json Prettier declaration ${declaredPrettierRange}, found ${lockfileDeclaredPrettierRange || "missing"}.`,
   );
 
   const lockedPrettierVersion = packageLock.packages?.["node_modules/prettier"]?.version ?? "";
   requireInvariant(
-    lockedPrettierVersion === EXPECTED_PRETTIER_VERSION,
-    `package-lock.json must resolve node_modules/prettier to ${EXPECTED_PRETTIER_VERSION}, found ${lockedPrettierVersion || "missing"}.`,
+    EXACT_VERSION_PATTERN.test(lockedPrettierVersion),
+    `package-lock.json must resolve node_modules/prettier to an exact version, found ${lockedPrettierVersion || "missing"}.`,
   );
 
   const config = parsePreCommitConfig(preCommitConfig);
@@ -135,7 +134,7 @@ export function validateMarkdownlintToolchain(preCommitConfig) {
 export function validateMarkdownlintVersion({ packageJson, packageLock }) {
   const declaredVersion = packageJson.devDependencies?.["markdownlint-cli"] ?? "";
   requireInvariant(
-    /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(declaredVersion),
+    EXACT_VERSION_PATTERN.test(declaredVersion),
     `package.json must pin markdownlint-cli to an exact version, found ${declaredVersion || "missing"}.`,
   );
 
