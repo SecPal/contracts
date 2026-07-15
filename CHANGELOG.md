@@ -60,6 +60,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Indented the documented merge-conflict marker example so the pre-commit
+  conflict check continues to catch real unindented markers during a merge
+  without failing on its own documentation (closes #369).
 - Switched the Prettier and markdownlint pre-commit hooks to the pinned
   repository-local toolchain, made their entrypoints portable across operating
   systems, and bootstrapped dependencies during hook setup so
