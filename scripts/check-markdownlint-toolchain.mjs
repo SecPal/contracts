@@ -6,7 +6,6 @@ import { readFileSync } from "node:fs";
 
 import { load as loadYaml } from "js-yaml";
 
-const EXPECTED_MARKDOWNLINT_VERSION = "0.49.1";
 const EXPECTED_PRETTIER_RANGE = "^3.9.5";
 const EXPECTED_PRETTIER_VERSION = "3.9.5";
 
@@ -133,6 +132,28 @@ export function validateMarkdownlintToolchain(preCommitConfig) {
   );
 }
 
+export function validateMarkdownlintVersion({ packageJson, packageLock }) {
+  const declaredVersion = packageJson.devDependencies?.["markdownlint-cli"] ?? "";
+  requireInvariant(
+    /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(declaredVersion),
+    `package.json must pin markdownlint-cli to an exact version, found ${declaredVersion || "missing"}.`,
+  );
+
+  const lockfileDeclaredVersion =
+    packageLock.packages?.[""]?.devDependencies?.["markdownlint-cli"] ?? "";
+  requireInvariant(
+    lockfileDeclaredVersion === declaredVersion,
+    `package-lock.json root package must match the package.json pin ${declaredVersion}, found ${lockfileDeclaredVersion || "missing"}.`,
+  );
+
+  const lockedPackageVersion =
+    packageLock.packages?.["node_modules/markdownlint-cli"]?.version ?? "";
+  requireInvariant(
+    lockedPackageVersion === declaredVersion,
+    `package-lock.json node_modules/markdownlint-cli must match the package.json pin ${declaredVersion}, found ${lockedPackageVersion || "missing"}.`,
+  );
+}
+
 export function validateSetupScript(setupScript) {
   const rootDirChangeIndex = setupScript.search(/^cd "\$ROOT_DIR"$/m);
   requireInvariant(
@@ -165,30 +186,9 @@ const setupScript = readFileSync(
   "utf8",
 );
 
-const declaredVersion = packageJson.devDependencies?.["markdownlint-cli"] ?? "";
-if (declaredVersion !== EXPECTED_MARKDOWNLINT_VERSION) {
-  fail(
-    `package.json must pin markdownlint-cli to ${EXPECTED_MARKDOWNLINT_VERSION}, found ${declaredVersion || "missing"}.`,
-  );
-}
-
-const lockfileDeclaredVersion =
-  packageLock.packages?.[""]?.devDependencies?.["markdownlint-cli"] ?? "";
-if (lockfileDeclaredVersion !== EXPECTED_MARKDOWNLINT_VERSION) {
-  fail(
-    `package-lock.json root package must pin markdownlint-cli to ${EXPECTED_MARKDOWNLINT_VERSION}, found ${lockfileDeclaredVersion || "missing"}.`,
-  );
-}
-
-const lockedPackageVersion = packageLock.packages?.["node_modules/markdownlint-cli"]?.version ?? "";
-if (lockedPackageVersion !== EXPECTED_MARKDOWNLINT_VERSION) {
-  fail(
-    `package-lock.json must resolve node_modules/markdownlint-cli to ${EXPECTED_MARKDOWNLINT_VERSION}, found ${lockedPackageVersion || "missing"}.`,
-  );
-}
-
 try {
   validatePrettierToolchain({ packageJson, packageLock, preCommitConfig });
+  validateMarkdownlintVersion({ packageJson, packageLock });
   validateMarkdownlintToolchain(preCommitConfig);
   validateSetupScript(setupScript);
 } catch (error) {

@@ -7,6 +7,7 @@ import test from "node:test";
 
 import {
   validateMarkdownlintToolchain,
+  validateMarkdownlintVersion,
   validatePrettierToolchain,
   validateSetupScript,
 } from "./check-markdownlint-toolchain.mjs";
@@ -102,11 +103,40 @@ repos:
         entry: node node_modules/markdownlint-cli/markdownlint.js
         language: system
         additional_dependencies:
-          - markdownlint-cli@0.49.1`;
+          - markdownlint-cli`;
 
   assert.throws(
     () => validateMarkdownlintToolchain(config),
     /must not install a separate dependency tree/,
+  );
+});
+
+test("derives the markdownlint version from package.json", () => {
+  const manifest = { devDependencies: { "markdownlint-cli": "9.8.7" } };
+  const lockfile = {
+    packages: {
+      "": { devDependencies: { "markdownlint-cli": "9.8.7" } },
+      "node_modules/markdownlint-cli": { version: "9.8.7" },
+    },
+  };
+
+  assert.doesNotThrow(() =>
+    validateMarkdownlintVersion({ packageJson: manifest, packageLock: lockfile }),
+  );
+});
+
+test("rejects a markdownlint lockfile version that differs from package.json", () => {
+  const manifest = { devDependencies: { "markdownlint-cli": "9.8.7" } };
+  const lockfile = {
+    packages: {
+      "": { devDependencies: { "markdownlint-cli": "9.8.7" } },
+      "node_modules/markdownlint-cli": { version: "9.8.6" },
+    },
+  };
+
+  assert.throws(
+    () => validateMarkdownlintVersion({ packageJson: manifest, packageLock: lockfile }),
+    /must match the package.json pin 9\.8\.7/,
   );
 });
 

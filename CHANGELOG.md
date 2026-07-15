@@ -69,7 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   systems, bootstrapped dependencies during hook setup, and hardened the setup
   guard to require an active repository-root change before npm bootstrap;
   restored the `markdownlint-cli` 0.49.1 pin that the hook migration had
-  inadvertently reverted to 0.49.0, so
+  inadvertently reverted to 0.49.0 and made `package.json` the single version
+  source for its lockfile guard, so
   `pre-commit run --all-files` runs cleanly with npm 12; removed trailing
   whitespace from the conflict-marker script documentation while preserving
   its blockquote rendering (#363, #364, #366).
