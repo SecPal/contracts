@@ -6,9 +6,7 @@ import { readFileSync } from "node:fs";
 
 import { load as loadYaml } from "js-yaml";
 
-const EXPECTED_MARKDOWNLINT_VERSION = "0.49.0";
-const EXPECTED_PRETTIER_RANGE = "^3.9.5";
-const EXPECTED_PRETTIER_VERSION = "3.9.5";
+const EXACT_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
 function fail(message) {
   console.error(`Error: ${message}`);
@@ -42,20 +40,20 @@ function findHooks(config, hookId) {
 export function validatePrettierToolchain({ packageJson, packageLock, preCommitConfig }) {
   const declaredPrettierRange = packageJson.devDependencies?.prettier ?? "";
   requireInvariant(
-    declaredPrettierRange === EXPECTED_PRETTIER_RANGE,
-    `package.json must declare Prettier as ${EXPECTED_PRETTIER_RANGE}, found ${declaredPrettierRange || "missing"}.`,
+    declaredPrettierRange.length > 0,
+    "package.json must declare Prettier in devDependencies.",
   );
 
   const lockfileDeclaredPrettierRange = packageLock.packages?.[""]?.devDependencies?.prettier ?? "";
   requireInvariant(
-    lockfileDeclaredPrettierRange === EXPECTED_PRETTIER_RANGE,
-    `package-lock.json root package must declare Prettier as ${EXPECTED_PRETTIER_RANGE}, found ${lockfileDeclaredPrettierRange || "missing"}.`,
+    lockfileDeclaredPrettierRange === declaredPrettierRange,
+    `package-lock.json root package must match the package.json Prettier declaration ${declaredPrettierRange}, found ${lockfileDeclaredPrettierRange || "missing"}.`,
   );
 
   const lockedPrettierVersion = packageLock.packages?.["node_modules/prettier"]?.version ?? "";
   requireInvariant(
-    lockedPrettierVersion === EXPECTED_PRETTIER_VERSION,
-    `package-lock.json must resolve node_modules/prettier to ${EXPECTED_PRETTIER_VERSION}, found ${lockedPrettierVersion || "missing"}.`,
+    EXACT_VERSION_PATTERN.test(lockedPrettierVersion),
+    `package-lock.json must resolve node_modules/prettier to an exact version, found ${lockedPrettierVersion || "missing"}.`,
   );
 
   const config = parsePreCommitConfig(preCommitConfig);
@@ -133,6 +131,46 @@ export function validateMarkdownlintToolchain(preCommitConfig) {
   );
 }
 
+export function validateMarkdownlintVersion({ packageJson, packageLock }) {
+  const declaredVersion = packageJson.devDependencies?.["markdownlint-cli"] ?? "";
+  requireInvariant(
+    EXACT_VERSION_PATTERN.test(declaredVersion),
+    `package.json must pin markdownlint-cli to an exact version, found ${declaredVersion || "missing"}.`,
+  );
+
+  const lockfileDeclaredVersion =
+    packageLock.packages?.[""]?.devDependencies?.["markdownlint-cli"] ?? "";
+  requireInvariant(
+    lockfileDeclaredVersion === declaredVersion,
+    `package-lock.json root package must match the package.json pin ${declaredVersion}, found ${lockfileDeclaredVersion || "missing"}.`,
+  );
+
+  const lockedPackageVersion =
+    packageLock.packages?.["node_modules/markdownlint-cli"]?.version ?? "";
+  requireInvariant(
+    lockedPackageVersion === declaredVersion,
+    `package-lock.json node_modules/markdownlint-cli must match the package.json pin ${declaredVersion}, found ${lockedPackageVersion || "missing"}.`,
+  );
+}
+
+export function validateSetupScript(setupScript) {
+  const rootDirChangeIndex = setupScript.search(/^cd "\$ROOT_DIR"$/m);
+  requireInvariant(
+    rootDirChangeIndex !== -1,
+    "scripts/setup-pre-commit.sh must run from the repository root.",
+  );
+
+  const npmCiIndex = setupScript.search(/^npm ci$/m);
+  const installHooksIndex = setupScript.search(/^pre-commit install --install-hooks$/m);
+  requireInvariant(
+    npmCiIndex !== -1 &&
+      installHooksIndex !== -1 &&
+      rootDirChangeIndex < npmCiIndex &&
+      npmCiIndex < installHooksIndex,
+    "scripts/setup-pre-commit.sh must run npm ci from the repository root before installing hooks.",
+  );
+}
+
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const packageLock = JSON.parse(
   readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"),
@@ -147,43 +185,13 @@ const setupScript = readFileSync(
   "utf8",
 );
 
-const declaredVersion = packageJson.devDependencies?.["markdownlint-cli"] ?? "";
-if (declaredVersion !== EXPECTED_MARKDOWNLINT_VERSION) {
-  fail(
-    `package.json must pin markdownlint-cli to ${EXPECTED_MARKDOWNLINT_VERSION}, found ${declaredVersion || "missing"}.`,
-  );
-}
-
-const lockfileDeclaredVersion =
-  packageLock.packages?.[""]?.devDependencies?.["markdownlint-cli"] ?? "";
-if (lockfileDeclaredVersion !== EXPECTED_MARKDOWNLINT_VERSION) {
-  fail(
-    `package-lock.json root package must pin markdownlint-cli to ${EXPECTED_MARKDOWNLINT_VERSION}, found ${lockfileDeclaredVersion || "missing"}.`,
-  );
-}
-
-const lockedPackageVersion = packageLock.packages?.["node_modules/markdownlint-cli"]?.version ?? "";
-if (lockedPackageVersion !== EXPECTED_MARKDOWNLINT_VERSION) {
-  fail(
-    `package-lock.json must resolve node_modules/markdownlint-cli to ${EXPECTED_MARKDOWNLINT_VERSION}, found ${lockedPackageVersion || "missing"}.`,
-  );
-}
-
 try {
   validatePrettierToolchain({ packageJson, packageLock, preCommitConfig });
+  validateMarkdownlintVersion({ packageJson, packageLock });
   validateMarkdownlintToolchain(preCommitConfig);
+  validateSetupScript(setupScript);
 } catch (error) {
   fail(error.message);
-}
-
-if (!setupScript.includes('cd "$ROOT_DIR"')) {
-  fail("scripts/setup-pre-commit.sh must run from the repository root.");
-}
-
-const npmCiIndex = setupScript.search(/^npm ci$/m);
-const installHooksIndex = setupScript.search(/^pre-commit install --install-hooks$/m);
-if (npmCiIndex === -1 || installHooksIndex === -1 || npmCiIndex > installHooksIndex) {
-  fail("scripts/setup-pre-commit.sh must run npm ci before installing hooks.");
 }
 
 if (!preflightScript.includes("node_modules/.bin/markdownlint")) {

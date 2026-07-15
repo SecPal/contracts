@@ -66,10 +66,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   both documented and real markers (closes #369).
 - Switched the Prettier and markdownlint pre-commit hooks to the pinned
   repository-local toolchain, made their entrypoints portable across operating
-  systems, and bootstrapped dependencies during hook setup so
+  systems, bootstrapped dependencies during hook setup, and hardened the setup
+  guard to require an active repository-root change before npm bootstrap;
+  restored the `markdownlint-cli` 0.49.1 pin that the hook migration had
+  inadvertently reverted to 0.49.0 and made the `package.json` dependency
+  declarations the single source for the toolchain lockfile guards, so
   `pre-commit run --all-files` runs cleanly with npm 12; removed trailing
   whitespace from the conflict-marker script documentation while preserving
-  its blockquote rendering (#364, #366).
+  its blockquote rendering (#363, #364, #366).
 - Strengthened the customer Legal Entity validation-example guard to reject
   malformed tenant metadata, request-schema violations, non-UUID assignment
   values, and contradictory accepted/rejected examples that reuse the same

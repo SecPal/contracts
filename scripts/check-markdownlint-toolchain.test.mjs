@@ -7,13 +7,25 @@ import test from "node:test";
 
 import {
   validateMarkdownlintToolchain,
+  validateMarkdownlintVersion,
   validatePrettierToolchain,
+  validateSetupScript,
 } from "./check-markdownlint-toolchain.mjs";
 
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const packageLock = JSON.parse(
   readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"),
 );
+const markdownlintVersion = packageJson.devDependencies["markdownlint-cli"];
+const prettierRange = packageJson.devDependencies.prettier;
+const lockedPrettierVersion = packageLock.packages["node_modules/prettier"].version;
+
+function incrementPatch(version) {
+  return version.replace(
+    /^(\D*\d+\.\d+\.)(\d+)(.*)$/,
+    (_match, prefix, patch, suffix) => `${prefix}${Number(patch) + 1}${suffix}`,
+  );
+}
 
 const validHook = `---
 repos:
@@ -39,7 +51,7 @@ test("rejects additional dependencies after an explanatory comment", () => {
   const config = `${validHook}
         # This dependency would create a separate toolchain.
         additional_dependencies:
-          - prettier@3.9.5`;
+          - prettier`;
 
   assert.throws(() => validate(config), /must not configure a separate npm environment/);
 });
@@ -61,11 +73,29 @@ test("rejects a prefixed hook id", () => {
 
 test("rejects a mismatched root lockfile declaration", () => {
   const mismatchedLockfile = structuredClone(packageLock);
-  mismatchedLockfile.packages[""].devDependencies.prettier = "^3.9.4";
+  mismatchedLockfile.packages[""].devDependencies.prettier = `${prettierRange}-mismatch`;
 
   assert.throws(
     () => validate(validHook, mismatchedLockfile),
-    /package-lock.json root package must declare Prettier as \^3\.9\.5/,
+    /package-lock.json root package must match the package.json Prettier declaration/,
+  );
+});
+
+test("derives the Prettier versions from package.json and package-lock.json", () => {
+  const alternateRange = incrementPatch(prettierRange);
+  const alternateLockedVersion = incrementPatch(lockedPrettierVersion);
+  const manifest = structuredClone(packageJson);
+  const lockfile = structuredClone(packageLock);
+  manifest.devDependencies.prettier = alternateRange;
+  lockfile.packages[""].devDependencies.prettier = alternateRange;
+  lockfile.packages["node_modules/prettier"].version = alternateLockedVersion;
+
+  assert.doesNotThrow(() =>
+    validatePrettierToolchain({
+      packageJson: manifest,
+      packageLock: lockfile,
+      preCommitConfig: validHook,
+    }),
   );
 });
 
@@ -73,7 +103,7 @@ test("rejects the obsolete Prettier mirror", () => {
   const config = `---
 repos:
   - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v3.0.3
+    rev: obsolete
     hooks:
       - id: prettier`;
 
@@ -101,10 +131,65 @@ repos:
         entry: node node_modules/markdownlint-cli/markdownlint.js
         language: system
         additional_dependencies:
-          - markdownlint-cli@0.49.0`;
+          - markdownlint-cli`;
 
   assert.throws(
     () => validateMarkdownlintToolchain(config),
     /must not install a separate dependency tree/,
   );
+});
+
+test("derives the markdownlint version from package.json", () => {
+  const alternateVersion = incrementPatch(markdownlintVersion);
+  const manifest = { devDependencies: { "markdownlint-cli": alternateVersion } };
+  const lockfile = {
+    packages: {
+      "": { devDependencies: { "markdownlint-cli": alternateVersion } },
+      "node_modules/markdownlint-cli": { version: alternateVersion },
+    },
+  };
+
+  assert.doesNotThrow(() =>
+    validateMarkdownlintVersion({ packageJson: manifest, packageLock: lockfile }),
+  );
+});
+
+test("rejects a markdownlint lockfile version that differs from package.json", () => {
+  const alternateVersion = incrementPatch(markdownlintVersion);
+  const mismatchedVersion = incrementPatch(alternateVersion);
+  const manifest = { devDependencies: { "markdownlint-cli": alternateVersion } };
+  const lockfile = {
+    packages: {
+      "": { devDependencies: { "markdownlint-cli": alternateVersion } },
+      "node_modules/markdownlint-cli": { version: mismatchedVersion },
+    },
+  };
+
+  assert.throws(
+    () => validateMarkdownlintVersion({ packageJson: manifest, packageLock: lockfile }),
+    /must match the package.json pin/,
+  );
+});
+
+test("rejects a commented-out repository-root change", () => {
+  const setupScript = `#!/usr/bin/env bash
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+# cd "$ROOT_DIR"
+npm ci
+pre-commit install --install-hooks`;
+
+  assert.throws(
+    () => validateSetupScript(setupScript),
+    /must run from the repository root/,
+  );
+});
+
+test("accepts dependency bootstrap from the repository root", () => {
+  const setupScript = `#!/usr/bin/env bash
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+cd "$ROOT_DIR"
+npm ci
+pre-commit install --install-hooks`;
+
+  assert.doesNotThrow(() => validateSetupScript(setupScript));
 });
