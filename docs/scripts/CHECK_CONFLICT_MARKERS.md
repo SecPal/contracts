@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 SecPal Contributors
+SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 SPDX-License-Identifier: CC0-1.0
 -->
 
@@ -45,8 +45,9 @@ The script runs automatically in CI via GitHub Actions on every PR and push to `
 
 ### Pre-commit Hook
 
-> **Performance Note:**  
-> By default, `check-conflict-markers.sh` scans **all tracked files** in the repository.  
+> **Performance Note:**
+>
+> By default, `check-conflict-markers.sh` scans **all tracked files** in the repository.
 > For large repositories, this can be slow when used as a pre-commit hook.
 
 You have two options for pre-commit integration:
@@ -78,7 +79,8 @@ if [ -f scripts/check-conflict-markers.sh ]; then
 fi
 ```
 
-> **Tip:**  
+> **Tip:**
+>
 > The staged-files approach is much faster, but will only catch conflict markers in files you are about to commit.
 
 ## Detected Patterns

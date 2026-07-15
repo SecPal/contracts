@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# SPDX-FileCopyrightText: 2025 SecPal
+# SPDX-FileCopyrightText: 2025-2026 SecPal
 # SPDX-License-Identifier: MIT
 
 set -euo pipefail
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+cd "$ROOT_DIR"
 
 echo "🔧 Setting up pre-commit hooks for SecPal..."
 
@@ -23,6 +26,15 @@ if ! command -v pre-commit &>/dev/null; then
 	echo ""
 	exit 1
 fi
+
+# Install the locked Node toolchain used by local formatter hooks.
+if ! command -v npm &>/dev/null; then
+	echo "❌ npm is not installed. Install Node.js and npm before setting up hooks."
+	exit 1
+fi
+
+echo "📦 Installing locked Node dependencies..."
+npm ci
 
 # Install pre-commit hooks
 echo "📦 Installing pre-commit hooks..."
