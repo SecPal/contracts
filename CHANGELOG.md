@@ -66,7 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   both documented and real markers (closes #369).
 - Switched the Prettier and markdownlint pre-commit hooks to the pinned
   repository-local toolchain, made their entrypoints portable across operating
-  systems, and bootstrapped dependencies during hook setup so
+  systems, bootstrapped dependencies during hook setup, and hardened the setup
+  guard to require an active repository-root change before npm bootstrap so
   `pre-commit run --all-files` runs cleanly with npm 12; removed trailing
   whitespace from the conflict-marker script documentation while preserving
   its blockquote rendering (#363, #364, #366).

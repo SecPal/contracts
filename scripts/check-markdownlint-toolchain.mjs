@@ -133,6 +133,24 @@ export function validateMarkdownlintToolchain(preCommitConfig) {
   );
 }
 
+export function validateSetupScript(setupScript) {
+  const rootDirChangeIndex = setupScript.search(/^cd "\$ROOT_DIR"$/m);
+  requireInvariant(
+    rootDirChangeIndex !== -1,
+    "scripts/setup-pre-commit.sh must run from the repository root.",
+  );
+
+  const npmCiIndex = setupScript.search(/^npm ci$/m);
+  const installHooksIndex = setupScript.search(/^pre-commit install --install-hooks$/m);
+  requireInvariant(
+    npmCiIndex !== -1 &&
+      installHooksIndex !== -1 &&
+      rootDirChangeIndex < npmCiIndex &&
+      npmCiIndex < installHooksIndex,
+    "scripts/setup-pre-commit.sh must run npm ci from the repository root before installing hooks.",
+  );
+}
+
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const packageLock = JSON.parse(
   readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"),
@@ -172,18 +190,9 @@ if (lockedPackageVersion !== EXPECTED_MARKDOWNLINT_VERSION) {
 try {
   validatePrettierToolchain({ packageJson, packageLock, preCommitConfig });
   validateMarkdownlintToolchain(preCommitConfig);
+  validateSetupScript(setupScript);
 } catch (error) {
   fail(error.message);
-}
-
-if (!setupScript.includes('cd "$ROOT_DIR"')) {
-  fail("scripts/setup-pre-commit.sh must run from the repository root.");
-}
-
-const npmCiIndex = setupScript.search(/^npm ci$/m);
-const installHooksIndex = setupScript.search(/^pre-commit install --install-hooks$/m);
-if (npmCiIndex === -1 || installHooksIndex === -1 || npmCiIndex > installHooksIndex) {
-  fail("scripts/setup-pre-commit.sh must run npm ci before installing hooks.");
 }
 
 if (!preflightScript.includes("node_modules/.bin/markdownlint")) {

@@ -8,6 +8,7 @@ import test from "node:test";
 import {
   validateMarkdownlintToolchain,
   validatePrettierToolchain,
+  validateSetupScript,
 } from "./check-markdownlint-toolchain.mjs";
 
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
@@ -107,4 +108,27 @@ repos:
     () => validateMarkdownlintToolchain(config),
     /must not install a separate dependency tree/,
   );
+});
+
+test("rejects a commented-out repository-root change", () => {
+  const setupScript = `#!/usr/bin/env bash
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+# cd "$ROOT_DIR"
+npm ci
+pre-commit install --install-hooks`;
+
+  assert.throws(
+    () => validateSetupScript(setupScript),
+    /must run from the repository root/,
+  );
+});
+
+test("accepts dependency bootstrap from the repository root", () => {
+  const setupScript = `#!/usr/bin/env bash
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+cd "$ROOT_DIR"
+npm ci
+pre-commit install --install-hooks`;
+
+  assert.doesNotThrow(() => validateSetupScript(setupScript));
 });
