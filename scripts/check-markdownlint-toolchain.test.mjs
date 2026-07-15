@@ -102,7 +102,7 @@ repos:
         entry: node node_modules/markdownlint-cli/markdownlint.js
         language: system
         additional_dependencies:
-          - markdownlint-cli@0.49.0`;
+          - markdownlint-cli@0.49.1`;
 
   assert.throws(
     () => validateMarkdownlintToolchain(config),

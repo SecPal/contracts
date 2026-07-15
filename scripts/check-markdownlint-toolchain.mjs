@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 
 import { load as loadYaml } from "js-yaml";
 
-const EXPECTED_MARKDOWNLINT_VERSION = "0.49.0";
+const EXPECTED_MARKDOWNLINT_VERSION = "0.49.1";
 const EXPECTED_PRETTIER_RANGE = "^3.9.5";
 const EXPECTED_PRETTIER_VERSION = "3.9.5";
 
