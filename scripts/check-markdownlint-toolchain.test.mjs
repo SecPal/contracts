@@ -5,7 +5,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { validatePrettierToolchain } from "./check-markdownlint-toolchain.mjs";
+import {
+  validateMarkdownlintToolchain,
+  validatePrettierToolchain,
+} from "./check-markdownlint-toolchain.mjs";
 
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const packageLock = JSON.parse(
@@ -75,4 +78,33 @@ repos:
       - id: prettier`;
 
   assert.throws(() => validate(config), /must not use the obsolete mirrors-prettier hook/);
+});
+
+test("accepts the repository-local markdownlint hook at end of file", () => {
+  const config = `---
+repos:
+  - repo: local
+    hooks:
+      - id: markdownlint
+        entry: node node_modules/markdownlint-cli/markdownlint.js
+        language: system`;
+
+  assert.doesNotThrow(() => validateMarkdownlintToolchain(config));
+});
+
+test("rejects a markdownlint hook with a separate dependency tree", () => {
+  const config = `---
+repos:
+  - repo: local
+    hooks:
+      - id: markdownlint
+        entry: node node_modules/markdownlint-cli/markdownlint.js
+        language: system
+        additional_dependencies:
+          - markdownlint-cli@0.49.0`;
+
+  assert.throws(
+    () => validateMarkdownlintToolchain(config),
+    /must not install a separate dependency tree/,
+  );
 });

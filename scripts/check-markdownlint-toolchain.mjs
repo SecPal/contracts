@@ -21,6 +21,24 @@ function requireInvariant(condition, message) {
   }
 }
 
+function parsePreCommitConfig(preCommitConfig) {
+  try {
+    return loadYaml(preCommitConfig);
+  } catch (error) {
+    throw new Error(`could not parse .pre-commit-config.yaml: ${error.message}`, { cause: error });
+  }
+}
+
+function findHooks(config, hookId) {
+  const repositories = Array.isArray(config?.repos) ? config.repos : [];
+
+  return repositories.flatMap((repository) =>
+    (Array.isArray(repository?.hooks) ? repository.hooks : [])
+      .filter((hook) => hook?.id === hookId)
+      .map((hook) => ({ hook, repository: repository.repo })),
+  );
+}
+
 export function validatePrettierToolchain({ packageJson, packageLock, preCommitConfig }) {
   const declaredPrettierRange = packageJson.devDependencies?.prettier ?? "";
   requireInvariant(
@@ -40,13 +58,7 @@ export function validatePrettierToolchain({ packageJson, packageLock, preCommitC
     `package-lock.json must resolve node_modules/prettier to ${EXPECTED_PRETTIER_VERSION}, found ${lockedPrettierVersion || "missing"}.`,
   );
 
-  let config;
-  try {
-    config = loadYaml(preCommitConfig);
-  } catch (error) {
-    throw new Error(`could not parse .pre-commit-config.yaml: ${error.message}`, { cause: error });
-  }
-
+  const config = parsePreCommitConfig(preCommitConfig);
   const repositories = Array.isArray(config?.repos) ? config.repos : [];
   requireInvariant(
     !repositories.some((repository) =>
@@ -55,11 +67,7 @@ export function validatePrettierToolchain({ packageJson, packageLock, preCommitC
     ".pre-commit-config.yaml must not use the obsolete mirrors-prettier hook.",
   );
 
-  const prettierHooks = repositories.flatMap((repository) =>
-    (Array.isArray(repository?.hooks) ? repository.hooks : [])
-      .filter((hook) => hook?.id === "prettier")
-      .map((hook) => ({ hook, repository: repository.repo })),
-  );
+  const prettierHooks = findHooks(config, "prettier");
 
   requireInvariant(
     prettierHooks.length > 0,
@@ -87,6 +95,41 @@ export function validatePrettierToolchain({ packageJson, packageLock, preCommitC
     !Object.hasOwn(prettierHook, "additional_dependencies") &&
       !JSON.stringify(prettierHook).includes("--ignore-prepublish"),
     "the Prettier pre-commit hook must not configure a separate npm environment.",
+  );
+}
+
+export function validateMarkdownlintToolchain(preCommitConfig) {
+  const markdownlintHooks = findHooks(parsePreCommitConfig(preCommitConfig), "markdownlint");
+
+  requireInvariant(
+    markdownlintHooks.length > 0,
+    "could not locate the markdownlint hook in .pre-commit-config.yaml.",
+  );
+  requireInvariant(
+    markdownlintHooks.length === 1,
+    ".pre-commit-config.yaml must define exactly one markdownlint hook.",
+  );
+
+  const [{ hook: markdownlintHook, repository }] = markdownlintHooks;
+  requireInvariant(
+    repository === "local",
+    "the markdownlint pre-commit hook must use the repository-local toolchain.",
+  );
+  requireInvariant(
+    markdownlintHook.entry === "node node_modules/markdownlint-cli/markdownlint.js",
+    "the markdownlint pre-commit hook must invoke its locked JavaScript entrypoint.",
+  );
+  requireInvariant(
+    markdownlintHook.language === "system",
+    "the markdownlint pre-commit hook must use the repository-local toolchain.",
+  );
+  requireInvariant(
+    !Object.hasOwn(markdownlintHook, "additional_dependencies"),
+    "the markdownlint pre-commit hook must not install a separate dependency tree.",
+  );
+  requireInvariant(
+    !JSON.stringify(markdownlintHook).includes("npx "),
+    "the markdownlint pre-commit hook must not shell out through npx.",
   );
 }
 
@@ -128,34 +171,9 @@ if (lockedPackageVersion !== EXPECTED_MARKDOWNLINT_VERSION) {
 
 try {
   validatePrettierToolchain({ packageJson, packageLock, preCommitConfig });
+  validateMarkdownlintToolchain(preCommitConfig);
 } catch (error) {
   fail(error.message);
-}
-
-const markdownlintHookPattern =
-  /- id: markdownlint\b(?<hook>.*?)(?=\n\s*-\s+id:|\n\s*#\s|\n\s*-\s+repo:|\z)/s;
-const hookMatch = preCommitConfig.match(markdownlintHookPattern);
-
-if (!hookMatch?.groups?.hook) {
-  fail("could not locate the markdownlint hook in .pre-commit-config.yaml.");
-}
-
-const hook = hookMatch.groups.hook;
-
-if (!hook.includes("entry: node node_modules/markdownlint-cli/markdownlint.js")) {
-  fail("the markdownlint pre-commit hook must invoke its locked JavaScript entrypoint.");
-}
-
-if (!hook.includes("language: system")) {
-  fail("the markdownlint pre-commit hook must use the repository-local toolchain.");
-}
-
-if (hook.includes("additional_dependencies:")) {
-  fail("the markdownlint pre-commit hook must not install a separate dependency tree.");
-}
-
-if (hook.includes("npx ")) {
-  fail("the markdownlint pre-commit hook must not shell out through npx.");
 }
 
 if (!setupScript.includes('cd "$ROOT_DIR"')) {
