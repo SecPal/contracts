@@ -3,27 +3,26 @@
 // SPDX-License-Identifier: MIT
 
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const EXPECTED_VERSION = "0.49.0";
+const EXPECTED_VERSION = "0.49.1";
+const repositoryRoot = resolve(
+  process.argv[2] ?? fileURLToPath(new URL("../", import.meta.url)),
+);
 
 function fail(message) {
   console.error(`Error: ${message}`);
   process.exit(1);
 }
 
-const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+const packageJson = JSON.parse(readFileSync(`${repositoryRoot}/package.json`, "utf8"));
 const packageLock = JSON.parse(
-  readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"),
+  readFileSync(`${repositoryRoot}/package-lock.json`, "utf8"),
 );
-const preCommitConfig = readFileSync(
-  new URL("../.pre-commit-config.yaml", import.meta.url),
-  "utf8",
-);
-const preflightScript = readFileSync(new URL("../scripts/preflight.sh", import.meta.url), "utf8");
-const setupScript = readFileSync(
-  new URL("../scripts/setup-pre-commit.sh", import.meta.url),
-  "utf8",
-);
+const preCommitConfig = readFileSync(`${repositoryRoot}/.pre-commit-config.yaml`, "utf8");
+const preflightScript = readFileSync(`${repositoryRoot}/scripts/preflight.sh`, "utf8");
+const setupScript = readFileSync(`${repositoryRoot}/scripts/setup-pre-commit.sh`, "utf8");
 
 const declaredVersion = packageJson.devDependencies?.["markdownlint-cli"] ?? "";
 if (declaredVersion !== EXPECTED_VERSION) {
