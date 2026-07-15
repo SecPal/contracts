@@ -577,6 +577,13 @@ for (const flag of ['is_legal_entity', 'is_establishment']) {
   }
 }
 
+const allowedOrganizationalUnitBooleanWireValues = new Set([
+  '1',
+  '0',
+  'true',
+  'false',
+])
+
 for (const [
   flag,
   numericTrueExample,
@@ -642,14 +649,17 @@ for (const [
     !parameter?.description?.includes(
       'Query-string values may be `1` or `true` for `true`, and `0` or `false` for `false`. No other values are accepted.'
     ) ||
-    Object.keys(wireExamples).length !== 4 ||
     wireExamples[numericTrueExample]?.value !== '1' ||
     wireExamples[numericFalseExample]?.value !== '0' ||
     wireExamples[textTrueExample]?.value !== 'true' ||
-    wireExamples[textFalseExample]?.value !== 'false'
+    wireExamples[textFalseExample]?.value !== 'false' ||
+    Object.values(wireExamples).some(
+      (example) =>
+        !allowedOrganizationalUnitBooleanWireValues.has(example?.value)
+    )
   ) {
     contractErrors.push(
-      `GET /organizational-units must document ${flag} true and false as query-string values 1/true and 0/false only.`
+      `GET /organizational-units must document ${flag} query-string values as 1 or true for true and 0 or false for false, without unrelated values.`
     )
   }
 }

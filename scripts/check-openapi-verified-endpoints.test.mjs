@@ -89,11 +89,37 @@ test('rejects organizational-unit boolean filters with inverted numeric wire exa
   assert.notEqual(result.status, 0, result.stdout)
 })
 
-test('rejects organizational-unit boolean filters with unrelated wire values', () => {
-  const candidate = contract.replaceAll("value: 'false'", "value: 'yes'")
-  const result = runGuard(candidate)
+test('accepts additional organizational-unit wire examples with allowed values', () => {
+  const candidate = structuredClone(parsedContract)
 
-  assert.notEqual(result.status, 0, result.stdout)
+  for (const name of ['is_active', 'is_assignable']) {
+    const parameter = candidate.paths[
+      '/organizational-units'
+    ].get.parameters.find(
+      (entry) => entry.name === name && entry.in === 'query'
+    )
+    parameter['x-wire-examples'].additional_text_true = { value: 'true' }
+  }
+
+  const result = runGuard(yaml.dump(candidate))
+
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('rejects organizational-unit boolean filters with unrelated wire values', () => {
+  for (const name of ['is_active', 'is_assignable']) {
+    const candidate = structuredClone(parsedContract)
+    const parameter = candidate.paths[
+      '/organizational-units'
+    ].get.parameters.find(
+      (entry) => entry.name === name && entry.in === 'query'
+    )
+    parameter['x-wire-examples'].unsupported = { value: 'yes' }
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, `${name}: ${result.stdout}`)
+  }
 })
 
 test('accepts schema-valid nullable example fields', () => {
