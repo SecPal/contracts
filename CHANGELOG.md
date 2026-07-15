@@ -60,6 +60,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Configured the local Prettier and markdownlint pre-commit hooks to use the
+  repository's locked executables directly, avoiding the obsolete npm
+  `--ignore-prepublish` bootstrap option and restoring signed-commit support
+  with current npm releases (closes #363).
 - Strengthened the customer Legal Entity validation-example guard to reject
   malformed tenant metadata, request-schema violations, non-UUID assignment
   values, and contradictory accepted/rejected examples that reuse the same

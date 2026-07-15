@@ -4,7 +4,7 @@
 
 import { readFileSync } from "node:fs";
 
-const EXPECTED_VERSION = "0.49.0";
+const EXPECTED_VERSION = "0.49.1";
 
 function fail(message) {
   console.error(`Error: ${message}`);
@@ -53,30 +53,45 @@ if (!hookMatch?.groups?.hook) {
 
 const hook = hookMatch.groups.hook;
 
-if (!hook.includes("entry: markdownlint")) {
-  fail("the markdownlint pre-commit hook must invoke the markdownlint entrypoint directly.");
+if (!hook.includes("entry: ./node_modules/.bin/markdownlint")) {
+  fail("the markdownlint pre-commit hook must use the local locked markdownlint executable.");
 }
 
-if (!hook.includes("language: node")) {
-  fail("the markdownlint pre-commit hook must use language: node.");
+if (!hook.includes("language: system")) {
+  fail("the markdownlint pre-commit hook must use language: system.");
 }
 
-if (!hook.includes("additional_dependencies:")) {
-  fail("the markdownlint pre-commit hook must declare additional_dependencies.");
+if (hook.includes("language: node")) {
+  fail("the markdownlint pre-commit hook must not create a Node environment.");
 }
 
-if (!hook.includes(`- markdownlint-cli@${EXPECTED_VERSION}`)) {
-  fail(
-    `the markdownlint pre-commit hook must pin additional_dependencies to markdownlint-cli@${EXPECTED_VERSION}.`,
-  );
+if (hook.includes("additional_dependencies:")) {
+  fail("the markdownlint pre-commit hook must not install additional dependencies.");
 }
 
-if (hook.includes("language: system")) {
-  fail("the markdownlint pre-commit hook must not use language: system.");
+if (hook.includes("npm install")) {
+  fail("the markdownlint pre-commit hook must not invoke npm install.");
 }
 
 if (hook.includes("npx ")) {
   fail("the markdownlint pre-commit hook must not shell out through npx.");
+}
+
+if (preCommitConfig.includes("https://github.com/pre-commit/mirrors-prettier")) {
+  fail("the Prettier pre-commit hook must not create a Node environment.");
+}
+
+const prettierHookPattern =
+  /- id: prettier\b(?<hook>.*?)(?=\n\s*-\s+id:|\n\s*#\s|\n\s*-\s+repo:|\z)/s;
+const prettierHookMatch = preCommitConfig.match(prettierHookPattern);
+const prettierHook = prettierHookMatch?.groups?.hook;
+
+if (!prettierHook?.includes("entry: ./node_modules/.bin/prettier")) {
+  fail("the Prettier pre-commit hook must use the local locked Prettier executable.");
+}
+
+if (!prettierHook.includes("language: system")) {
+  fail("the Prettier pre-commit hook must use language: system.");
 }
 
 if (!preflightScript.includes("node_modules/.bin/markdownlint")) {
