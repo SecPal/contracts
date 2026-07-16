@@ -55,9 +55,22 @@ test('defines organizational-unit filters as booleans', () => {
   }
 })
 
+test('documents empty organizational-unit boolean filters as omitted', () => {
+  for (const name of ['is_active', 'is_assignable']) {
+    const parameter = organizationalUnitListParameters.find(
+      (candidate) => candidate.name === name && candidate.in === 'query'
+    )
+
+    assert.match(
+      parameter.description,
+      /Omitted or empty values do not apply the filter\./
+    )
+  }
+})
+
 test('rejects organizational-unit boolean filters without dual wire encoding', () => {
   const candidate = contract.replaceAll(
-    'Query-string values may be `1` or `true` for `true`, and `0` or `false` for `false`. No other values are accepted.',
+    'Omitted or empty values do not apply the filter. Non-empty query-string values may be `1` or `true` for `true`, and `0` or `false` for `false`. No other non-empty values are accepted.',
     'Filter by independent administrative status.'
   )
   const result = runGuard(candidate)

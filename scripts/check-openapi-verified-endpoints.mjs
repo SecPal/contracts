@@ -583,6 +583,8 @@ const allowedOrganizationalUnitBooleanWireValues = new Set([
   'true',
   'false',
 ])
+const organizationalUnitBooleanWireDescription =
+  'Omitted or empty values do not apply the filter. Non-empty query-string values may be `1` or `true` for `true`, and `0` or `false` for `false`. No other non-empty values are accepted.'
 
 for (const [
   flag,
@@ -647,7 +649,7 @@ for (const [
   const wireExamples = parameter?.['x-wire-examples'] ?? {}
   if (
     !parameter?.description?.includes(
-      'Query-string values may be `1` or `true` for `true`, and `0` or `false` for `false`. No other values are accepted.'
+      organizationalUnitBooleanWireDescription
     ) ||
     wireExamples[numericTrueExample]?.value !== '1' ||
     wireExamples[numericFalseExample]?.value !== '0' ||
@@ -659,7 +661,7 @@ for (const [
     )
   ) {
     contractErrors.push(
-      `GET /organizational-units must document ${flag} query-string values as 1 or true for true and 0 or false for false, without unrelated values.`
+      `GET /organizational-units must document omitted or empty ${flag} query-string values as not applying the filter, and non-empty values as 1 or true for true and 0 or false for false, without unrelated values.`
     )
   }
 }

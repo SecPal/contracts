@@ -9121,7 +9121,7 @@ paths:
           required: false
           schema:
             type: boolean
-          description: Filter by independent administrative status. Query-string values may be `1` or `true` for `true`, and `0` or `false` for `false`. No other values are accepted.
+          description: Filter by independent administrative status. Omitted or empty values do not apply the filter. Non-empty query-string values may be `1` or `true` for `true`, and `0` or `false` for `false`. No other non-empty values are accepted.
           x-wire-examples:
             active:
               summary: Filter for active units.
@@ -9140,7 +9140,7 @@ paths:
           required: false
           schema:
             type: boolean
-          description: Filter by independent eligibility for new operational assignments, scopes, and related workflows. Query-string values may be `1` or `true` for `true`, and `0` or `false` for `false`. No other values are accepted.
+          description: Filter by independent eligibility for new operational assignments, scopes, and related workflows. Omitted or empty values do not apply the filter. Non-empty query-string values may be `1` or `true` for `true`, and `0` or `false` for `false`. No other non-empty values are accepted.
           x-wire-examples:
             assignable:
               summary: Filter for assignable units.
