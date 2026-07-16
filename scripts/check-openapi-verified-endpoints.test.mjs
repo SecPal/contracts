@@ -23,6 +23,30 @@ const parsedContract = yaml.load(contract)
 const organizationalUnitListParameters =
   parsedContract.paths['/organizational-units'].get.parameters
 
+function organizationalUnitListParameter(parameters, name) {
+  const parameter = parameters.find(
+    (candidate) => candidate.name === name && candidate.in === 'query'
+  )
+
+  assert.ok(
+    parameter,
+    `GET /organizational-units must define the ${name} query parameter`
+  )
+
+  return parameter
+}
+
+function organizationalUnitWireExamples(parameter, name) {
+  const wireExamples = parameter['x-wire-examples']
+
+  assert.ok(
+    wireExamples,
+    `GET /organizational-units ${name} must define x-wire-examples`
+  )
+
+  return wireExamples
+}
+
 function runGuard(source) {
   const directory = mkdtempSync(join(tmpdir(), 'verified-endpoints-'))
   const candidatePath = join(directory, 'openapi.yaml')
@@ -45,8 +69,9 @@ test('accepts the repository contract', () => {
 
 test('defines organizational-unit filters as booleans', () => {
   for (const name of ['is_active', 'is_assignable']) {
-    const parameter = organizationalUnitListParameters.find(
-      (candidate) => candidate.name === name && candidate.in === 'query'
+    const parameter = organizationalUnitListParameter(
+      organizationalUnitListParameters,
+      name
     )
 
     assert.deepEqual(parameter.schema, {
@@ -55,9 +80,39 @@ test('defines organizational-unit filters as booleans', () => {
   }
 })
 
-test('rejects organizational-unit boolean filters without numeric wire encoding', () => {
+test('documents empty organizational-unit boolean filters as omitted', () => {
+  for (const name of ['is_active', 'is_assignable']) {
+    const parameter = organizationalUnitListParameter(
+      organizationalUnitListParameters,
+      name
+    )
+
+    assert.equal(parameter.allowEmptyValue, true)
+    assert.match(
+      parameter.description,
+      /Omitted or empty values do not apply the filter\./
+    )
+  }
+})
+
+test('rejects organizational-unit boolean filters without empty wire allowance', () => {
+  for (const name of ['is_active', 'is_assignable']) {
+    const candidate = structuredClone(parsedContract)
+    const parameter = organizationalUnitListParameter(
+      candidate.paths['/organizational-units'].get.parameters,
+      name
+    )
+    delete parameter.allowEmptyValue
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, `${name}: ${result.stdout}`)
+  }
+})
+
+test('rejects organizational-unit boolean filters without dual wire encoding', () => {
   const candidate = contract.replaceAll(
-    'Query-string values must be `1` for `true` and `0` for `false`; textual `true` and `false` are not accepted.',
+    'Omitted or empty values do not apply the filter. Non-empty query-string values may be `1` or `true` for `true`, and `0` or `false` for `false`. No other non-empty values are accepted.',
     'Filter by independent administrative status.'
   )
   const result = runGuard(candidate)
@@ -72,7 +127,14 @@ test('rejects organizational-unit boolean filters without both numeric wire valu
   assert.notEqual(result.status, 0, result.stdout)
 })
 
-test('rejects organizational-unit boolean filters with inverted wire examples', () => {
+test('rejects organizational-unit boolean filters without both textual wire values', () => {
+  const candidate = contract.replaceAll("value: 'false'", "value: 'true'")
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+})
+
+test('rejects organizational-unit boolean filters with inverted numeric wire examples', () => {
   const candidate = contract
     .replaceAll("value: '1'", 'value: __placeholder__')
     .replaceAll("value: '0'", "value: '1'")
@@ -80,6 +142,45 @@ test('rejects organizational-unit boolean filters with inverted wire examples', 
   const result = runGuard(candidate)
 
   assert.notEqual(result.status, 0, result.stdout)
+})
+
+test('accepts additional organizational-unit wire examples with allowed values', () => {
+  const candidate = structuredClone(parsedContract)
+
+  for (const name of ['is_active', 'is_assignable']) {
+    const parameter = organizationalUnitListParameter(
+      candidate.paths['/organizational-units'].get.parameters,
+      name
+    )
+    const wireExamples = organizationalUnitWireExamples(
+      parameter,
+      name
+    )
+    wireExamples.additional_text_true = { value: 'true' }
+  }
+
+  const result = runGuard(yaml.dump(candidate))
+
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('rejects organizational-unit boolean filters with unrelated wire values', () => {
+  for (const name of ['is_active', 'is_assignable']) {
+    const candidate = structuredClone(parsedContract)
+    const parameter = organizationalUnitListParameter(
+      candidate.paths['/organizational-units'].get.parameters,
+      name
+    )
+    const wireExamples = organizationalUnitWireExamples(
+      parameter,
+      name
+    )
+    wireExamples.unsupported = { value: 'yes' }
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, `${name}: ${result.stdout}`)
+  }
 })
 
 test('accepts schema-valid nullable example fields', () => {

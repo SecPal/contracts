@@ -577,9 +577,30 @@ for (const flag of ['is_legal_entity', 'is_establishment']) {
   }
 }
 
-for (const [flag, trueExample, falseExample] of [
-  ['is_active', 'active', 'inactive'],
-  ['is_assignable', 'assignable', 'unassignable'],
+const allowedOrganizationalUnitBooleanWireValues = new Set([
+  '1',
+  '0',
+  'true',
+  'false',
+])
+const organizationalUnitBooleanWireDescription =
+  'Omitted or empty values do not apply the filter. Non-empty query-string values may be `1` or `true` for `true`, and `0` or `false` for `false`. No other non-empty values are accepted.'
+
+for (const [
+  flag,
+  numericTrueExample,
+  numericFalseExample,
+  textTrueExample,
+  textFalseExample,
+] of [
+  ['is_active', 'active', 'inactive', 'active_text', 'inactive_text'],
+  [
+    'is_assignable',
+    'assignable',
+    'unassignable',
+    'assignable_text',
+    'unassignable_text',
+  ],
 ]) {
   if (
     !organizationalUnit.required?.includes(flag) ||
@@ -619,23 +640,32 @@ for (const [flag, trueExample, falseExample] of [
   const parameter = organizationalUnitListParameters.find(
     (candidate) => candidate?.name === flag && candidate?.in === 'query'
   )
-  if (parameter?.schema?.type !== 'boolean' || parameter.required !== false) {
+  if (
+    parameter?.schema?.type !== 'boolean' ||
+    parameter.required !== false ||
+    parameter.allowEmptyValue !== true
+  ) {
     contractErrors.push(
-      `GET /organizational-units must define ${flag} as an optional boolean query filter.`
+      `GET /organizational-units must define ${flag} as an optional boolean query filter that permits an empty value.`
     )
   }
 
   const wireExamples = parameter?.['x-wire-examples'] ?? {}
   if (
     !parameter?.description?.includes(
-      'Query-string values must be `1` for `true` and `0` for `false`; textual `true` and `false` are not accepted.'
+      organizationalUnitBooleanWireDescription
     ) ||
-    Object.keys(wireExamples).length !== 2 ||
-    wireExamples[trueExample]?.value !== '1' ||
-    wireExamples[falseExample]?.value !== '0'
+    wireExamples[numericTrueExample]?.value !== '1' ||
+    wireExamples[numericFalseExample]?.value !== '0' ||
+    wireExamples[textTrueExample]?.value !== 'true' ||
+    wireExamples[textFalseExample]?.value !== 'false' ||
+    Object.values(wireExamples).some(
+      (example) =>
+        !allowedOrganizationalUnitBooleanWireValues.has(example?.value)
+    )
   ) {
     contractErrors.push(
-      `GET /organizational-units must document ${flag} true and false as query-string values 1 and 0.`
+      `GET /organizational-units must document omitted or empty ${flag} query-string values as not applying the filter, and non-empty values as 1 or true for true and 0 or false for false, without unrelated values.`
     )
   }
 }
