@@ -9119,6 +9119,7 @@ paths:
         - name: is_active
           in: query
           required: false
+          allowEmptyValue: true
           schema:
             type: boolean
           description: Filter by independent administrative status. Omitted or empty values do not apply the filter. Non-empty query-string values may be `1` or `true` for `true`, and `0` or `false` for `false`. No other non-empty values are accepted.
@@ -9138,6 +9139,7 @@ paths:
         - name: is_assignable
           in: query
           required: false
+          allowEmptyValue: true
           schema:
             type: boolean
           description: Filter by independent eligibility for new operational assignments, scopes, and related workflows. Omitted or empty values do not apply the filter. Non-empty query-string values may be `1` or `true` for `true`, and `0` or `false` for `false`. No other non-empty values are accepted.

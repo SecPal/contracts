@@ -640,9 +640,13 @@ for (const [
   const parameter = organizationalUnitListParameters.find(
     (candidate) => candidate?.name === flag && candidate?.in === 'query'
   )
-  if (parameter?.schema?.type !== 'boolean' || parameter.required !== false) {
+  if (
+    parameter?.schema?.type !== 'boolean' ||
+    parameter.required !== false ||
+    parameter.allowEmptyValue !== true
+  ) {
     contractErrors.push(
-      `GET /organizational-units must define ${flag} as an optional boolean query filter.`
+      `GET /organizational-units must define ${flag} as an optional boolean query filter that permits an empty value.`
     )
   }
 

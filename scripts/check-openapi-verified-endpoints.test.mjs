@@ -23,6 +23,30 @@ const parsedContract = yaml.load(contract)
 const organizationalUnitListParameters =
   parsedContract.paths['/organizational-units'].get.parameters
 
+function organizationalUnitListParameter(parameters, name) {
+  const parameter = parameters.find(
+    (candidate) => candidate.name === name && candidate.in === 'query'
+  )
+
+  assert.ok(
+    parameter,
+    `GET /organizational-units must define the ${name} query parameter`
+  )
+
+  return parameter
+}
+
+function organizationalUnitWireExamples(parameter, name) {
+  const wireExamples = parameter['x-wire-examples']
+
+  assert.ok(
+    wireExamples,
+    `GET /organizational-units ${name} must define x-wire-examples`
+  )
+
+  return wireExamples
+}
+
 function runGuard(source) {
   const directory = mkdtempSync(join(tmpdir(), 'verified-endpoints-'))
   const candidatePath = join(directory, 'openapi.yaml')
@@ -45,8 +69,9 @@ test('accepts the repository contract', () => {
 
 test('defines organizational-unit filters as booleans', () => {
   for (const name of ['is_active', 'is_assignable']) {
-    const parameter = organizationalUnitListParameters.find(
-      (candidate) => candidate.name === name && candidate.in === 'query'
+    const parameter = organizationalUnitListParameter(
+      organizationalUnitListParameters,
+      name
     )
 
     assert.deepEqual(parameter.schema, {
@@ -57,14 +82,31 @@ test('defines organizational-unit filters as booleans', () => {
 
 test('documents empty organizational-unit boolean filters as omitted', () => {
   for (const name of ['is_active', 'is_assignable']) {
-    const parameter = organizationalUnitListParameters.find(
-      (candidate) => candidate.name === name && candidate.in === 'query'
+    const parameter = organizationalUnitListParameter(
+      organizationalUnitListParameters,
+      name
     )
 
+    assert.equal(parameter.allowEmptyValue, true)
     assert.match(
       parameter.description,
       /Omitted or empty values do not apply the filter\./
     )
+  }
+})
+
+test('rejects organizational-unit boolean filters without empty wire allowance', () => {
+  for (const name of ['is_active', 'is_assignable']) {
+    const candidate = structuredClone(parsedContract)
+    const parameter = organizationalUnitListParameter(
+      candidate.paths['/organizational-units'].get.parameters,
+      name
+    )
+    delete parameter.allowEmptyValue
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, `${name}: ${result.stdout}`)
   }
 })
 
@@ -106,12 +148,15 @@ test('accepts additional organizational-unit wire examples with allowed values',
   const candidate = structuredClone(parsedContract)
 
   for (const name of ['is_active', 'is_assignable']) {
-    const parameter = candidate.paths[
-      '/organizational-units'
-    ].get.parameters.find(
-      (entry) => entry.name === name && entry.in === 'query'
+    const parameter = organizationalUnitListParameter(
+      candidate.paths['/organizational-units'].get.parameters,
+      name
     )
-    parameter['x-wire-examples'].additional_text_true = { value: 'true' }
+    const wireExamples = organizationalUnitWireExamples(
+      parameter,
+      name
+    )
+    wireExamples.additional_text_true = { value: 'true' }
   }
 
   const result = runGuard(yaml.dump(candidate))
@@ -122,12 +167,15 @@ test('accepts additional organizational-unit wire examples with allowed values',
 test('rejects organizational-unit boolean filters with unrelated wire values', () => {
   for (const name of ['is_active', 'is_assignable']) {
     const candidate = structuredClone(parsedContract)
-    const parameter = candidate.paths[
-      '/organizational-units'
-    ].get.parameters.find(
-      (entry) => entry.name === name && entry.in === 'query'
+    const parameter = organizationalUnitListParameter(
+      candidate.paths['/organizational-units'].get.parameters,
+      name
     )
-    parameter['x-wire-examples'].unsupported = { value: 'yes' }
+    const wireExamples = organizationalUnitWireExamples(
+      parameter,
+      name
+    )
+    wireExamples.unsupported = { value: 'yes' }
 
     const result = runGuard(yaml.dump(candidate))
 
