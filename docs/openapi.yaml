@@ -2596,6 +2596,22 @@ components:
         establishment_id:
           type: string
           format: uuid
+      x-validation-examples:
+        accepted:
+          - name: Reassign the establishment within the stored Legal Entity
+            value:
+              establishment_id: '780e8400-e29b-41d4-a716-446655440001'
+            resulting:
+              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+              establishment_id: '780e8400-e29b-41d4-a716-446655440001'
+        rejected:
+          - name: Reassign the establishment to another Legal Entity
+            value:
+              establishment_id: '780e8400-e29b-41d4-a716-446655440002'
+            resulting:
+              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+              establishment_id: '780e8400-e29b-41d4-a716-446655440002'
+            status: 422
 
     EmployeeResponse:
       type: object
@@ -5532,6 +5548,9 @@ components:
       type: object
       additionalProperties: false
       description: Customer-to-establishment assignment with local contact data. A unique tenant-scoped pair of `customer_id` and `establishment_id` links each customer and establishment once.
+      x-unique-by:
+        - customer_id
+        - establishment_id
       required:
         - id
         - customer_id
@@ -5619,6 +5638,28 @@ components:
             value:
               customer_id: '550e8400-e29b-41d4-a716-446655440000'
               establishment_id: '780e8400-e29b-41d4-a716-446655440002'
+      x-uniqueness-examples:
+        accepted:
+          - name: Local contact data may be reused for another relationship pair
+            existing:
+              customer_id: '550e8400-e29b-41d4-a716-446655440000'
+              establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+              email: 'shared.contact@secpal.dev'
+            value:
+              customer_id: '550e8400-e29b-41d4-a716-446655440001'
+              establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+              email: 'shared.contact@secpal.dev'
+        rejected:
+          - name: The relationship pair remains duplicate when local contact data differs
+            existing:
+              customer_id: '550e8400-e29b-41d4-a716-446655440000'
+              establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+              email: 'first.contact@secpal.dev'
+            value:
+              customer_id: '550e8400-e29b-41d4-a716-446655440000'
+              establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+              email: 'replacement.contact@secpal.dev'
+            status: 409
 
     CustomerEstablishmentUpdateRequest:
       type: object
@@ -5747,12 +5788,16 @@ components:
             legal_entity_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
             value:
               legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+            resulting:
+              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
         rejected:
           - name: Reassign to a Legal Entity from another tenant
             customer_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
             legal_entity_tenant_id: '660e8400-e29b-41d4-a716-446655440002'
             status: 422
             value:
+              legal_entity_id: '770e8400-e29b-41d4-a716-446655440002'
+            resulting:
               legal_entity_id: '770e8400-e29b-41d4-a716-446655440002'
 
     Site:
@@ -5997,6 +6042,24 @@ components:
         valid_until:
           type: [string, 'null']
           format: date
+      x-validation-examples:
+        accepted:
+          - name: Reassign the establishment within the resulting domain combination
+            value:
+              establishment_id: '780e8400-e29b-41d4-a716-446655440001'
+            resulting:
+              customer_id: '550e8400-e29b-41d4-a716-446655440000'
+              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+              establishment_id: '780e8400-e29b-41d4-a716-446655440001'
+        rejected:
+          - name: Reassign the customer outside the resulting Legal Entity
+            value:
+              customer_id: '550e8400-e29b-41d4-a716-446655440002'
+            resulting:
+              customer_id: '550e8400-e29b-41d4-a716-446655440002'
+              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+              establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+            status: 422
 
     CustomerAssignment:
       type: object
@@ -10069,7 +10132,7 @@ paths:
   /customer-establishments:
     get:
       summary: List Customer Establishments
-      description: Lists authorized customer-to-establishment assignments without exposing organizational-unit relationships.
+      description: Requires view access via customer assignment or organizational scope and lists only authorized customer-to-establishment assignments without exposing organizational-unit relationships.
       operationId: listCustomerEstablishments
       tags:
         - Customers
@@ -10118,7 +10181,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     post:
       summary: Link Customer to Establishment
-      description: Requires `customers.update` and creates a unique customer-to-establishment link with optional local contact data. The request must use an active, non-deleted customer and an active, assignable, non-deleted establishment within the caller's organizational write access; both must belong to the same tenant and Legal Entity. Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing whether the pair or local identifying data matched.
+      description: Requires `customers.update` and creates a unique customer-to-establishment link with optional local contact data. The request must use an active, non-deleted customer and an active, assignable, non-deleted establishment within the caller's organizational write access; both must belong to the same tenant and Legal Entity. Duplicate identification for the tenant-scoped `customer_id` and `establishment_id` pair is evaluated atomically in the same transaction as creation. Every duplicate pair returns the neutral `DuplicateConflict` response without treating local contact data as a duplicate identifier.
       operationId: createCustomerEstablishment
       tags:
         - Customers
@@ -10158,6 +10221,7 @@ paths:
           format: uuid
     get:
       summary: Get Customer Establishment
+      description: Requires view access via customer assignment or organizational scope and returns one authorized customer-to-establishment assignment without exposing organizational-unit relationships.
       operationId: getCustomerEstablishment
       tags:
         - Customers

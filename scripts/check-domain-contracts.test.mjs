@@ -14,23 +14,29 @@ import * as yaml from 'js-yaml'
 const contractPath = fileURLToPath(
   new URL('../docs/openapi.yaml', import.meta.url)
 )
+const changelogPath = fileURLToPath(new URL('../CHANGELOG.md', import.meta.url))
 const guardPath = fileURLToPath(
   new URL('./check-domain-contracts.mjs', import.meta.url)
 )
 const contractSource = readFileSync(contractPath, 'utf8')
+const changelogSource = readFileSync(changelogPath, 'utf8')
 const contract = yaml.load(contractSource)
 const schemas = contract.components.schemas
 const paths = contract.paths
 
-function runGuard(candidate) {
+function runGuard(candidate, candidateChangelog = changelogSource) {
   const directory = mkdtempSync(join(tmpdir(), 'domain-contracts-'))
   const candidatePath = join(directory, 'openapi.yaml')
+  const candidateChangelogPath = join(directory, 'CHANGELOG.md')
   writeFileSync(candidatePath, yaml.dump(candidate))
+  writeFileSync(candidateChangelogPath, candidateChangelog)
 
   try {
-    return spawnSync(process.execPath, [guardPath, candidatePath], {
-      encoding: 'utf8',
-    })
+    return spawnSync(
+      process.execPath,
+      [guardPath, candidatePath, candidateChangelogPath],
+      { encoding: 'utf8' }
+    )
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
@@ -107,6 +113,46 @@ test('moves local customer data to a unique customer establishment contract', ()
   ]) {
     assert.ok(schemas.CustomerEstablishment.properties[property], property)
   }
+})
+
+test('limits customer-establishment uniqueness to the relationship pair', () => {
+  assert.deepEqual(schemas.CustomerEstablishment['x-unique-by'], [
+    'customer_id',
+    'establishment_id',
+  ])
+  assert.doesNotMatch(
+    paths['/customer-establishments'].post.description,
+    /local identifying data/i
+  )
+
+  const examples =
+    schemas.CustomerEstablishmentCreateRequest['x-uniqueness-examples']
+  const reusableContact = examples.accepted[0]
+  assert.notEqual(
+    reusableContact.existing.customer_id,
+    reusableContact.value.customer_id
+  )
+  assert.equal(reusableContact.existing.email, reusableContact.value.email)
+
+  const duplicatePair = examples.rejected[0]
+  assert.equal(
+    duplicatePair.existing.customer_id,
+    duplicatePair.value.customer_id
+  )
+  assert.equal(
+    duplicatePair.existing.establishment_id,
+    duplicatePair.value.establishment_id
+  )
+  assert.notEqual(duplicatePair.existing.email, duplicatePair.value.email)
+  assert.equal(duplicatePair.status, 409)
+})
+
+test('documents OU conflict changes without claiming administration is unchanged', () => {
+  assert.match(changelogSource, /role-downgraded or deleted.*conflict/is)
+  assert.doesNotMatch(
+    changelogSource,
+    /organizational-unit and scope administration contracts remain unchanged/i
+  )
 })
 
 test('defines minimal legal entity, establishment, and customer lookups', () => {
@@ -216,6 +262,46 @@ test('documents accepted and rejected site and employee domain assignments', () 
   }
 })
 
+test('documents evidence for every relationship-writing workflow', () => {
+  for (const schemaName of [
+    'CustomerCreateRequest',
+    'CustomerUpdateRequest',
+    'CustomerEstablishmentCreateRequest',
+    'SiteCreateRequest',
+    'SiteUpdateRequest',
+    'EmployeeCreateRequest',
+    'EmployeeUpdateRequest',
+  ]) {
+    const examples = schemas[schemaName]['x-validation-examples']
+    assert.ok(examples?.accepted?.length > 0, `${schemaName} accepted evidence`)
+    assert.ok(examples?.rejected?.length > 0, `${schemaName} rejected evidence`)
+  }
+
+  for (const [schemaName, relationshipFields] of [
+    ['CustomerUpdateRequest', ['legal_entity_id']],
+    [
+      'SiteUpdateRequest',
+      ['customer_id', 'legal_entity_id', 'establishment_id'],
+    ],
+    ['EmployeeUpdateRequest', ['legal_entity_id', 'establishment_id']],
+  ]) {
+    const examples = schemas[schemaName]['x-validation-examples']
+    for (const example of [examples.accepted[0], examples.rejected[0]]) {
+      assert.ok(
+        relationshipFields.some((field) => Object.hasOwn(example.value, field)),
+        `${schemaName} must mutate a relationship field`
+      )
+      assert.deepEqual(
+        relationshipFields.filter((field) =>
+          Object.hasOwn(example.resulting, field)
+        ),
+        relationshipFields,
+        `${schemaName} resulting state`
+      )
+    }
+  }
+})
+
 test('documents tenant-consistent customer establishment links', () => {
   const examples =
     schemas.CustomerEstablishmentCreateRequest['x-validation-examples']
@@ -223,6 +309,22 @@ test('documents tenant-consistent customer establishment links', () => {
   assert.ok(examples?.accepted?.length > 0)
   assert.ok(examples?.rejected?.length > 0)
   assert.equal(examples.rejected[0].status, 422)
+})
+
+test('documents customer-establishment read authorization consistently', () => {
+  for (const operation of [
+    paths['/customer-establishments'].get,
+    paths['/customer-establishments/{customer_establishment}'].get,
+  ]) {
+    assert.match(
+      operation.description,
+      /view access.*customer assignment.*organizational scope.*authorized/is
+    )
+    assert.equal(
+      operation.responses['403'].$ref,
+      '#/components/responses/Forbidden'
+    )
+  }
 })
 
 test('keeps lookup eligibility and dependent relationship lifecycle rules explicit', () => {
@@ -535,6 +637,56 @@ test('guard rejects relationship-writing operations missing from the workflow mo
     result.stderr,
     /PATCH \/sites\/\{site\}\/domain-copy.*workflow model/
   )
+})
+
+test('guard rejects widened relationship uniqueness and missing evidence', () => {
+  const candidate = structuredClone(contract)
+  candidate.components.schemas.CustomerEstablishment['x-unique-by'].push(
+    'email'
+  )
+  delete candidate.components.schemas.CustomerEstablishmentCreateRequest[
+    'x-uniqueness-examples'
+  ]
+  candidate.paths['/customer-establishments'].post.description =
+    'Duplicate identification includes local identifying data.'
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /CustomerEstablishment uniqueness/)
+})
+
+test('guard rejects changelog claims that contradict OU conflicts', () => {
+  const contradictoryChangelog = `${changelogSource}\nOrganizational-unit and scope administration contracts remain unchanged.\n`
+
+  const result = runGuard(contract, contradictoryChangelog)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /CHANGELOG OU lifecycle notes/)
+})
+
+test('guard rejects incomplete customer-establishment read authorization', () => {
+  const candidate = structuredClone(contract)
+  candidate.paths['/customer-establishments'].get.description =
+    'Lists authorized assignments.'
+  delete candidate.paths['/customer-establishments/{customer_establishment}']
+    .get.responses['403']
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /GET customer-establishment collections/)
+  assert.match(result.stderr, /GET customer-establishment links/)
+})
+
+test('guard rejects missing assignment workflow evidence', () => {
+  const candidate = structuredClone(contract)
+  delete candidate.components.schemas.SiteUpdateRequest['x-validation-examples']
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /PATCH site assignments.*workflow evidence/)
 })
 
 test('guard rejects distinguishable duplicate responses', () => {

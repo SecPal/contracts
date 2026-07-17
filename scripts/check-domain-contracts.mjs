@@ -7,7 +7,9 @@ import { resolve } from 'node:path'
 import * as yaml from 'js-yaml'
 
 const contractPath = resolve(process.argv[2] ?? 'docs/openapi.yaml')
+const changelogPath = resolve(process.argv[3] ?? 'CHANGELOG.md')
 const contract = yaml.load(readFileSync(contractPath, 'utf8'))
+const changelog = readFileSync(changelogPath, 'utf8')
 const schemas = contract?.components?.schemas ?? {}
 const responses = contract?.components?.responses ?? {}
 const paths = contract?.paths ?? {}
@@ -22,9 +24,18 @@ const uuidValue = (value) =>
   )
 
 function requireContractRules(rules) {
-  for (const { label, text: value, patterns = [], response } of rules) {
+  for (const {
+    label,
+    text: value,
+    patterns = [],
+    forbiddenPatterns = [],
+    response,
+  } of rules) {
     if (patterns.some((pattern) => !pattern.test(value ?? ''))) {
       errors.push(`${label} must document its complete domain invariant.`)
+    }
+    if (forbiddenPatterns.some((pattern) => pattern.test(value ?? ''))) {
+      errors.push(`${label} must not document a contradictory invariant.`)
     }
     if (
       response &&
@@ -32,6 +43,71 @@ function requireContractRules(rules) {
     ) {
       errors.push(
         `${label} must use ${response.ref} for HTTP ${response.status}.`
+      )
+    }
+  }
+}
+
+function requireUniquenessRules(rules) {
+  const coveredSchemas = new Set(
+    rules.map(({ resourceSchema }) => resourceSchema)
+  )
+
+  for (const rule of rules) {
+    const resource = schemas[rule.resourceSchema] ?? {}
+    const request = schemas[rule.requestSchema] ?? {}
+    const examples = request['x-uniqueness-examples'] ?? {}
+    const description = rule.operation?.description ?? ''
+    const sameFields = (left, right, fields) =>
+      fields.every((field) => left?.[field] === right?.[field])
+    const sharesReusableValue = (left, right) =>
+      rule.reusableFields.some(
+        (field) => left?.[field] != null && left[field] === right?.[field]
+      )
+    const changesReusableValue = (left, right) =>
+      rule.reusableFields.some(
+        (field) => left?.[field] != null && left[field] !== right?.[field]
+      )
+
+    const acceptedEvidence = (examples.accepted ?? []).some(
+      ({ existing, value }) =>
+        !sameFields(existing, value, rule.uniqueBy) &&
+        sharesReusableValue(existing, value)
+    )
+    const rejectedEvidence = (examples.rejected ?? []).some(
+      ({ existing, value, status }) =>
+        sameFields(existing, value, rule.uniqueBy) &&
+        changesReusableValue(existing, value) &&
+        status === 409
+    )
+    const documentsUniqueKey =
+      rule.uniqueBy.every((field) => description.includes(field)) &&
+      /pair/i.test(description)
+    const excludesReusableIdentifiers =
+      /without treating local contact data as a duplicate identifier/i.test(
+        description
+      )
+
+    if (
+      JSON.stringify(resource['x-unique-by']) !==
+        JSON.stringify(rule.uniqueBy) ||
+      !acceptedEvidence ||
+      !rejectedEvidence ||
+      !documentsUniqueKey ||
+      !excludesReusableIdentifiers ||
+      rule.operation?.responses?.['409']?.$ref !==
+        '#/components/responses/DuplicateConflict'
+    ) {
+      errors.push(
+        `${rule.label} must keep its composite key, reusable fields, evidence, description, and conflict response aligned.`
+      )
+    }
+  }
+
+  for (const [schemaName, schema] of Object.entries(schemas)) {
+    if (schema?.['x-unique-by'] && !coveredSchemas.has(schemaName)) {
+      errors.push(
+        `${schemaName} declares composite uniqueness and must be represented in the uniqueness model.`
       )
     }
   }
@@ -66,6 +142,40 @@ function requireAssignmentWorkflows(workflows, lookups) {
     if (missingFields.length > 0) {
       errors.push(
         `${workflow.label} must expose relationship fields: ${missingFields.join(', ')}.`
+      )
+    }
+
+    const examples =
+      schemas[workflow.requestSchema]?.['x-validation-examples'] ?? {}
+    const accepted = examples.accepted?.[0]
+    const rejected = examples.rejected?.[0]
+    const isUpdate = workflow.label.startsWith('PATCH ')
+    const hasValidEvidence = (example) => {
+      const submittedFields = workflow.relationshipFields.filter((field) =>
+        Object.hasOwn(example?.value ?? {}, field)
+      )
+      const resultingFields = workflow.relationshipFields.filter((field) =>
+        Object.hasOwn(example?.resulting ?? {}, field)
+      )
+      const identifiers = [
+        ...submittedFields.map((field) => example.value[field]),
+        ...resultingFields.map((field) => example.resulting[field]),
+      ]
+      return (
+        (isUpdate
+          ? submittedFields.length > 0 &&
+            resultingFields.length === workflow.relationshipFields.length
+          : submittedFields.length === workflow.relationshipFields.length) &&
+        identifiers.every(uuidValue)
+      )
+    }
+    if (
+      !hasValidEvidence(accepted) ||
+      !hasValidEvidence(rejected) ||
+      ![409, 422].includes(rejected?.status)
+    ) {
+      errors.push(
+        `${workflow.label} must retain complete positive and negative workflow evidence.`
       )
     }
 
@@ -535,6 +645,24 @@ requireContractRules([
     text: customerEstablishmentPath.patch?.description,
     patterns: [/customers\.update/i],
   },
+  ...[
+    [
+      'GET customer-establishment collections',
+      paths['/customer-establishments']?.get,
+    ],
+    ['GET customer-establishment links', customerEstablishmentPath.get],
+  ].map(([label, operation]) => ({
+    label,
+    text: operation?.description,
+    patterns: [
+      /view access.*customer assignment.*organizational scope.*authorized/is,
+    ],
+    response: {
+      operation,
+      status: '403',
+      ref: '#/components/responses/Forbidden',
+    },
+  })),
   {
     label: 'GET Legal Entity lookups',
     text: assignmentLookups.legalEntities.operation?.description,
@@ -623,6 +751,19 @@ requireContractRules([
     },
   },
 ])
+
+requireContractRules([
+  {
+    label: 'CHANGELOG OU lifecycle notes',
+    text: changelog,
+    patterns: [
+      /role-downgraded or deleted; these dependency conflicts add explicit `409`/is,
+    ],
+    forbiddenPatterns: [
+      /organizational-unit and scope administration contracts remain unchanged/i,
+    ],
+  },
+])
 const siteIncludes = paths['/sites/{site}']?.get?.parameters?.find(
   (parameter) => parameter?.name === 'include'
 )?.schema?.enum
@@ -641,14 +782,9 @@ const expectedCustomerEstablishmentRequired = [
 ]
 if (
   JSON.stringify(customerEstablishment.required) !==
-    JSON.stringify(expectedCustomerEstablishmentRequired) ||
-  !/unique.*customer_id.*establishment_id/i.test(
-    customerEstablishment.description ?? ''
-  )
+  JSON.stringify(expectedCustomerEstablishmentRequired)
 ) {
-  errors.push(
-    'CustomerEstablishment must define the unique customer_id and establishment_id pair and required response fields.'
-  )
+  errors.push('CustomerEstablishment must retain its required response fields.')
 }
 for (const propertyName of [
   'customer_id',
@@ -662,6 +798,17 @@ for (const propertyName of [
     errors.push(`CustomerEstablishment must expose ${propertyName}.`)
   }
 }
+
+requireUniquenessRules([
+  {
+    label: 'CustomerEstablishment uniqueness',
+    resourceSchema: 'CustomerEstablishment',
+    requestSchema: 'CustomerEstablishmentCreateRequest',
+    operation: paths['/customer-establishments']?.post,
+    uniqueBy: ['customer_id', 'establishment_id'],
+    reusableFields: ['contact_name', 'phone', 'email', 'comments'],
+  },
+])
 
 for (const schemaName of [
   'LegalEntityLookup',
