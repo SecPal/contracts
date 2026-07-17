@@ -31,8 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   assignment, and referenced Legal Entities or establishments cannot be
   role-downgraded or deleted. Added separate minimal lookups for customers
   already linked to an establishment and eligible unlinked link candidates,
-  plus authorized Legal Entity and establishment lookups and one atomic, information-poor
-  duplicate-conflict response shared by all domain create operations. Existing
+  plus authorized Legal Entity and establishment lookups covering both create
+  and reassignment permissions. Dependency-blocked customer reassignment uses
+  an explicit conflict response, and one atomic, information-poor duplicate-conflict
+  response is shared by all domain create operations. Existing
   organizational-unit and scope administration contracts remain unchanged
   (US-001; supersedes the unreleased customer-only US-002 lookup surface).
 - Defined independent organizational-unit `is_active` (administrative status) and `is_assignable` (eligibility for new operational assignments, scopes, and related workflows) flags across response, create, update, and list-filter contracts (closes #338). Both response fields are required booleans and neither is derived from hierarchy, soft deletion, parent status, unit type, or the other flag; create requests default both omitted status fields to `true`, and deletion remains blocked by every non-deleted direct child regardless of its `is_active` value. This is an additive response change: clients generated from older contracts should regenerate types before relying on the fields, while clients that may deserialize cached or staged older responses must tolerate either newly documented field being absent until their deployment is fully aligned.

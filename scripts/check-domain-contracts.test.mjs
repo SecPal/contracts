@@ -43,10 +43,7 @@ test('accepts the repository domain contract', () => {
 })
 
 test('defines OU-free customer, site, and employee domain relationships', () => {
-  assert.deepEqual(
-    schemas.Customer.required.includes('legal_entity_id'),
-    true
-  )
+  assert.deepEqual(schemas.Customer.required.includes('legal_entity_id'), true)
   assert.deepEqual(
     schemas.Site.required.filter((field) =>
       ['customer_id', 'legal_entity_id', 'establishment_id'].includes(field)
@@ -121,7 +118,10 @@ test('defines minimal legal entity, establishment, and customer lookups', () => 
     'id',
     'name',
   ])
-  assert.deepEqual(Object.keys(schemas.CustomerLookup.properties), ['id', 'name'])
+  assert.deepEqual(Object.keys(schemas.CustomerLookup.properties), [
+    'id',
+    'name',
+  ])
 
   for (const schemaName of [
     'LegalEntityLookup',
@@ -217,9 +217,8 @@ test('documents accepted and rejected site and employee domain assignments', () 
 })
 
 test('documents tenant-consistent customer establishment links', () => {
-  const examples = schemas.CustomerEstablishmentCreateRequest[
-    'x-validation-examples'
-  ]
+  const examples =
+    schemas.CustomerEstablishmentCreateRequest['x-validation-examples']
 
   assert.ok(examples?.accepted?.length > 0)
   assert.ok(examples?.rejected?.length > 0)
@@ -232,7 +231,8 @@ test('keeps lookup eligibility and dependent relationship lifecycle rules explic
     /customers\.create.*sites\.create.*employees\.create/i
   )
   assert.match(
-    paths['/lookups/legal-entities/{legal_entity}/establishments'].get.description,
+    paths['/lookups/legal-entities/{legal_entity}/establishments'].get
+      .description,
     /same tenant, active, assignable, non-deleted/i
   )
   assert.match(paths['/sites'].post.description, /customer-establishment link/i)
@@ -314,28 +314,30 @@ test('separates customer link candidates from customers already linked for sites
 test('keeps lookup permissions aligned with every link and assignment workflow', () => {
   assert.match(
     paths['/lookups/legal-entities'].get.description,
-    /customers\.create.*customers\.update.*sites\.create.*employees\.create/i
+    /customers\.create.*customers\.update.*sites\.create.*sites\.update.*employees\.create.*employees\.update/i
   )
   assert.match(
     paths['/lookups/legal-entities/{legal_entity}/establishments'].get
       .description,
-    /customers\.update.*sites\.create.*employees\.create/i
+    /customers\.update.*sites\.create.*sites\.update.*employees\.create.*employees\.update/i
   )
   assert.match(
     paths['/lookups/establishments/{establishment}/customers'].get.description,
-    /sites\.create.*active, assignable, non-deleted establishment/i
+    /sites\.create.*sites\.update.*active, assignable, non-deleted establishment/i
   )
   assert.match(
-    paths[
-      '/lookups/establishments/{establishment}/customer-candidates'
-    ].get.description,
+    paths['/lookups/establishments/{establishment}/customer-candidates'].get
+      .description,
     /customers\.update.*active, assignable, non-deleted establishment/i
   )
 
-  const linkPath =
-    paths['/customer-establishments/{customer_establishment}']
+  const linkPath = paths['/customer-establishments/{customer_establishment}']
   assert.match(linkPath.patch.description, /customers\.update/i)
   assert.match(linkPath.delete.description, /customers\.update/i)
+  assert.match(
+    paths['/employees/{employee}'].patch.description,
+    /employees\.update/i
+  )
 })
 
 test('names link-management permission and blocks referenced OU role downgrades', () => {
@@ -357,6 +359,12 @@ test('names link-management permission and blocks referenced OU role downgrades'
 })
 
 test('blocks deletion of domain records that still have dependents', () => {
+  const customerUpdate = paths['/customers/{customer}'].patch
+  assert.equal(
+    customerUpdate.responses['409'].$ref,
+    '#/components/responses/Conflict'
+  )
+
   const customerDelete = paths['/customers/{customer}'].delete
   assert.match(
     customerDelete.description,
@@ -470,11 +478,69 @@ test('guard rejects weakened lookup, permission, and OU role invariants', () => 
   assert.match(result.stderr, /PATCH organizational-unit roles/)
 })
 
+test('guard derives lookup permissions and conflict responses from workflows', () => {
+  const candidate = structuredClone(contract)
+  for (const pathName of [
+    '/lookups/legal-entities',
+    '/lookups/legal-entities/{legal_entity}/establishments',
+  ]) {
+    candidate.paths[pathName].get.description = candidate.paths[
+      pathName
+    ].get.description.replace('`sites.update`, ', '')
+  }
+  candidate.paths[
+    '/lookups/establishments/{establishment}/customers'
+  ].get.description = candidate.paths[
+    '/lookups/establishments/{establishment}/customers'
+  ].get.description.replace(' or `sites.update`', '')
+  delete candidate.paths['/customers/{customer}'].patch.responses['409']
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /GET Legal Entity lookups.*sites\.update/)
+  assert.match(result.stderr, /GET establishment lookups.*sites\.update/)
+  assert.match(result.stderr, /GET linked customer lookups.*sites\.update/)
+  assert.match(
+    result.stderr,
+    /PATCH customer Legal Entity reassignment.*Conflict.*409/
+  )
+})
+
+test('guard rejects relationship-writing operations missing from the workflow model', () => {
+  const candidate = structuredClone(contract)
+  candidate.paths['/sites/{site}/domain-copy'] = {
+    patch: {
+      description: 'Requires sites.update.',
+      requestBody: {
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                establishment_id: { type: 'string', format: 'uuid' },
+              },
+            },
+          },
+        },
+      },
+      responses: {},
+    },
+  }
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(
+    result.stderr,
+    /PATCH \/sites\/\{site\}\/domain-copy.*workflow model/
+  )
+})
+
 test('guard rejects distinguishable duplicate responses', () => {
   const candidate = structuredClone(contract)
-  candidate.components.schemas.DuplicateResourceError.properties.message.enum = [
-    'This email address already exists.',
-  ]
+  candidate.components.schemas.DuplicateResourceError.properties.message.enum =
+    ['This email address already exists.']
 
   const result = runGuard(candidate)
 

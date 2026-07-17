@@ -21,18 +21,97 @@ const uuidValue = (value) =>
     value
   )
 
-function requireTextRules(rules) {
-  for (const { label, text: value, patterns } of rules) {
+function requireContractRules(rules) {
+  for (const { label, text: value, patterns = [], response } of rules) {
     if (patterns.some((pattern) => !pattern.test(value ?? ''))) {
       errors.push(`${label} must document its complete domain invariant.`)
+    }
+    if (
+      response &&
+      response.operation?.responses?.[response.status]?.$ref !== response.ref
+    ) {
+      errors.push(
+        `${label} must use ${response.ref} for HTTP ${response.status}.`
+      )
     }
   }
 }
 
-function requireResponseRefs(rules) {
-  for (const { label, operation, status, ref } of rules) {
-    if (operation?.responses?.[status]?.$ref !== ref) {
-      errors.push(`${label} must use ${ref} for HTTP ${status}.`)
+function requireAssignmentWorkflows(workflows, lookups) {
+  const relationshipFields = new Set([
+    'customer_id',
+    'legal_entity_id',
+    'establishment_id',
+  ])
+  const coveredOperations = new Set(workflows.map(({ operation }) => operation))
+  const requiredLookupPermissions = new Map(
+    Object.keys(lookups).map((lookupName) => [lookupName, new Set()])
+  )
+
+  for (const workflow of workflows) {
+    const expectedRequestRef = `#/components/schemas/${workflow.requestSchema}`
+    const actualRequestRef =
+      workflow.operation?.requestBody?.content?.['application/json']?.schema
+        ?.$ref
+    if (actualRequestRef !== expectedRequestRef) {
+      errors.push(
+        `${workflow.label} must use ${expectedRequestRef} as its request contract.`
+      )
+    }
+
+    const properties = schemas[workflow.requestSchema]?.properties ?? {}
+    const missingFields = workflow.relationshipFields.filter(
+      (field) => !Object.hasOwn(properties, field)
+    )
+    if (missingFields.length > 0) {
+      errors.push(
+        `${workflow.label} must expose relationship fields: ${missingFields.join(', ')}.`
+      )
+    }
+
+    if (
+      !(workflow.operation?.description ?? '').includes(workflow.permission)
+    ) {
+      errors.push(`${workflow.label} must require ${workflow.permission}.`)
+    }
+
+    for (const lookupName of workflow.lookups) {
+      const permissions = requiredLookupPermissions.get(lookupName)
+      if (!permissions) {
+        errors.push(
+          `${workflow.label} references unknown lookup ${lookupName}.`
+        )
+        continue
+      }
+      permissions.add(workflow.permission)
+    }
+  }
+
+  for (const [pathName, pathItem] of Object.entries(paths)) {
+    for (const method of ['post', 'put', 'patch']) {
+      const operation = pathItem?.[method]
+      const requestContract =
+        operation?.requestBody?.content?.['application/json']?.schema
+      const requestSchema = requestContract?.$ref
+        ? schemas[requestContract.$ref.split('/').at(-1)]
+        : requestContract
+      const writesRelationship = Object.keys(
+        requestSchema?.properties ?? {}
+      ).some((field) => relationshipFields.has(field))
+      if (writesRelationship && !coveredOperations.has(operation)) {
+        errors.push(
+          `${method.toUpperCase()} ${pathName} writes domain relationships and must be represented in the assignment workflow model.`
+        )
+      }
+    }
+  }
+
+  for (const [lookupName, lookup] of Object.entries(lookups)) {
+    const description = lookup.operation?.description ?? ''
+    for (const permission of requiredLookupPermissions.get(lookupName) ?? []) {
+      if (!description.includes(permission)) {
+        errors.push(`${lookup.label} must authorize ${permission}.`)
+      }
     }
   }
 }
@@ -51,7 +130,10 @@ function requireUuid(schemaName, propertyName, required) {
 
 function rejectOuFields(schemaName) {
   const properties = schemas[schemaName]?.properties ?? {}
-  for (const propertyName of ['organizational_unit_id', 'organizational_unit']) {
+  for (const propertyName of [
+    'organizational_unit_id',
+    'organizational_unit',
+  ]) {
     if (Object.hasOwn(properties, propertyName)) {
       errors.push(`${schemaName} must not expose ${propertyName}.`)
     }
@@ -75,7 +157,9 @@ if (schemas.Customer?.additionalProperties !== false) {
 }
 for (const propertyName of Object.keys(schemas.Customer?.properties ?? {})) {
   if (!customerAllowedProperties.has(propertyName)) {
-    errors.push(`Customer must not expose non-master-data field ${propertyName}.`)
+    errors.push(
+      `Customer must not expose non-master-data field ${propertyName}.`
+    )
   }
 }
 
@@ -133,8 +217,12 @@ for (const [pathName, operation] of [
   ['/employees', paths['/employees']?.get],
 ]) {
   const parameters = operation?.parameters ?? []
-  if (parameters.some((parameter) => parameter?.name === 'organizational_unit_id')) {
-    errors.push(`GET ${pathName} must not expose an organizational_unit_id filter.`)
+  if (
+    parameters.some((parameter) => parameter?.name === 'organizational_unit_id')
+  ) {
+    errors.push(
+      `GET ${pathName} must not expose an organizational_unit_id filter.`
+    )
   }
 }
 
@@ -261,13 +349,22 @@ function hasTenantConsistentCustomerEstablishmentExamples() {
     ['customer_id', 'establishment_id'].every((property) =>
       Object.hasOwn(example?.value ?? {}, property)
     )
-  const tenantIds = (example) =>
-    [example?.customer_tenant_id, example?.establishment_tenant_id]
-  const legalEntityIds = (example) =>
-    [example?.customer_legal_entity_id, example?.establishment_legal_entity_id]
+  const tenantIds = (example) => [
+    example?.customer_tenant_id,
+    example?.establishment_tenant_id,
+  ]
+  const legalEntityIds = (example) => [
+    example?.customer_legal_entity_id,
+    example?.establishment_legal_entity_id,
+  ]
   const isValid = (example) =>
     payloadIsPresent(example) &&
-    [...tenantIds(example), ...legalEntityIds(example), example?.value?.customer_id, example?.value?.establishment_id].every(uuidValue)
+    [
+      ...tenantIds(example),
+      ...legalEntityIds(example),
+      example?.value?.customer_id,
+      example?.value?.establishment_id,
+    ].every(uuidValue)
 
   return (
     isValid(accepted) &&
@@ -286,14 +383,106 @@ if (!hasTenantConsistentCustomerEstablishmentExamples()) {
   )
 }
 
-const customerEstablishmentDelete = customerEstablishmentPath.delete
+const customerUpdate = paths['/customers/{customer}']?.patch
 const customerDelete = paths['/customers/{customer}']?.delete
+const customerEstablishmentDelete = customerEstablishmentPath.delete
 const organizationalUnitUpdate =
   paths['/organizational-units/{organizational_unit}']?.patch
 const organizationalUnitDelete =
   paths['/organizational-units/{organizational_unit}']?.delete
 
-requireTextRules([
+const assignmentLookups = {
+  legalEntities: {
+    label: 'GET Legal Entity lookups',
+    operation: paths['/lookups/legal-entities']?.get,
+  },
+  establishments: {
+    label: 'GET establishment lookups',
+    operation:
+      paths['/lookups/legal-entities/{legal_entity}/establishments']?.get,
+  },
+  linkedCustomers: {
+    label: 'GET linked customer lookups',
+    operation: paths['/lookups/establishments/{establishment}/customers']?.get,
+  },
+  customerLinkCandidates: {
+    label: 'GET customer link candidates',
+    operation:
+      paths['/lookups/establishments/{establishment}/customer-candidates']?.get,
+  },
+}
+
+requireAssignmentWorkflows(
+  [
+    {
+      label: 'POST customer assignments',
+      operation: paths['/customers']?.post,
+      requestSchema: 'CustomerCreateRequest',
+      relationshipFields: ['legal_entity_id'],
+      permission: 'customers.create',
+      lookups: ['legalEntities'],
+    },
+    {
+      label: 'PATCH customer assignments',
+      operation: customerUpdate,
+      requestSchema: 'CustomerUpdateRequest',
+      relationshipFields: ['legal_entity_id'],
+      permission: 'customers.update',
+      lookups: ['legalEntities'],
+    },
+    {
+      label: 'POST customer-establishment assignments',
+      operation: paths['/customer-establishments']?.post,
+      requestSchema: 'CustomerEstablishmentCreateRequest',
+      relationshipFields: ['customer_id', 'establishment_id'],
+      permission: 'customers.update',
+      lookups: ['legalEntities', 'establishments', 'customerLinkCandidates'],
+    },
+    {
+      label: 'POST site assignments',
+      operation: paths['/sites']?.post,
+      requestSchema: 'SiteCreateRequest',
+      relationshipFields: [
+        'customer_id',
+        'legal_entity_id',
+        'establishment_id',
+      ],
+      permission: 'sites.create',
+      lookups: ['legalEntities', 'establishments', 'linkedCustomers'],
+    },
+    {
+      label: 'PATCH site assignments',
+      operation: paths['/sites/{site}']?.patch,
+      requestSchema: 'SiteUpdateRequest',
+      relationshipFields: [
+        'customer_id',
+        'legal_entity_id',
+        'establishment_id',
+      ],
+      permission: 'sites.update',
+      lookups: ['legalEntities', 'establishments', 'linkedCustomers'],
+    },
+    {
+      label: 'POST employee assignments',
+      operation: paths['/employees']?.post,
+      requestSchema: 'EmployeeCreateRequest',
+      relationshipFields: ['legal_entity_id', 'establishment_id'],
+      permission: 'employees.create',
+      lookups: ['legalEntities', 'establishments'],
+    },
+    {
+      label: 'PATCH employee assignments',
+      operation: paths['/employees/{employee}']?.patch,
+      requestSchema: 'EmployeeUpdateRequest',
+      relationshipFields: ['legal_entity_id', 'establishment_id'],
+      permission: 'employees.update',
+      lookups: ['legalEntities', 'establishments'],
+    },
+  ],
+  assignmentLookups
+)
+
+requireContractRules([
   {
     label: 'POST employee assignments',
     text: paths['/employees']?.post?.description,
@@ -342,60 +531,24 @@ requireTextRules([
     ],
   },
   {
-    label: 'PATCH customer Legal Entity reassignment',
-    text: paths['/customers/{customer}']?.patch?.description,
-    patterns: [/no customer-establishment links or sites/i],
-  },
-  {
     label: 'PATCH customer-establishment links',
     text: customerEstablishmentPath.patch?.description,
     patterns: [/customers\.update/i],
   },
   {
-    label: 'DELETE customer-establishment links',
-    text: customerEstablishmentDelete?.description,
-    patterns: [/customers\.update/i, /blocked.*sites/i],
-  },
-  {
-    label: 'DELETE customers',
-    text: customerDelete?.description,
-    patterns: [/customer-establishment links or sites/i],
-  },
-  {
-    label: 'PATCH organizational-unit roles',
-    text: organizationalUnitUpdate?.description,
-    patterns: [
-      /is_legal_entity.*is_establishment/i,
-      /referenced.*customers.*customer-establishment links.*sites.*employees/i,
-    ],
-  },
-  {
-    label: 'DELETE organizational units',
-    text: organizationalUnitDelete?.description,
-    patterns: [/customers, customer-establishment links, sites, or employees/i],
-  },
-  {
     label: 'GET Legal Entity lookups',
-    text: paths['/lookups/legal-entities']?.get?.description,
-    patterns: [
-      /customers\.create.*customers\.update.*sites\.create.*employees\.create/i,
-    ],
+    text: assignmentLookups.legalEntities.operation?.description,
+    patterns: [/same tenant, active, assignable, non-deleted/i],
   },
   {
     label: 'GET establishment lookups',
-    text: paths['/lookups/legal-entities/{legal_entity}/establishments']?.get
-      ?.description,
-    patterns: [
-      /customers\.update.*sites\.create.*employees\.create/i,
-      /same tenant, active, assignable, non-deleted/i,
-    ],
+    text: assignmentLookups.establishments.operation?.description,
+    patterns: [/same tenant, active, assignable, non-deleted/i],
   },
   {
     label: 'GET linked customer lookups',
-    text: paths['/lookups/establishments/{establishment}/customers']?.get
-      ?.description,
+    text: assignmentLookups.linkedCustomers.operation?.description,
     patterns: [
-      /sites\.create/i,
       /active, assignable, non-deleted establishment/i,
       /organizational write access/i,
       /active, non-deleted customers/i,
@@ -404,11 +557,8 @@ requireTextRules([
   },
   {
     label: 'GET customer link candidates',
-    text: paths[
-      '/lookups/establishments/{establishment}/customer-candidates'
-    ]?.get?.description,
+    text: assignmentLookups.customerLinkCandidates.operation?.description,
     patterns: [
-      /customers\.update/i,
       /active, assignable, non-deleted establishment/i,
       /same tenant and Legal Entity/i,
       /active, non-deleted customers/i,
@@ -418,37 +568,68 @@ requireTextRules([
   },
 ])
 
-requireResponseRefs([
+requireContractRules([
+  {
+    label: 'PATCH customer Legal Entity reassignment',
+    text: customerUpdate?.description,
+    patterns: [/no customer-establishment links or sites/i],
+    response: {
+      operation: customerUpdate,
+      status: '409',
+      ref: '#/components/responses/Conflict',
+    },
+  },
   {
     label: 'DELETE customer-establishment links',
-    operation: customerEstablishmentDelete,
-    status: '409',
-    ref: '#/components/responses/Conflict',
+    text: customerEstablishmentDelete?.description,
+    patterns: [/customers\.update/i, /blocked.*sites/i],
+    response: {
+      operation: customerEstablishmentDelete,
+      status: '409',
+      ref: '#/components/responses/Conflict',
+    },
   },
   {
     label: 'DELETE customers',
-    operation: customerDelete,
-    status: '409',
-    ref: '#/components/responses/Conflict',
+    text: customerDelete?.description,
+    patterns: [/customer-establishment links or sites/i],
+    response: {
+      operation: customerDelete,
+      status: '409',
+      ref: '#/components/responses/Conflict',
+    },
   },
   {
     label: 'PATCH organizational-unit roles',
-    operation: organizationalUnitUpdate,
-    status: '409',
-    ref: '#/components/responses/Conflict',
+    text: organizationalUnitUpdate?.description,
+    patterns: [
+      /is_legal_entity.*is_establishment/i,
+      /referenced.*customers.*customer-establishment links.*sites.*employees/i,
+    ],
+    response: {
+      operation: organizationalUnitUpdate,
+      status: '409',
+      ref: '#/components/responses/Conflict',
+    },
   },
   {
     label: 'DELETE organizational units',
-    operation: organizationalUnitDelete,
-    status: '409',
-    ref: '#/components/responses/OrganizationalUnitDeletionConflict',
+    text: organizationalUnitDelete?.description,
+    patterns: [/customers, customer-establishment links, sites, or employees/i],
+    response: {
+      operation: organizationalUnitDelete,
+      status: '409',
+      ref: '#/components/responses/OrganizationalUnitDeletionConflict',
+    },
   },
 ])
 const siteIncludes = paths['/sites/{site}']?.get?.parameters?.find(
   (parameter) => parameter?.name === 'include'
 )?.schema?.enum
 if (siteIncludes?.some((value) => /organizational/i.test(value))) {
-  errors.push('GET /sites/{site} must not expose an organizational-unit include.')
+  errors.push(
+    'GET /sites/{site} must not expose an organizational-unit include.'
+  )
 }
 
 const expectedCustomerEstablishmentRequired = [

@@ -8600,7 +8600,7 @@ paths:
 
     patch:
       summary: Update Employee
-      description: Update employee details with partial-update semantics. If either domain relationship is supplied, the resulting stored Legal Entity and establishment pair must remain same tenant and same Legal Entity, use active, assignable, non-deleted targets, and remain within the caller's organizational write access.
+      description: Requires `employees.update` and updates employee details with partial-update semantics. If either domain relationship is supplied, the resulting stored Legal Entity and establishment pair must remain same tenant and same Legal Entity, use active, assignable, non-deleted targets, and remain within the caller's organizational write access.
       operationId: updateEmployee
       tags:
         - Employees
@@ -9947,7 +9947,7 @@ paths:
   /lookups/legal-entities:
     get:
       summary: List Authorized Legal Entities
-      description: Requires at least one of `customers.create`, `customers.update`, `sites.create`, or `employees.create` and returns only authorized, same tenant, active, assignable, non-deleted Legal Entity options for which the caller has organizational write access. Each item contains only its UUID and display name; no hierarchy, RBAC, tenant, or status metadata is exposed.
+      description: Requires at least one of `customers.create`, `customers.update`, `sites.create`, `sites.update`, `employees.create`, or `employees.update` and returns only authorized, same tenant, active, assignable, non-deleted Legal Entity options for which the caller has organizational write access. Each item contains only its UUID and display name; no hierarchy, RBAC, tenant, or status metadata is exposed.
       operationId: listLegalEntityLookups
       tags:
         - Lookups
@@ -9970,7 +9970,7 @@ paths:
   /lookups/legal-entities/{legal_entity}/establishments:
     get:
       summary: List Authorized Establishments
-      description: Requires at least one of `customers.update`, `sites.create`, or `employees.create` and returns only same tenant, active, assignable, non-deleted establishments the caller is authorized to use under the selected authorized Legal Entity. Each item contains only its UUID and display name.
+      description: Requires at least one of `customers.update`, `sites.create`, `sites.update`, `employees.create`, or `employees.update` and returns only same tenant, active, assignable, non-deleted establishments the caller is authorized to use under the selected authorized Legal Entity. Each item contains only its UUID and display name.
       operationId: listEstablishmentLookups
       tags:
         - Lookups
@@ -10003,7 +10003,7 @@ paths:
   /lookups/establishments/{establishment}/customers:
     get:
       summary: List Authorized Customers
-      description: Requires `sites.create` and an active, assignable, non-deleted establishment within the caller's organizational write access. Returns only authorized, active, non-deleted customers available through an existing customer-establishment link for that establishment. Each item contains only its UUID and display name.
+      description: Requires at least one of `sites.create` or `sites.update` and an active, assignable, non-deleted establishment within the caller's organizational write access. Returns only authorized, active, non-deleted customers available through an existing customer-establishment link for that establishment. Each item contains only its UUID and display name.
       operationId: listCustomerLookups
       tags:
         - Lookups
@@ -10315,6 +10315,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
         '500':
@@ -10604,7 +10606,7 @@ paths:
       summary: Update Site
       description: |
         Update site fields (PATCH semantics - all fields optional).
-        Requires sites.update permission and view access to site.
+        Requires `sites.update` and view access to the site.
       operationId: updateSite
       tags:
         - Sites
