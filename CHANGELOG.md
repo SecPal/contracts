@@ -89,6 +89,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Aligned the `Customer` response schema with US-003 by requiring the always-present
+  `customer_establishments` array of local-contact customer-establishment assignments.
+  Customer list and detail response examples now demonstrate both populated and empty
+  caller-visible embeddings, including site-assignment filtering and their OU-free shape
+  (closes #376).
 - Indented the documented merge-conflict marker example so the pre-commit
   conflict check continues to catch real unindented markers during a merge
   without failing on its own documentation, and added regression coverage for

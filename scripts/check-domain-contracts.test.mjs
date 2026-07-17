@@ -234,6 +234,19 @@ test('moves local customer data to a unique customer establishment contract', ()
   assert.equal(Object.hasOwn(schemas.Customer.properties, 'contact'), false)
   assert.equal(Object.hasOwn(schemas.Customer.properties, 'notes'), false)
   assert.equal(Object.hasOwn(schemas.Customer.properties, 'metadata'), false)
+  assert.equal(
+    schemas.Customer.required.includes('customer_establishments'),
+    true,
+    'customer responses must always include customer_establishments, including when empty'
+  )
+  assert.deepEqual(schemas.Customer.properties.customer_establishments, {
+    type: 'array',
+    description:
+      "Customer-to-establishment assignments with local contact data that are visible to the current caller. Always present; empty when the customer has no visible assignments. Unrestricted customer readers and callers with an active customer assignment may see all links for that customer; site-only access returns only links matching the caller's active site assignments. No organizational-unit relationships are exposed.",
+    items: {
+      $ref: '#/components/schemas/CustomerEstablishment',
+    },
+  })
 
   assert.deepEqual(schemas.CustomerEstablishment.required, [
     'id',
@@ -255,6 +268,57 @@ test('moves local customer data to a unique customer establishment contract', ()
     'comments',
   ]) {
     assert.ok(schemas.CustomerEstablishment.properties[property], property)
+  }
+})
+
+test('documents embedded customer-establishment assignments in customer responses', () => {
+  assert.match(
+    schemas.Customer.properties.customer_establishments.description,
+    /visible to the current caller.*site-only access.*active site assignments/is
+  )
+
+  const listResponse =
+    paths['/customers'].get.responses['200'].content['application/json']
+  const detailResponse =
+    paths['/customers/{customer}'].get.responses['200'].content[
+      'application/json'
+    ]
+
+  for (const response of [listResponse, detailResponse]) {
+    const customer = response.examples.withCustomerEstablishment.value.data
+    const customers = Array.isArray(customer) ? customer : [customer]
+
+    for (const item of customers) {
+      assert.equal(Number.isInteger(item.sites_count), true)
+      assert.ok(item.sites_count >= 0)
+      assert.ok(Array.isArray(item.customer_establishments))
+      assert.equal(
+        Object.hasOwn(
+          item.customer_establishments[0],
+          'organizational_unit_id'
+        ),
+        false
+      )
+      assert.equal(
+        Object.hasOwn(item.customer_establishments[0], 'organizational_unit'),
+        false
+      )
+      assert.equal(item.customer_establishments[0].customer_id, item.id)
+    }
+
+    const customerWithoutAssignments =
+      response.examples.withoutCustomerEstablishments.value.data
+    const customersWithoutAssignments = Array.isArray(
+      customerWithoutAssignments
+    )
+      ? customerWithoutAssignments
+      : [customerWithoutAssignments]
+
+    for (const item of customersWithoutAssignments) {
+      assert.equal(Number.isInteger(item.sites_count), true)
+      assert.ok(item.sites_count >= 0)
+      assert.deepEqual(item.customer_establishments, [])
+    }
   }
 })
 
@@ -1288,6 +1352,42 @@ test('guard rejects a closed customer response without its visible site count', 
 
   assert.notEqual(result.status, 0, result.stdout)
   assert.match(result.stderr, /Customer\.sites_count/)
+})
+
+test('guard rejects weakened customer-establishment embedding visibility or empty-array evidence', () => {
+  const candidate = structuredClone(contract)
+  candidate.components.schemas.Customer.properties.customer_establishments.description =
+    'Customer-to-establishment assignments with local contact data. Always present; empty when the customer has no assignments.'
+  delete candidate.paths['/customers'].get.responses['200'].content[
+    'application/json'
+  ].examples.withoutCustomerEstablishments
+  delete candidate.paths['/customers/{customer}'].get.responses['200'].content[
+    'application/json'
+  ].examples.withoutCustomerEstablishments
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /caller-visible customer_establishments/)
+  assert.match(result.stderr, /empty customer_establishments response example/)
+})
+
+test('guard rejects customer examples with invalid site counts or foreign assignments', () => {
+  const candidate = structuredClone(contract)
+  const listCustomer =
+    candidate.paths['/customers'].get.responses['200'].content[
+      'application/json'
+    ].examples.withCustomerEstablishment.value.data[0]
+
+  listCustomer.sites_count = -1
+  listCustomer.customer_establishments[0].customer_id =
+    '550e8400-e29b-41d4-a716-446655440001'
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /non-negative sites_count/)
+  assert.match(result.stderr, /matching customer_id/)
 })
 
 test('guard rejects unapproved contact example domains', () => {

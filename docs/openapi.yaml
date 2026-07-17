@@ -5407,6 +5407,7 @@ components:
         - name
         - billing_address
         - is_active
+        - customer_establishments
         - created_at
         - updated_at
       properties:
@@ -5448,6 +5449,11 @@ components:
           type: integer
           minimum: 0
           description: Number of the customer's sites visible to the current caller. Present on customer list and detail responses.
+        customer_establishments:
+          type: array
+          description: Customer-to-establishment assignments with local contact data that are visible to the current caller. Always present; empty when the customer has no visible assignments. Unrestricted customer readers and callers with an active customer assignment may see all links for that customer; site-only access returns only links matching the caller's active site assignments. No organizational-unit relationships are exposed.
+          items:
+            $ref: '#/components/schemas/CustomerEstablishment'
         created_at:
           allOf:
             - $ref: '#/components/schemas/ApiTimestamp'
@@ -10012,6 +10018,60 @@ paths:
                       $ref: '#/components/schemas/Customer'
                   meta:
                     $ref: '#/components/schemas/PaginationMeta'
+              examples:
+                withCustomerEstablishment:
+                  summary: Customer with an embedded establishment assignment
+                  value:
+                    data:
+                      - id: '550e8400-e29b-41d4-a716-446655440000'
+                        customer_number: 'KD-2025-0001'
+                        legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+                        name: 'ACME Corporation GmbH'
+                        billing_address:
+                          street: Hauptstraße 123
+                          city: Berlin
+                          postal_code: '10115'
+                          country: DE
+                        is_active: true
+                        sites_count: 2
+                        customer_establishments:
+                          - id: '790e8400-e29b-41d4-a716-446655440000'
+                            customer_id: '550e8400-e29b-41d4-a716-446655440000'
+                            establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+                            contact_name: Max Mustermann
+                            phone: '+49 30 12345678'
+                            email: 'max.mustermann@secpal.dev'
+                            comments: Use the service entrance after 18:00.
+                            created_at: '2025-12-05T10:00:00Z'
+                            updated_at: '2025-12-15T14:30:00Z'
+                        created_at: '2025-12-05T10:00:00Z'
+                        updated_at: '2025-12-15T14:30:00Z'
+                    meta:
+                      current_page: 1
+                      per_page: 15
+                      total: 1
+                withoutCustomerEstablishments:
+                  summary: Customer without a caller-visible establishment assignment
+                  value:
+                    data:
+                      - id: '550e8400-e29b-41d4-a716-446655440001'
+                        customer_number: 'KD-2025-0002'
+                        legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+                        name: 'Example Services GmbH'
+                        billing_address:
+                          street: Nebenstraße 5
+                          city: Berlin
+                          postal_code: '10117'
+                          country: DE
+                        is_active: true
+                        sites_count: 0
+                        customer_establishments: []
+                        created_at: '2025-12-05T10:00:00Z'
+                        updated_at: '2025-12-15T14:30:00Z'
+                    meta:
+                      current_page: 1
+                      per_page: 15
+                      total: 1
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -10380,6 +10440,52 @@ paths:
                 properties:
                   data:
                     $ref: '#/components/schemas/Customer'
+              examples:
+                withCustomerEstablishment:
+                  summary: Customer with an embedded establishment assignment
+                  value:
+                    data:
+                      id: '550e8400-e29b-41d4-a716-446655440000'
+                      customer_number: 'KD-2025-0001'
+                      legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+                      name: 'ACME Corporation GmbH'
+                      billing_address:
+                        street: Hauptstraße 123
+                        city: Berlin
+                        postal_code: '10115'
+                        country: DE
+                      is_active: true
+                      sites_count: 2
+                      customer_establishments:
+                        - id: '790e8400-e29b-41d4-a716-446655440000'
+                          customer_id: '550e8400-e29b-41d4-a716-446655440000'
+                          establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+                          contact_name: Max Mustermann
+                          phone: '+49 30 12345678'
+                          email: 'max.mustermann@secpal.dev'
+                          comments: Use the service entrance after 18:00.
+                          created_at: '2025-12-05T10:00:00Z'
+                          updated_at: '2025-12-15T14:30:00Z'
+                      created_at: '2025-12-05T10:00:00Z'
+                      updated_at: '2025-12-15T14:30:00Z'
+                withoutCustomerEstablishments:
+                  summary: Customer without a caller-visible establishment assignment
+                  value:
+                    data:
+                      id: '550e8400-e29b-41d4-a716-446655440001'
+                      customer_number: 'KD-2025-0002'
+                      legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+                      name: 'Example Services GmbH'
+                      billing_address:
+                        street: Nebenstraße 5
+                        city: Berlin
+                        postal_code: '10117'
+                        country: DE
+                      is_active: true
+                      sites_count: 0
+                      customer_establishments: []
+                      created_at: '2025-12-05T10:00:00Z'
+                      updated_at: '2025-12-15T14:30:00Z'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
