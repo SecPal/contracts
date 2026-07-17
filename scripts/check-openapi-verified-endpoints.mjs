@@ -396,38 +396,9 @@ for (const [schemaName, schema] of [
   }
 }
 
-const customerCreateDescription = paths['/customers']?.post?.description ?? ''
-const customerUpdateDescription =
-  paths['/customers/{customer}']?.patch?.description ?? ''
-const legalEntitiesDescription =
-  paths['/lookups/legal-entities']?.get?.description ?? ''
 const customerDescription = customer.description ?? ''
 const customerLegalEntityDescription =
   customer.properties?.legal_entity_id?.description ?? ''
-for (const [label, description, requiredPermission] of [
-  ['POST /customers', customerCreateDescription, 'customers.create'],
-  [
-    'PATCH /customers/{customer}',
-    customerUpdateDescription,
-    'customers.update',
-  ],
-  [
-    'GET /lookups/legal-entities',
-    legalEntitiesDescription,
-    'customers.create',
-  ],
-]) {
-  for (const requiredText of [
-    requiredPermission,
-    'same tenant',
-    'active, assignable, non-deleted Legal Entity',
-    'organizational write access',
-  ]) {
-    if (!description.includes(requiredText)) {
-      contractErrors.push(`${label} must document ${requiredText}.`)
-    }
-  }
-}
 
 for (const [label, description] of [
   ['Customer', customerDescription],
@@ -445,21 +416,14 @@ for (const [label, description] of [
   }
 }
 
-for (const relationship of [
-  'parent',
-  'children',
-  'ancestors',
-  'descendants',
-]) {
+for (const relationship of ['parent', 'children', 'ancestors', 'descendants']) {
   const property = organizationalUnit.properties?.[relationship]
   const reference =
     relationship === 'parent'
       ? property?.anyOf?.find((schema) => schema?.$ref)?.$ref
       : property?.items?.$ref
   const mustBeNullable = relationship === 'parent'
-  const isNullable = property?.anyOf?.some(
-    (schema) => schema?.type === 'null'
-  )
+  const isNullable = property?.anyOf?.some((schema) => schema?.type === 'null')
   if (
     reference !== '#/components/schemas/OrganizationalUnit' ||
     (mustBeNullable && !isNullable)
@@ -680,16 +644,17 @@ if (
 if (
   paths['/organizational-units/{organizational_unit}']?.delete?.responses?.[
     '409'
-  ]?.$ref !== '#/components/responses/OrganizationalUnitDeletionConflict' ||
-  responses.OrganizationalUnitDeletionConflict == null
+  ]?.$ref !== '#/components/responses/OrganizationalUnitHasChildrenConflict' ||
+  responses.OrganizationalUnitHasChildrenConflict == null
 ) {
   contractErrors.push(
-    'Organizational-unit deletion must document its child and domain dependency conflict response shapes.'
+    'Organizational-unit deletion must document its direct-child conflict response shape.'
   )
 }
 
 const organizationalUnitDeleteDescription =
-  paths['/organizational-units/{organizational_unit}']?.delete?.description ?? ''
+  paths['/organizational-units/{organizational_unit}']?.delete?.description ??
+  ''
 const organizationalUnitHierarchyDescriptions = [
   paths['/organizational-units/{organizational_unit}/descendants']?.get
     ?.description ?? '',
@@ -703,7 +668,7 @@ const childConflictDescriptions = [
 ]
 if (
   !organizationalUnitDeleteDescription.includes('non-deleted direct child') ||
-  !responses.OrganizationalUnitDeletionConflict?.description
+  !responses.OrganizationalUnitHasChildrenConflict?.description
     ?.toLowerCase()
     .includes('non-deleted direct child') ||
   childConflictDescriptions.some(
@@ -718,7 +683,8 @@ if (
 if (
   organizationalUnitHierarchyDescriptions.some(
     (description) =>
-      !description.includes('is_active') || !description.includes('is_assignable')
+      !description.includes('is_active') ||
+      !description.includes('is_assignable')
   )
 ) {
   contractErrors.push(

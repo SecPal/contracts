@@ -28,9 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tenant- and Legal-Entity-consistent assignments, and sites require an
   existing link; dependent links and sites block incompatible reassignment or
   deletion. Site and employee updates validate the complete resulting domain
-  assignment, and referenced Legal Entities or establishments cannot be
-  role-downgraded or deleted; these dependency conflicts add explicit `409`
-  responses to organizational-unit administration. Added separate minimal
+  assignment. Tenant-local Legal Entities and establishments use active and
+  soft-deleted lifecycle state without inheriting OU `is_assignable` or role
+  flags, so organizational-unit administration remains lifecycle-independent.
+  Added separate minimal
   lookups for customers already linked to an establishment and eligible
   unlinked link candidates, plus authorized Legal Entity and establishment
   lookups covering both create and reassignment permissions. Dependency-blocked
@@ -40,8 +41,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only the tenant-scoped customer/establishment pair is unique. Employee
   creation audit examples now use the runtime `employee_changes` category,
   carry Legal Entity and establishment IDs, and omit obsolete OU and personal
-  name fields. Employee-qualification listing now documents that OU scopes do
-  not grant access to domain employees and cause the runtime `403` boundary
+  name values across attributes and subject embeds. All Employee Qualification
+  and Employee Document operations now document that OU scopes do not grant
+  access to domain employees, including explicit self-service exceptions and
+  fail-closed `403` behavior for scoped non-self access. Migrated customer,
+  site, and employee collection filters now match the domain API identifiers
+  and search fields, and the unsupported site `currently_valid` filter was
+  removed. Closed customer responses retain the caller-visible `sites_count`,
+  while customer and site create schemas retain the API-supported nullable
+  business identifiers, activation defaults, and contact input. Customer and
+  Site record reads now distinguish assignment access from OU scopes that can
+  open an empty collection but grant no record visibility, and their domain
+  writes explicitly reject OU-scoped callers. Employee create, update, and
+  lookup contracts name the effective `employee.write`, `employee.create`, and
+  `employee.update` permissions
   (US-001; supersedes the unreleased customer-only US-002 lookup surface).
 - Defined independent organizational-unit `is_active` (administrative status) and `is_assignable` (eligibility for new operational assignments, scopes, and related workflows) flags across response, create, update, and list-filter contracts (closes #338). Both response fields are required booleans and neither is derived from hierarchy, soft deletion, parent status, unit type, or the other flag; create requests default both omitted status fields to `true`, and deletion remains blocked by every non-deleted direct child regardless of its `is_active` value. This is an additive response change: clients generated from older contracts should regenerate types before relying on the fields, while clients that may deserialize cached or staged older responses must tolerate either newly documented field being absent until their deployment is fully aligned.
 - Documented the organizational-unit OpenAPI surface in `docs/openapi.yaml`, including all nine verified OU operations, reusable response/request/permissions/collection/pagination/conflict schemas, full-resource relationship shapes, PATCH-safe independent `is_legal_entity` and `is_establishment` boolean flags, the conditional custom type-name requirement, exact root-or-UUID filtering, tenant isolation, need-to-know parent filtering, policy behavior, type hierarchy validation, and semantic verified-endpoint guard coverage for the OU routes.

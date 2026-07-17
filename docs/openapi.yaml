@@ -825,7 +825,7 @@ components:
 
         **Date rules:** `obtained_date` is required and cannot be after today; when `expiry_date` is sent it must be strictly after `obtained_date`.
 
-        **Authorization:** `EmployeeQualificationPolicy::create` requires `employee_qualification.write`; organizational scope is enforced in the controller for scoped managers.
+        **Authorization boundary:** OU scopes do not grant access to domain employees. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `employee_qualification.write`.
       required:
         - qualification_id
         - obtained_date
@@ -864,7 +864,7 @@ components:
 
         **Date rules:** Same as attach when `obtained_date` / `expiry_date` are present (`obtained_date` not in the future; `expiry_date` after `obtained_date` when set).
 
-        **Authorization:** `employee_qualification.write` plus organizational scope via `EmployeeQualificationPolicy::update`.
+        **Authorization boundary:** OU scopes do not grant access to domain employees. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `employee_qualification.write` through `EmployeeQualificationPolicy::update`.
       properties:
         obtained_date:
           type: string
@@ -2402,7 +2402,7 @@ components:
     EmployeeUpdateRequest:
       type: object
       additionalProperties: false
-      description: Partial employee update request. All properties are optional. If either domain relationship changes, validation uses the resulting Legal Entity and establishment pair after applying supplied values to the stored employee; the result must remain same tenant and same Legal Entity, use active, assignable, non-deleted targets, and stay within the caller's organizational write access.
+      description: Partial employee update request. All properties are optional. If either domain relationship changes, validation uses the resulting Legal Entity and establishment pair after applying supplied values to the stored employee; the result must remain same tenant and same Legal Entity, use active, non-deleted targets, and stay within the caller's organizational write access.
       properties:
         employee_number:
           type: [string, 'null']
@@ -5444,6 +5444,10 @@ components:
           type: boolean
           description: Whether customer is active
           example: true
+        sites_count:
+          type: integer
+          minimum: 0
+          description: Number of the customer's sites visible to the current caller. Present on customer list and detail responses.
         created_at:
           allOf:
             - $ref: '#/components/schemas/ApiTimestamp'
@@ -5714,10 +5718,15 @@ components:
         - name
         - billing_address
       properties:
+        customer_number:
+          type: [string, 'null']
+          maxLength: 50
+          description: Optional caller-supplied customer number. When omitted or null, the API generates a KD-YYYY-#### value.
+          example: 'CUSTOM-001'
         legal_entity_id:
           type: string
           format: uuid
-          description: Same-tenant active, assignable, non-deleted Legal Entity for the new customer
+          description: Same-tenant active, non-deleted Legal Entity for the new customer
           example: '770e8400-e29b-41d4-a716-446655440000'
         vat_id:
           type: [string, 'null']
@@ -5731,7 +5740,7 @@ components:
         billing_address:
           $ref: '#/components/schemas/Address'
         is_active:
-          type: boolean
+          type: [boolean, 'null']
           default: true
       x-validation-examples:
         accepted:
@@ -5767,7 +5776,7 @@ components:
         legal_entity_id:
           type: string
           format: uuid
-          description: Target Legal Entity for reassignment. When different from the customer's current value, it must be same-tenant, active, assignable, and non-deleted.
+          description: Target Legal Entity for reassignment. When different from the customer's current value, it must be same-tenant, active, and non-deleted.
           example: '770e8400-e29b-41d4-a716-446655440000'
         vat_id:
           type: [string, 'null']
@@ -5925,6 +5934,11 @@ components:
           type: string
           maxLength: 255
           example: 'Airport Terminal 1'
+        site_number:
+          type: [string, 'null']
+          maxLength: 50
+          description: Optional caller-supplied site number. When omitted or null, the API generates an OBJ-YYYY-#### value.
+          example: 'CUSTOM-SITE-001'
         customer_id:
           type: string
           format: uuid
@@ -5946,7 +5960,9 @@ components:
         address:
           $ref: '#/components/schemas/Address'
         contact:
-          $ref: '#/components/schemas/Contact'
+          anyOf:
+            - $ref: '#/components/schemas/Contact'
+            - type: 'null'
         access_instructions:
           type: [string, 'null']
         notes:
@@ -5954,6 +5970,9 @@ components:
         metadata:
           type: [object, 'null']
           additionalProperties: true
+        is_active:
+          type: [boolean, 'null']
+          default: true
         valid_from:
           type: [string, 'null']
           format: date
@@ -6004,11 +6023,14 @@ components:
     SiteUpdateRequest:
       type: object
       additionalProperties: false
-      description: Partial site update. If any domain relationship changes, validation uses the resulting customer, Legal Entity, and establishment combination after applying supplied values to the stored site; the result must use an active, non-deleted customer, active, assignable, non-deleted Legal Entity and establishment within the caller's organizational write access, remain tenant- and Legal-Entity-consistent, and reference an existing customer-establishment link.
+      description: Partial site update. If any domain relationship changes, validation uses the resulting customer, Legal Entity, and establishment combination after applying supplied values to the stored site; the result must use an active, non-deleted customer plus an active, non-deleted Legal Entity and establishment, remain tenant- and Legal-Entity-consistent, and reference an existing customer-establishment link. Changing any domain relationship requires `sites.update`; callers with any organizational scopes receive HTTP **403** for such reassignment.
       properties:
         name:
           type: string
           maxLength: 255
+        site_number:
+          type: string
+          maxLength: 50
         customer_id:
           type: string
           format: uuid
@@ -6287,14 +6309,12 @@ components:
             message: A matching record already exists.
             code: DUPLICATE_RESOURCE
 
-    OrganizationalUnitDeletionConflict:
-      description: Conflict - Non-deleted direct child units or domain records still reference the organizational unit
+    OrganizationalUnitHasChildrenConflict:
+      description: Conflict - Non-deleted direct child units must be moved or deleted first, regardless of their `is_active` values
       content:
         application/json:
           schema:
-            oneOf:
-              - $ref: '#/components/schemas/OrganizationalUnitHasChildrenConflict'
-              - $ref: '#/components/schemas/Error'
+            $ref: '#/components/schemas/OrganizationalUnitHasChildrenConflict'
 
     Unauthorized:
       description: Unauthorized - Authentication required
@@ -8292,7 +8312,7 @@ paths:
                       subject:
                         type: Employee
                         id: 550e8400-e29b-41d4-a716-446655440010
-                        name: John Doe
+                        name: null
                 systemActivity:
                   summary: System-initiated activity (no causer)
                   value:
@@ -8576,10 +8596,24 @@ paths:
         - name: search
           in: query
           required: false
-          description: Search employees by name or email.
+          description: Search employees by email and employee_number.
           schema:
             type: string
             maxLength: 255
+        - name: legal_entity_id
+          in: query
+          required: false
+          description: Filter employees by Legal Entity.
+          schema:
+            type: string
+            format: uuid
+        - name: establishment_id
+          in: query
+          required: false
+          description: Filter employees by establishment.
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
           description: List of employees
@@ -8598,7 +8632,7 @@ paths:
       summary: Create Employee
       description: |
         Create a new employee record. Onboarding invitations may only be requested during the `pre_contract` phase.
-        Requires `employees.create`. The supplied Legal Entity and establishment must be same tenant and belong to the same Legal Entity, both targets must be active, assignable, non-deleted, and the caller must have organizational write access for them.
+        Requires `employee.write` or `employee.create`. The supplied Legal Entity and establishment must be same tenant and belong to the same Legal Entity, both targets must be active and non-deleted, and the caller must have organizational write access for them.
         Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing which identifying field matched.
       operationId: createEmployee
       tags:
@@ -8666,7 +8700,7 @@ paths:
 
     patch:
       summary: Update Employee
-      description: Requires `employees.update` and updates employee details with partial-update semantics. If either domain relationship is supplied, the resulting stored Legal Entity and establishment pair must remain same tenant and same Legal Entity, use active, assignable, non-deleted targets, and remain within the caller's organizational write access.
+      description: Requires `employee.write` or `employee.update` and updates employee details with partial-update semantics. If either domain relationship is supplied, the resulting stored Legal Entity and establishment pair must remain same tenant and same Legal Entity, use active, non-deleted targets, and remain within the caller's organizational write access.
       operationId: updateEmployee
       tags:
         - Employees
@@ -8980,8 +9014,10 @@ paths:
 
         **Relations:** `employee` and `qualification` are eager-loaded; each `data[]` item includes both embeds.
 
-        **Authorization boundary:** OU scopes do not grant access to domain employees. A caller with any organizational scopes
-        (`User::organizationalScopes`) receives HTTP **403** with “No organizational entitlement exists for this employee.” Unscoped callers still require the permission below.
+        **Self-service:** the employee may list their own qualification assignments.
+
+        **Authorization boundary:** OU scopes do not grant access to domain employees. Non-self callers with any organizational scopes
+        (`User::organizationalScopes`) receive HTTP **403** with “No organizational entitlement exists for this employee.” Unscoped non-self callers still require the permission below.
 
         **Authorization:** `employee_qualification.read` via `EmployeeQualificationPolicy::viewAny`.
       operationId: listEmployeeQualifications
@@ -9028,7 +9064,7 @@ paths:
 
         **Conflict:** attaching the same `qualification_id` twice for one employee yields HTTP **409** with a message-only JSON body.
 
-        **Authorization:** `employee_qualification.write`; scoped managers must pass controller organizational checks (otherwise **403**).
+        **Authorization boundary:** OU scopes do not grant access to domain employees. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `employee_qualification.write`.
       operationId: attachEmployeeQualification
       tags:
         - Employees
@@ -9093,7 +9129,9 @@ paths:
         **Route binding:** `EmployeeQualification` is tenant-scoped via its employee (`TenantScopedRouteBindingTest`). Unknown UUID / wrong tenant → **404**
         `Resource not found.`
 
-        **Authorization:** `EmployeeQualificationPolicy::view` (self-service employee, `employee_qualification.read` with scope rules, etc.).
+        **Self-service:** the employee may view their own assignment.
+
+        **Authorization boundary:** OU scopes do not grant access to domain employees. Non-self callers with any organizational scopes receive HTTP **403**; unscoped non-self callers require `employee_qualification.read` through `EmployeeQualificationPolicy::view`.
       operationId: getEmployeeQualification
       tags:
         - Qualifications
@@ -9138,7 +9176,7 @@ paths:
 
         Response reloads `qualification`; `employee` is not guaranteed on success payloads.
 
-        **Authorization:** `employee_qualification.write` plus `EmployeeQualificationPolicy::update` scope checks.
+        **Authorization boundary:** OU scopes do not grant access to domain employees. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `employee_qualification.write` through `EmployeeQualificationPolicy::update`.
       operationId: updateEmployeeQualification
       tags:
         - Qualifications
@@ -9189,7 +9227,7 @@ paths:
       description: |
         Hard-delete the pivot (`EmployeeQualificationController::destroy`). Success is HTTP **204** with an empty body.
 
-        **Authorization:** `employee_qualification.write` plus `EmployeeQualificationPolicy::delete` scope checks.
+        **Authorization boundary:** OU scopes do not grant access to domain employees. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `employee_qualification.write` through `EmployeeQualificationPolicy::delete`.
       operationId: deleteEmployeeQualification
       tags:
         - Qualifications
@@ -9227,9 +9265,11 @@ paths:
     get:
       summary: List Employee Documents
       description: |
-        Returns metadata for documents belonging to the employee (`EmployeeDocumentPolicy::viewAny` + organizational scope).
+        Returns metadata for documents belonging to the employee (`EmployeeDocumentPolicy::viewAny`).
 
-        When the authenticated user is the employee (`User` matches `employee.user_id`), the list is filtered to rows with `visible_to_employee` **true**. HR and scoped managers see all documents permitted by policy.
+        **Self-service:** when the authenticated user is the employee (`User` matches `employee.user_id`), the list is filtered to rows with `visible_to_employee` **true**.
+
+        **Authorization boundary:** OU scopes do not grant access to domain employees. Non-self callers with any organizational scopes receive HTTP **403**; unscoped non-self callers require `employee_document.read`.
 
         **Routing:** Lives under the authenticated `verified` middleware group alongside other `/v1` HR APIs; callers need a verified email address when that middleware applies.
       operationId: listEmployeeDocuments
@@ -9266,7 +9306,9 @@ paths:
       description: |
         Multipart upload validated by `UploadEmployeeDocumentRequest` (`EmployeeDocumentController::store`).
 
-        Requires `employee_document.write` (via policy). Files are encrypted at rest; responses mirror `EmployeeDocumentResource` and never expose `file_path`.
+        Files are encrypted at rest; responses mirror `EmployeeDocumentResource` and never expose `file_path`.
+
+        **Authorization boundary:** OU scopes do not grant access to domain employees. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `employee_document.write` through `EmployeeDocumentPolicy::create`.
       operationId: createEmployeeDocument
       tags:
         - Employees
@@ -9322,6 +9364,10 @@ paths:
       summary: Get Employee Document Metadata
       description: |
         Returns a single document row (`EmployeeDocumentPolicy::view`). Route-model binding is scoped: a `{document}` UUID that does not belong to `{employee}` yields **404**.
+
+        **Self-service:** the employee may view their own document only when `visible_to_employee` is **true**.
+
+        **Authorization boundary:** OU scopes do not grant access to domain employees. Non-self callers with any organizational scopes receive HTTP **403**; unscoped non-self callers require `employee_document.read`.
       operationId: getEmployeeDocument
       tags:
         - Employees
@@ -9362,6 +9408,8 @@ paths:
       summary: Delete Employee Document
       description: |
         Soft-deletes the record and removes ciphertext from storage (`EmployeeDocumentPolicy::delete`).
+
+        **Authorization boundary:** OU scopes do not grant access to domain employees. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `employee_document.write`.
       operationId: deleteEmployeeDocument
       tags:
         - Employees
@@ -9399,6 +9447,10 @@ paths:
       summary: Download Employee Document File
       description: |
         Streams decrypted bytes with `Content-Type` set to the stored MIME type and `Content-Disposition: attachment` using a sanitized filename.
+
+        **Self-service:** the employee may download their own document only when `visible_to_employee` is **true**.
+
+        **Authorization boundary:** OU scopes do not grant access to domain employees. Non-self callers with any organizational scopes receive HTTP **403**; unscoped non-self callers require `employee_document.read`.
 
         **404:** Returned when the ciphertext blob is missing from disk (`EmployeeDocumentFileNotFoundException` maps to *File not found*) — see feature tests.
 
@@ -9658,7 +9710,6 @@ paths:
 
         `OrganizationalUnitPolicy::update` enforces same-tenant access plus write scope. If `type` is changed, the API validates the structural type enum; changing it to `custom` requires a `custom_type_name` containing a non-whitespace character in the same payload. The API returns `422` if the name is absent, `null`, empty, or whitespace-only when changing to `custom`, or if a caller clears the name of an existing custom unit. Status flags remain independent and are never inferred from `type`.
 
-        Clearing `is_legal_entity` or `is_establishment` is rejected with `409` while that role is referenced by customers, customer-establishment links, sites, or employees; callers must migrate or remove dependent domain records first.
       operationId: updateOrganizationalUnit
       tags:
         - Organizational Units
@@ -9693,8 +9744,6 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
         '500':
@@ -9705,7 +9754,7 @@ paths:
       description: |
         Soft-delete an organizational unit.
 
-        `OrganizationalUnitPolicy::delete` requires same-tenant manage access. The API rejects deletion while non-deleted direct child units exist, regardless of each child's `is_active` value, or while the unit is referenced by customers, customer-establishment links, sites, or employees; callers must move or delete dependents first.
+        `OrganizationalUnitPolicy::delete` requires same-tenant manage access. The API rejects deletion while non-deleted direct child units exist, regardless of each child's `is_active` value; callers must move or delete children first.
       operationId: deleteOrganizationalUnit
       tags:
         - Organizational Units
@@ -9731,7 +9780,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          $ref: '#/components/responses/OrganizationalUnitDeletionConflict'
+          $ref: '#/components/responses/OrganizationalUnitHasChildrenConflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -9909,7 +9958,7 @@ paths:
       summary: List Customers
       description: |
         Retrieve a paginated list of customers with optional filtering.
-        Users only see customers they have access to (via assignments or organizational scope).
+        Full collection access requires `customers.read` without organizational scopes. Otherwise, records are visible only through an active customer or site assignment. An OU scope alone may authorize opening the collection but grants no customer-record access, so it yields an empty authorized collection.
       operationId: listCustomers
       tags:
         - Customers
@@ -9965,14 +10014,16 @@ paths:
                     $ref: '#/components/schemas/PaginationMeta'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
     post:
       summary: Create Customer
       description: |
-        Create a new customer. Customer number is auto-generated (KD-YYYY-####).
-        Requires `customers.create`. The supplied `legal_entity_id` must be a same tenant, active, assignable, non-deleted Legal Entity, and the caller must have organizational write access for that Legal Entity.
+        Create a new customer. The optional `customer_number` is accepted as supplied; when omitted or null, the API generates a KD-YYYY-#### value.
+        Requires `customers.create` and a same-tenant, active, non-deleted Legal Entity. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `customers.create`.
         Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing which identifying field matched.
       operationId: createCustomer
       tags:
@@ -10013,7 +10064,7 @@ paths:
   /lookups/legal-entities:
     get:
       summary: List Authorized Legal Entities
-      description: Requires at least one of `customers.create`, `customers.update`, `sites.create`, `sites.update`, `employees.create`, or `employees.update` and returns only authorized, same tenant, active, assignable, non-deleted Legal Entity options for which the caller has organizational write access. Each item contains only its UUID and display name; no hierarchy, RBAC, tenant, or status metadata is exposed.
+      description: Requires at least one of `customers.create`, `customers.update`, `sites.create`, `sites.update`, `employee.write`, `employee.create`, or `employee.update` and returns only authorized, same tenant, active, non-deleted Legal Entity options within the caller's authorized domain write access. Each item contains only its UUID and display name; no hierarchy, RBAC, tenant, or status metadata is exposed.
       operationId: listLegalEntityLookups
       tags:
         - Lookups
@@ -10036,7 +10087,7 @@ paths:
   /lookups/legal-entities/{legal_entity}/establishments:
     get:
       summary: List Authorized Establishments
-      description: Requires at least one of `customers.update`, `sites.create`, `sites.update`, `employees.create`, or `employees.update` and returns only same tenant, active, assignable, non-deleted establishments the caller is authorized to use under the selected authorized Legal Entity. Each item contains only its UUID and display name.
+      description: Requires at least one of `customers.update`, `sites.create`, `sites.update`, `employee.write`, `employee.create`, or `employee.update` and returns only same tenant, active, non-deleted establishments the caller is authorized to use under the selected authorized Legal Entity. Each item contains only its UUID and display name.
       operationId: listEstablishmentLookups
       tags:
         - Lookups
@@ -10069,7 +10120,7 @@ paths:
   /lookups/establishments/{establishment}/customers:
     get:
       summary: List Authorized Customers
-      description: Requires at least one of `sites.create` or `sites.update` and an active, assignable, non-deleted establishment within the caller's organizational write access. Returns only authorized, active, non-deleted customers available through an existing customer-establishment link for that establishment. Each item contains only its UUID and display name.
+      description: Requires at least one of `sites.create` or `sites.update` and an active, non-deleted establishment within the caller's authorized domain write access. Returns only authorized, active, non-deleted customers available through an existing customer-establishment link for that establishment. Each item contains only its UUID and display name.
       operationId: listCustomerLookups
       tags:
         - Lookups
@@ -10102,7 +10153,7 @@ paths:
   /lookups/establishments/{establishment}/customer-candidates:
     get:
       summary: List Customer Link Candidates
-      description: Requires `customers.update` and an active, assignable, non-deleted establishment within the caller's organizational write access. Returns only authorized, active, non-deleted customers from the same tenant and Legal Entity that are not yet linked to that establishment. Each item contains only its UUID and display name.
+      description: Requires `customers.update` and an active, non-deleted establishment within the caller's authorized domain write access. Returns only authorized, active, non-deleted customers from the same tenant and Legal Entity that are not yet linked to that establishment. Each item contains only its UUID and display name.
       operationId: listCustomerLinkCandidateLookups
       tags:
         - Lookups
@@ -10135,7 +10186,7 @@ paths:
   /customer-establishments:
     get:
       summary: List Customer Establishments
-      description: Requires view access via customer assignment or organizational scope and lists only authorized customer-to-establishment assignments without exposing organizational-unit relationships.
+      description: Full collection access requires `customers.read` without organizational scopes. Otherwise, records are visible only through an active customer or site assignment. An OU scope alone may authorize opening the collection but grants no customer-record access, so it yields an empty authorized collection. The response exposes no organizational-unit relationships.
       operationId: listCustomerEstablishments
       tags:
         - Customers
@@ -10184,7 +10235,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     post:
       summary: Link Customer to Establishment
-      description: Requires `customers.update` and creates a unique customer-to-establishment link with optional local contact data. The request must use an active, non-deleted customer and an active, assignable, non-deleted establishment within the caller's organizational write access; both must belong to the same tenant and Legal Entity. Duplicate identification for the tenant-scoped `customer_id` and `establishment_id` pair is evaluated atomically in the same transaction as creation. Every duplicate pair returns the neutral `DuplicateConflict` response without treating local contact data as a duplicate identifier.
+      description: Requires `customers.update` and creates a unique customer-to-establishment link with optional local contact data. The request must use an active, non-deleted customer and an active, non-deleted establishment; both must belong to the same tenant and Legal Entity. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `customers.update`. Duplicate identification for the tenant-scoped `customer_id` and `establishment_id` pair is evaluated atomically in the same transaction as creation. Every duplicate pair returns the neutral `DuplicateConflict` response without treating local contact data as a duplicate identifier.
       operationId: createCustomerEstablishment
       tags:
         - Customers
@@ -10224,7 +10275,7 @@ paths:
           format: uuid
     get:
       summary: Get Customer Establishment
-      description: Requires view access via customer assignment or organizational scope and returns one authorized customer-to-establishment assignment without exposing organizational-unit relationships.
+      description: Requires an active customer or site assignment, or `customers.read` without organizational scopes. OU scopes alone do not grant record access. The response exposes no organizational-unit relationships.
       operationId: getCustomerEstablishment
       tags:
         - Customers
@@ -10303,7 +10354,7 @@ paths:
       summary: Get Customer
       description: |
         Retrieve a single customer's Legal-Entity-wide master data.
-        Requires view access via assignment or organizational scope.
+        Requires an active customer or site assignment, or `customers.read` without organizational scopes. OU scopes alone do not grant record access.
       operationId: getCustomer
       tags:
         - Customers
@@ -10342,7 +10393,7 @@ paths:
       summary: Update Customer
       description: |
         Update customer fields (PATCH semantics - all fields optional).
-        Requires `customers.update` and view access to the customer. If `legal_entity_id` differs from the customer's current value, it must identify a same tenant, active, assignable, non-deleted Legal Entity, and the caller must have organizational write access for that Legal Entity. Reassignment is allowed only when the customer has no customer-establishment links or sites; clients must migrate or delete dependent records first.
+        Requires `customers.update` and view access to the customer. If `legal_entity_id` differs from the customer's current value, it must identify a same-tenant, active, non-deleted Legal Entity. Legal Entity reassignment requires `customers.update`; callers with any organizational scopes receive HTTP **403** for reassignment. Reassignment is allowed only when the customer has no customer-establishment links or sites; clients must migrate or delete dependent records first.
       operationId: updateCustomer
       tags:
         - Customers
@@ -10504,7 +10555,7 @@ paths:
       summary: List Sites
       description: |
         Retrieve a paginated list of sites with comprehensive filtering.
-        Users see sites through their authorized domain relationships or direct assignments.
+        `sites.read` grants tenant-wide access. Otherwise, records are visible only through an active customer or site assignment. An OU scope alone may authorize opening the collection but grants no site-record access, so it yields an empty authorized collection.
       operationId: listSites
       tags:
         - Sites
@@ -10532,7 +10583,7 @@ paths:
           schema:
             type: string
             maxLength: 255
-          description: Search in name, site_number, customer name
+          description: Search in name and site_number
         - name: customer_id
           in: query
           required: false
@@ -10540,6 +10591,13 @@ paths:
             type: string
             format: uuid
           description: Filter by customer
+        - name: establishment_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Filter by establishment
         - name: type
           in: query
           required: false
@@ -10553,12 +10611,6 @@ paths:
           schema:
             type: boolean
           description: Filter by active status
-        - name: currently_valid
-          in: query
-          required: false
-          schema:
-            type: boolean
-          description: Filter by current validity (for temporary sites)
       responses:
         '200':
           description: Sites retrieved successfully
@@ -10578,14 +10630,16 @@ paths:
                     $ref: '#/components/schemas/PaginationMeta'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
     post:
       summary: Create Site
       description: |
-        Create a new site. Site number is auto-generated (OBJ-YYYY-####).
-        Requires `sites.create`, an active, non-deleted customer, active, assignable, non-deleted Legal Entity and establishment within the caller's organizational write access, and a tenant- and Legal-Entity-consistent combination with an existing customer-establishment link for the selected customer and establishment. Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing which identifying field matched.
+        Create a new site. The optional `site_number` is accepted as supplied; when omitted or null, the API generates an OBJ-YYYY-#### value.
+        Requires `sites.create`, an active, non-deleted customer, an active, non-deleted Legal Entity and establishment, and a tenant- and Legal-Entity-consistent combination with an existing customer-establishment link for the selected customer and establishment. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `sites.create`. Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing which identifying field matched.
       operationId: createSite
       tags:
         - Sites
@@ -10627,7 +10681,7 @@ paths:
       summary: Get Site
       description: |
         Retrieve a single site by ID with optional relationships.
-        Requires view access via assignment or authorized domain relationships.
+        Requires `sites.read` or an active customer or site assignment. OU scopes alone do not grant record access.
       operationId: getSite
       tags:
         - Sites
@@ -10673,7 +10727,7 @@ paths:
       summary: Update Site
       description: |
         Update site fields (PATCH semantics - all fields optional).
-        Requires `sites.update` and view access to the site.
+        Requires `sites.update` and view access to the site. Changing any domain relationship (`customer_id`, `legal_entity_id`, or `establishment_id`) requires `sites.update`; callers with any organizational scopes receive HTTP **403** for such reassignment.
       operationId: updateSite
       tags:
         - Sites

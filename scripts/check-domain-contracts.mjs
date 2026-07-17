@@ -61,6 +61,104 @@ function requireContractRules(rules) {
   }
 }
 
+function requireEmployeeSubresourceAuthorization({
+  familyLabel,
+  pathPrefixes,
+  rules,
+  schemaRules = [],
+}) {
+  const coveredOperations = new Set()
+  const noOuBoundary = /OU scopes do not grant access to domain employees/i
+  const selfServiceMarker = /\*\*Self-service:\*\*/i
+  const selfServiceBoundary = /non-self callers.*organizational scopes.*403/is
+  const nonSelfServiceBoundary = /callers with any organizational scopes.*403/is
+  const stalePatterns = [
+    /allowed units/i,
+    /scoped managers/i,
+    /scope rules/i,
+    /scope checks/i,
+    /organizational checks/i,
+    /organizational scope (?:is enforced|via)/i,
+  ]
+
+  for (const rule of rules) {
+    const description = rule.operation?.description ?? ''
+    if (rule.operation) {
+      coveredOperations.add(rule.operation)
+    }
+    if (
+      !noOuBoundary.test(description) ||
+      !description.includes(rule.permission) ||
+      selfServiceMarker.test(description) !== rule.selfService ||
+      !(rule.selfService
+        ? selfServiceBoundary.test(description)
+        : nonSelfServiceBoundary.test(description)) ||
+      stalePatterns.some((pattern) => pattern.test(description)) ||
+      rule.operation?.responses?.['403']?.$ref !== rule.forbiddenRef
+    ) {
+      errors.push(
+        `${familyLabel} authorization must keep ${rule.label} permission, no-OU boundary, and 403 response aligned.`
+      )
+    }
+  }
+
+  for (const rule of schemaRules) {
+    const description = schemas[rule.schemaName]?.description ?? ''
+    if (
+      !noOuBoundary.test(description) ||
+      !description.includes(rule.permission) ||
+      !nonSelfServiceBoundary.test(description) ||
+      selfServiceMarker.test(description) ||
+      stalePatterns.some((pattern) => pattern.test(description))
+    ) {
+      errors.push(
+        `${familyLabel} authorization must keep ${rule.schemaName} aligned with its operation.`
+      )
+    }
+  }
+
+  for (const [pathName, pathItem] of Object.entries(paths)) {
+    if (
+      !pathPrefixes.some(
+        (prefix) => pathName === prefix || pathName.startsWith(`${prefix}/`)
+      )
+    ) {
+      continue
+    }
+    for (const method of ['get', 'post', 'put', 'patch', 'delete']) {
+      const operation = pathItem?.[method]
+      if (operation && !coveredOperations.has(operation)) {
+        errors.push(
+          `unmodeled ${familyLabel} operation: ${method.toUpperCase()} ${pathName}.`
+        )
+      }
+    }
+  }
+}
+
+function requireCollectionFilterRules(rules) {
+  for (const rule of rules) {
+    const parameters = rule.operation?.parameters ?? []
+    const parameterNames = parameters.map(({ name }) => name)
+    const searchDescription =
+      parameters.find(({ name }) => name === 'search')?.description ?? ''
+    const invalidUuidFilter = rule.uuidFields.some((field) => {
+      const parameter = parameters.find(({ name }) => name === field)
+      return !uuidProperty(parameter?.schema)
+    })
+
+    if (
+      JSON.stringify(parameterNames) !== JSON.stringify(rule.parameters) ||
+      invalidUuidFilter ||
+      !rule.searchPattern.test(searchDescription)
+    ) {
+      errors.push(
+        `GET ${rule.path} collection filters must match the validated API parameters and search fields.`
+      )
+    }
+  }
+}
+
 function requireUniquenessRules(rules) {
   const coveredSchemas = new Set(
     rules.map(({ resourceSchema }) => resourceSchema)
@@ -192,10 +290,15 @@ function requireAssignmentWorkflows(workflows, lookups) {
       )
     }
 
-    if (
-      !(workflow.operation?.description ?? '').includes(workflow.permission)
-    ) {
-      errors.push(`${workflow.label} must require ${workflow.permission}.`)
+    const permissions = workflow.permissions ?? [workflow.permission]
+    const missingPermissions = permissions.filter(
+      (permission) =>
+        !(workflow.operation?.description ?? '').includes(permission)
+    )
+    if (missingPermissions.length > 0) {
+      errors.push(
+        `${workflow.label} must require ${missingPermissions.join(', ')}.`
+      )
     }
 
     for (const lookupName of workflow.lookups) {
@@ -206,7 +309,9 @@ function requireAssignmentWorkflows(workflows, lookups) {
         )
         continue
       }
-      permissions.add(workflow.permission)
+      for (const permission of workflow.permissions ?? [workflow.permission]) {
+        permissions.add(permission)
+      }
     }
   }
 
@@ -263,6 +368,26 @@ function rejectOuFields(schemaName) {
   }
 }
 
+function requireOptionalString(
+  schemaName,
+  propertyName,
+  maxLength,
+  nullable = false
+) {
+  const schema = schemas[schemaName] ?? {}
+  const property = schema.properties?.[propertyName]
+  if (
+    JSON.stringify(property?.type) !==
+      JSON.stringify(nullable ? ['string', 'null'] : 'string') ||
+    property.maxLength !== maxLength ||
+    schema.required?.includes(propertyName)
+  ) {
+    errors.push(
+      `${schemaName}.${propertyName} must remain an optional string with maxLength ${maxLength}.`
+    )
+  }
+}
+
 const customerAllowedProperties = new Set([
   'id',
   'customer_number',
@@ -271,6 +396,7 @@ const customerAllowedProperties = new Set([
   'name',
   'billing_address',
   'is_active',
+  'sites_count',
   'created_at',
   'updated_at',
   'deleted_at',
@@ -284,6 +410,16 @@ for (const propertyName of Object.keys(schemas.Customer?.properties ?? {})) {
       `Customer must not expose non-master-data field ${propertyName}.`
     )
   }
+}
+const customerSitesCount = schemas.Customer?.properties?.sites_count
+if (
+  customerSitesCount?.type !== 'integer' ||
+  customerSitesCount.minimum !== 0 ||
+  schemas.Customer?.required?.includes('sites_count')
+) {
+  errors.push(
+    'Customer.sites_count must remain an optional non-negative visible-site count.'
+  )
 }
 
 const customerGet = paths['/customers/{customer}']?.get
@@ -334,6 +470,7 @@ if (
       activity.description !== 'created' ||
       !uuidValue(attributes.legal_entity_id) ||
       !uuidValue(attributes.establishment_id) ||
+      activity.subject?.name != null ||
       forbiddenEmployeeAuditFields.some((field) =>
         Object.hasOwn(attributes, field)
       )
@@ -341,7 +478,7 @@ if (
   })
 ) {
   errors.push(
-    'All employee creation audit examples must use employee_changes, include domain assignment UUIDs, and exclude OU and personal contact fields.'
+    'All employee creation audit examples must use employee_changes, include domain assignment UUIDs, and exclude OU and employee personal-name values.'
   )
 }
 
@@ -368,19 +505,99 @@ for (const propertyName of ['legal_entity_id', 'establishment_id']) {
   requireUuid('EmployeeUpdateRequest', propertyName, false)
 }
 
-for (const [pathName, operation] of [
-  ['/sites', paths['/sites']?.get],
-  ['/employees', paths['/employees']?.get],
+for (const [schemaName, propertyName, nullable] of [
+  ['CustomerCreateRequest', 'customer_number', true],
+  ['SiteCreateRequest', 'site_number', true],
+  ['SiteUpdateRequest', 'site_number', false],
 ]) {
-  const parameters = operation?.parameters ?? []
-  if (
-    parameters.some((parameter) => parameter?.name === 'organizational_unit_id')
-  ) {
-    errors.push(
-      `GET ${pathName} must not expose an organizational_unit_id filter.`
-    )
+  requireOptionalString(schemaName, propertyName, 50, nullable)
+}
+const siteCreateIsActive = schemas.SiteCreateRequest?.properties?.is_active
+if (
+  JSON.stringify(siteCreateIsActive?.type) !==
+    JSON.stringify(['boolean', 'null']) ||
+  siteCreateIsActive.default !== true ||
+  schemas.SiteCreateRequest?.required?.includes('is_active')
+) {
+  errors.push(
+    'SiteCreateRequest.is_active must remain an optional nullable boolean defaulting to true.'
+  )
+}
+const customerCreateIsActive =
+  schemas.CustomerCreateRequest?.properties?.is_active
+if (
+  JSON.stringify(customerCreateIsActive?.type) !==
+    JSON.stringify(['boolean', 'null']) ||
+  customerCreateIsActive.default !== true ||
+  schemas.CustomerCreateRequest?.required?.includes('is_active')
+) {
+  errors.push(
+    'CustomerCreateRequest.is_active must remain an optional nullable boolean defaulting to true.'
+  )
+}
+if (
+  JSON.stringify(schemas.SiteCreateRequest?.properties?.contact?.anyOf) !==
+  JSON.stringify([{ $ref: '#/components/schemas/Contact' }, { type: 'null' }])
+) {
+  errors.push(
+    'SiteCreateRequest.contact must accept either Contact or the API-supported null value.'
+  )
+}
+for (const [label, description, pattern] of [
+  [
+    'CustomerCreateRequest.customer_number',
+    paths['/customers']?.post?.description,
+    /customer_number.*omitted or null.*generat(?:ed|es)/is,
+  ],
+  [
+    'SiteCreateRequest.site_number',
+    paths['/sites']?.post?.description,
+    /site_number.*omitted or null.*generat(?:ed|es)/is,
+  ],
+]) {
+  if (!pattern.test(description ?? '')) {
+    errors.push(`${label} must document its optional generated default.`)
   }
 }
+
+requireCollectionFilterRules([
+  {
+    path: '/customers',
+    operation: paths['/customers']?.get,
+    parameters: ['page', 'per_page', 'search', 'is_active'],
+    uuidFields: [],
+    searchPattern: /name and customer_number/i,
+  },
+  {
+    path: '/sites',
+    operation: paths['/sites']?.get,
+    parameters: [
+      'page',
+      'per_page',
+      'search',
+      'customer_id',
+      'establishment_id',
+      'type',
+      'is_active',
+    ],
+    uuidFields: ['customer_id', 'establishment_id'],
+    searchPattern: /name and site_number/i,
+  },
+  {
+    path: '/employees',
+    operation: paths['/employees']?.get,
+    parameters: [
+      'page',
+      'per_page',
+      'status',
+      'search',
+      'legal_entity_id',
+      'establishment_id',
+    ],
+    uuidFields: ['legal_entity_id', 'establishment_id'],
+    searchPattern: /email and employee_number/i,
+  },
+])
 
 const customerEstablishment = schemas.CustomerEstablishment ?? {}
 const customerEstablishmentEmailExample =
@@ -542,11 +759,6 @@ if (!hasTenantConsistentCustomerEstablishmentExamples()) {
 const customerUpdate = paths['/customers/{customer}']?.patch
 const customerDelete = paths['/customers/{customer}']?.delete
 const customerEstablishmentDelete = customerEstablishmentPath.delete
-const organizationalUnitUpdate =
-  paths['/organizational-units/{organizational_unit}']?.patch
-const organizationalUnitDelete =
-  paths['/organizational-units/{organizational_unit}']?.delete
-
 const assignmentLookups = {
   legalEntities: {
     label: 'GET Legal Entity lookups',
@@ -623,7 +835,7 @@ requireAssignmentWorkflows(
       operation: paths['/employees']?.post,
       requestSchema: 'EmployeeCreateRequest',
       relationshipFields: ['legal_entity_id', 'establishment_id'],
-      permission: 'employees.create',
+      permissions: ['employee.write', 'employee.create'],
       lookups: ['legalEntities', 'establishments'],
     },
     {
@@ -631,29 +843,45 @@ requireAssignmentWorkflows(
       operation: paths['/employees/{employee}']?.patch,
       requestSchema: 'EmployeeUpdateRequest',
       relationshipFields: ['legal_entity_id', 'establishment_id'],
-      permission: 'employees.update',
+      permissions: ['employee.write', 'employee.update'],
       lookups: ['legalEntities', 'establishments'],
     },
   ],
   assignmentLookups
 )
 
+const tenantDomainAssignablePattern =
+  /active, assignable|assignable (?:Legal Entit|establishment)|(?:Legal Entit|establishment)[^.]*assignable/i
+
 requireContractRules([
+  {
+    label: 'POST customer assignments',
+    text: paths['/customers']?.post?.description,
+    patterns: [
+      /active, non-deleted/i,
+      /OU scopes do not grant access to customer or site domain writes.*callers with any organizational scopes.*403/is,
+    ],
+    forbiddenPatterns: [
+      /organizational write access/i,
+      tenantDomainAssignablePattern,
+    ],
+    response: {
+      operation: paths['/customers']?.post,
+      status: '403',
+      ref: '#/components/responses/Forbidden',
+    },
+  },
   {
     label: 'POST employee assignments',
     text: paths['/employees']?.post?.description,
-    patterns: [
-      /active, assignable, non-deleted/i,
-      /organizational write access/i,
-    ],
+    patterns: [/active(?:,| and) non-deleted/i, /organizational write access/i],
+    forbiddenPatterns: [tenantDomainAssignablePattern],
   },
   {
     label: 'PATCH employee assignments',
     text: paths['/employees/{employee}']?.patch?.description,
-    patterns: [
-      /resulting.*same tenant.*Legal Entity/i,
-      /active, assignable, non-deleted/i,
-    ],
+    patterns: [/resulting.*same tenant.*Legal Entity/i, /active, non-deleted/i],
+    forbiddenPatterns: [tenantDomainAssignablePattern],
   },
   {
     label: 'POST customer-establishment links',
@@ -661,8 +889,12 @@ requireContractRules([
     patterns: [
       /customers\.update/i,
       /active, non-deleted customer/i,
-      /active, assignable, non-deleted establishment/i,
+      /active, non-deleted establishment/i,
+      /OU scopes do not grant access to customer or site domain writes.*callers with any organizational scopes.*403/is,
+    ],
+    forbiddenPatterns: [
       /organizational write access/i,
+      tenantDomainAssignablePattern,
     ],
   },
   {
@@ -670,9 +902,13 @@ requireContractRules([
     text: paths['/sites']?.post?.description,
     patterns: [
       /active, non-deleted customer/i,
-      /active, assignable, non-deleted/i,
-      /organizational write access/i,
+      /active, non-deleted/i,
+      /OU scopes do not grant access to customer or site domain writes.*callers with any organizational scopes.*403/is,
       /existing customer-establishment link/i,
+    ],
+    forbiddenPatterns: [
+      /organizational write access/i,
+      tenantDomainAssignablePattern,
     ],
   },
   {
@@ -681,9 +917,24 @@ requireContractRules([
     patterns: [
       /resulting/i,
       /active, non-deleted customer/i,
-      /active, assignable, non-deleted/i,
-      /organizational write access/i,
+      /active, non-deleted/i,
+      /domain relationship.*sites\.update.*organizational scopes.*403/is,
       /existing customer-establishment link/i,
+    ],
+    forbiddenPatterns: [
+      /organizational write access/i,
+      tenantDomainAssignablePattern,
+    ],
+  },
+  {
+    label: 'PATCH site assignment operation',
+    text: paths['/sites/{site}']?.patch?.description,
+    patterns: [
+      /domain relationship.*sites\.update.*organizational scopes.*403/is,
+    ],
+    forbiddenPatterns: [
+      /organizational write access/i,
+      tenantDomainAssignablePattern,
     ],
   },
   {
@@ -692,16 +943,35 @@ requireContractRules([
     patterns: [/customers\.update/i],
   },
   ...[
+    ['GET customer collections', paths['/customers']?.get],
     [
       'GET customer-establishment collections',
       paths['/customer-establishments']?.get,
     ],
+  ].map(([label, operation]) => ({
+    label,
+    text: operation?.description,
+    patterns: [
+      /customers\.read.*without organizational scopes/is,
+      /active customer or site assignment/is,
+      /OU scope alone.*empty authorized collection/is,
+    ],
+    response: {
+      operation,
+      status: '403',
+      ref: '#/components/responses/Forbidden',
+    },
+  })),
+  ...[
+    ['GET customer records', paths['/customers/{customer}']?.get],
     ['GET customer-establishment links', customerEstablishmentPath.get],
   ].map(([label, operation]) => ({
     label,
     text: operation?.description,
     patterns: [
-      /view access.*customer assignment.*organizational scope.*authorized/is,
+      /active customer or site assignment/is,
+      /customers\.read.*without organizational scopes/is,
+      /OU scopes alone do not grant record access/is,
     ],
     response: {
       operation,
@@ -710,59 +980,182 @@ requireContractRules([
     },
   })),
   {
-    label: 'GET employee qualifications',
-    text: paths['/employees/{employee}/qualifications']?.get?.description,
+    label: 'GET site collections',
+    text: paths['/sites']?.get?.description,
     patterns: [
-      /OU scopes do not grant access.*organizational scopes.*403.*No organizational entitlement exists/is,
-    ],
-    forbiddenPatterns: [
-      /organizational scopes.*allowed units/is,
-      /employee's organizational unit/i,
+      /sites\.read/is,
+      /active customer or site assignment/is,
+      /OU scope alone.*empty authorized collection/is,
     ],
     response: {
-      operation: paths['/employees/{employee}/qualifications']?.get,
+      operation: paths['/sites']?.get,
       status: '403',
-      ref: '#/components/responses/SimpleForbidden',
+      ref: '#/components/responses/Forbidden',
+    },
+  },
+  {
+    label: 'GET site records',
+    text: paths['/sites/{site}']?.get?.description,
+    patterns: [
+      /sites\.read/is,
+      /active customer or site assignment/is,
+      /OU scopes alone do not grant record access/is,
+    ],
+    response: {
+      operation: paths['/sites/{site}']?.get,
+      status: '403',
+      ref: '#/components/responses/Forbidden',
     },
   },
   {
     label: 'GET Legal Entity lookups',
     text: assignmentLookups.legalEntities.operation?.description,
-    patterns: [/same tenant, active, assignable, non-deleted/i],
+    patterns: [/same tenant, active, non-deleted/i],
+    forbiddenPatterns: [tenantDomainAssignablePattern],
   },
   {
     label: 'GET establishment lookups',
     text: assignmentLookups.establishments.operation?.description,
-    patterns: [/same tenant, active, assignable, non-deleted/i],
+    patterns: [/same tenant, active, non-deleted/i],
+    forbiddenPatterns: [tenantDomainAssignablePattern],
   },
   {
     label: 'GET linked customer lookups',
     text: assignmentLookups.linkedCustomers.operation?.description,
     patterns: [
-      /active, assignable, non-deleted establishment/i,
-      /organizational write access/i,
+      /active, non-deleted establishment/i,
+      /authorized domain write access/i,
       /active, non-deleted customers/i,
       /existing customer-establishment link/i,
     ],
+    forbiddenPatterns: [tenantDomainAssignablePattern],
   },
   {
     label: 'GET customer link candidates',
     text: assignmentLookups.customerLinkCandidates.operation?.description,
     patterns: [
-      /active, assignable, non-deleted establishment/i,
+      /active, non-deleted establishment/i,
       /same tenant and Legal Entity/i,
       /active, non-deleted customers/i,
       /not yet linked/i,
-      /organizational write access/i,
+      /authorized domain write access/i,
     ],
+    forbiddenPatterns: [tenantDomainAssignablePattern],
   },
 ])
+
+requireEmployeeSubresourceAuthorization({
+  familyLabel: 'employee qualification',
+  pathPrefixes: [
+    '/employees/{employee}/qualifications',
+    '/employee-qualifications',
+  ],
+  rules: [
+    {
+      label: 'list',
+      operation: paths['/employees/{employee}/qualifications']?.get,
+      permission: 'employee_qualification.read',
+      forbiddenRef: '#/components/responses/SimpleForbidden',
+      selfService: true,
+    },
+    {
+      label: 'attach',
+      operation: paths['/employees/{employee}/qualifications']?.post,
+      permission: 'employee_qualification.write',
+      forbiddenRef: '#/components/responses/SimpleForbidden',
+      selfService: false,
+    },
+    {
+      label: 'show',
+      operation: paths['/employee-qualifications/{employeeQualification}']?.get,
+      permission: 'employee_qualification.read',
+      forbiddenRef: '#/components/responses/SimpleForbidden',
+      selfService: true,
+    },
+    {
+      label: 'update',
+      operation:
+        paths['/employee-qualifications/{employeeQualification}']?.patch,
+      permission: 'employee_qualification.write',
+      forbiddenRef: '#/components/responses/SimpleForbidden',
+      selfService: false,
+    },
+    {
+      label: 'delete',
+      operation:
+        paths['/employee-qualifications/{employeeQualification}']?.delete,
+      permission: 'employee_qualification.write',
+      forbiddenRef: '#/components/responses/SimpleForbidden',
+      selfService: false,
+    },
+  ],
+  schemaRules: [
+    {
+      schemaName: 'AttachQualificationRequest',
+      permission: 'employee_qualification.write',
+    },
+    {
+      schemaName: 'UpdateEmployeeQualificationRequest',
+      permission: 'employee_qualification.write',
+    },
+  ],
+})
+
+requireEmployeeSubresourceAuthorization({
+  familyLabel: 'employee document',
+  pathPrefixes: ['/employees/{employee}/documents'],
+  rules: [
+    {
+      label: 'list',
+      operation: paths['/employees/{employee}/documents']?.get,
+      permission: 'employee_document.read',
+      forbiddenRef: '#/components/responses/Forbidden',
+      selfService: true,
+    },
+    {
+      label: 'upload',
+      operation: paths['/employees/{employee}/documents']?.post,
+      permission: 'employee_document.write',
+      forbiddenRef: '#/components/responses/Forbidden',
+      selfService: false,
+    },
+    {
+      label: 'show',
+      operation: paths['/employees/{employee}/documents/{document}']?.get,
+      permission: 'employee_document.read',
+      forbiddenRef: '#/components/responses/Forbidden',
+      selfService: true,
+    },
+    {
+      label: 'delete',
+      operation: paths['/employees/{employee}/documents/{document}']?.delete,
+      permission: 'employee_document.write',
+      forbiddenRef: '#/components/responses/Forbidden',
+      selfService: false,
+    },
+    {
+      label: 'download',
+      operation:
+        paths['/employees/{employee}/documents/{document}/download']?.get,
+      permission: 'employee_document.read',
+      forbiddenRef: '#/components/responses/Forbidden',
+      selfService: true,
+    },
+  ],
+})
 
 requireContractRules([
   {
     label: 'PATCH customer Legal Entity reassignment',
     text: customerUpdate?.description,
-    patterns: [/no customer-establishment links or sites/i],
+    patterns: [
+      /no customer-establishment links or sites/i,
+      /legal_entity_id.*customers\.update.*organizational scopes.*403/is,
+    ],
+    forbiddenPatterns: [
+      /organizational write access/i,
+      tenantDomainAssignablePattern,
+    ],
     response: {
       operation: customerUpdate,
       status: '409',
@@ -789,43 +1182,49 @@ requireContractRules([
       ref: '#/components/responses/Conflict',
     },
   },
-  {
-    label: 'PATCH organizational-unit roles',
-    text: organizationalUnitUpdate?.description,
-    patterns: [
-      /is_legal_entity.*is_establishment/i,
-      /referenced.*customers.*customer-establishment links.*sites.*employees/i,
-    ],
-    response: {
-      operation: organizationalUnitUpdate,
-      status: '409',
-      ref: '#/components/responses/Conflict',
-    },
-  },
-  {
-    label: 'DELETE organizational units',
-    text: organizationalUnitDelete?.description,
-    patterns: [/customers, customer-establishment links, sites, or employees/i],
-    response: {
-      operation: organizationalUnitDelete,
-      status: '409',
-      ref: '#/components/responses/OrganizationalUnitDeletionConflict',
-    },
-  },
 ])
 
-requireContractRules([
-  {
-    label: 'CHANGELOG OU lifecycle notes',
-    text: changelog,
-    patterns: [
-      /role-downgraded or deleted; these dependency conflicts add explicit `409`/is,
-    ],
-    forbiddenPatterns: [
-      /organizational-unit and scope administration contracts remain unchanged/i,
-    ],
-  },
-])
+const tenantLocalDomainDescriptions = [
+  schemas.CustomerCreateRequest?.properties?.legal_entity_id?.description,
+  schemas.CustomerUpdateRequest?.properties?.legal_entity_id?.description,
+  schemas.EmployeeUpdateRequest?.description,
+  schemas.SiteUpdateRequest?.description,
+  paths['/customers']?.post?.description,
+  customerUpdate?.description,
+  paths['/customer-establishments']?.post?.description,
+  paths['/sites']?.post?.description,
+  paths['/employees']?.post?.description,
+  paths['/employees/{employee}']?.patch?.description,
+  ...Object.values(assignmentLookups).map(
+    ({ operation }) => operation?.description
+  ),
+]
+if (
+  tenantLocalDomainDescriptions.some((description) =>
+    tenantDomainAssignablePattern.test(description ?? '')
+  )
+) {
+  errors.push(
+    'The tenant-local domain must not inherit organizational-unit assignability.'
+  )
+}
+const organizationalUnitPath =
+  paths['/organizational-units/{organizational_unit}'] ?? {}
+if (
+  /customers|customer-establishment|sites|employees/i.test(
+    `${organizationalUnitPath.patch?.description ?? ''}\n${organizationalUnitPath.delete?.description ?? ''}`
+  ) ||
+  responses.OrganizationalUnitDeletionConflict != null
+) {
+  errors.push(
+    'Organizational-unit lifecycle must remain independent from tenant-local domain records.'
+  )
+}
+if (/role-downgraded or deleted.*conflict/is.test(changelog)) {
+  errors.push(
+    'CHANGELOG must not couple tenant-local domain lifecycle to organizational-unit roles.'
+  )
+}
 const siteIncludes = paths['/sites/{site}']?.get?.parameters?.find(
   (parameter) => parameter?.name === 'include'
 )?.schema?.enum
