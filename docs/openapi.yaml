@@ -5597,6 +5597,26 @@ components:
         comments:
           type: [string, 'null']
           maxLength: 2000
+      x-validation-examples:
+        accepted:
+          - name: Customer and establishment belong to one tenant and Legal Entity
+            customer_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            customer_legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+            establishment_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            establishment_legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+            value:
+              customer_id: '550e8400-e29b-41d4-a716-446655440000'
+              establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+        rejected:
+          - name: Establishment belongs to another Legal Entity
+            customer_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            customer_legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+            establishment_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            establishment_legal_entity_id: '770e8400-e29b-41d4-a716-446655440002'
+            status: 422
+            value:
+              customer_id: '550e8400-e29b-41d4-a716-446655440000'
+              establishment_id: '780e8400-e29b-41d4-a716-446655440002'
 
     CustomerEstablishmentUpdateRequest:
       type: object
@@ -9918,7 +9938,7 @@ paths:
   /lookups/legal-entities:
     get:
       summary: List Authorized Legal Entities
-      description: Requires `customers.create` and returns only authorized, same tenant, active, assignable, non-deleted Legal Entity options for which the caller has organizational write access. Each item contains only its UUID and display name; no hierarchy, RBAC, tenant, or status metadata is exposed.
+      description: Requires at least one of `customers.create`, `sites.create`, or `employees.create` and returns only authorized, same tenant, active, assignable, non-deleted Legal Entity options for which the caller has organizational write access. Each item contains only its UUID and display name; no hierarchy, RBAC, tenant, or status metadata is exposed.
       operationId: listLegalEntityLookups
       tags:
         - Lookups
@@ -9941,7 +9961,7 @@ paths:
   /lookups/legal-entities/{legal_entity}/establishments:
     get:
       summary: List Authorized Establishments
-      description: Returns only establishments the caller is authorized to use under the selected authorized Legal Entity. Each item contains only its UUID and display name.
+      description: Returns only same tenant, active, assignable, non-deleted establishments the caller is authorized to use under the selected authorized Legal Entity. Each item contains only its UUID and display name.
       operationId: listEstablishmentLookups
       tags:
         - Lookups
@@ -9974,7 +9994,7 @@ paths:
   /lookups/establishments/{establishment}/customers:
     get:
       summary: List Authorized Customers
-      description: Returns only customers the caller is authorized to use through the selected authorized establishment. Each item contains only its UUID and display name.
+      description: Returns only customers the caller is authorized to use through an existing customer-establishment link for the selected authorized establishment. Each item contains only its UUID and display name.
       operationId: listCustomerLookups
       tags:
         - Lookups
@@ -10056,7 +10076,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     post:
       summary: Link Customer to Establishment
-      description: Creates a unique customer-to-establishment link with optional local contact data. Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing whether the pair or local identifying data matched.
+      description: Creates a unique customer-to-establishment link with optional local contact data. The customer and establishment must belong to the same tenant and Legal Entity. Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing whether the pair or local identifying data matched.
       operationId: createCustomerEstablishment
       tags:
         - Customers
@@ -10148,6 +10168,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     delete:
       summary: Delete Customer Establishment
+      description: Deletion is blocked while one or more sites use this customer-establishment link, preserving the relationship required by each site.
       operationId: deleteCustomerEstablishment
       tags:
         - Customers
@@ -10162,6 +10183,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -10209,7 +10232,7 @@ paths:
       summary: Update Customer
       description: |
         Update customer fields (PATCH semantics - all fields optional).
-        Requires `customers.update` and view access to the customer. If `legal_entity_id` differs from the customer's current value, it must identify a same tenant, active, assignable, non-deleted Legal Entity, and the caller must have organizational write access for that Legal Entity.
+        Requires `customers.update` and view access to the customer. If `legal_entity_id` differs from the customer's current value, it must identify a same tenant, active, assignable, non-deleted Legal Entity, and the caller must have organizational write access for that Legal Entity. Reassignment is allowed only when the customer has no customer-establishment links or sites; clients must migrate or delete dependent records first.
       operationId: updateCustomer
       tags:
         - Customers
@@ -10454,7 +10477,7 @@ paths:
       summary: Create Site
       description: |
         Create a new site. Site number is auto-generated (OBJ-YYYY-####).
-        Requires sites.create permission and an authorized, tenant-consistent customer, Legal Entity, and establishment combination. Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing which identifying field matched.
+        Requires sites.create permission and an authorized, tenant-consistent customer, Legal Entity, and establishment combination with an existing customer-establishment link for the selected customer and establishment. Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing which identifying field matched.
       operationId: createSite
       tags:
         - Sites

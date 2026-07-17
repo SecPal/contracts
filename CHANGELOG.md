@@ -24,7 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   list filters no longer expose OU fields or relations. Single-customer
   responses no longer advertise undeclared relationship includes; dedicated
   relationship endpoints remain available, with complete pagination metadata
-  for customer/establishment links. Added minimal authorized Legal Entity,
+  for customer/establishment links. Customer-establishment links now require
+  tenant- and Legal-Entity-consistent assignments, and sites require an
+  existing link; dependent links and sites block incompatible reassignment or
+  link deletion. Added minimal authorized Legal Entity,
   establishment, and customer lookups plus one atomic, information-poor
   duplicate-conflict response shared by all domain create operations. Existing
   organizational-unit and scope administration contracts remain unchanged

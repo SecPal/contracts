@@ -216,6 +216,47 @@ test('documents accepted and rejected site and employee domain assignments', () 
   }
 })
 
+test('documents tenant-consistent customer establishment links', () => {
+  const examples = schemas.CustomerEstablishmentCreateRequest[
+    'x-validation-examples'
+  ]
+
+  assert.ok(examples?.accepted?.length > 0)
+  assert.ok(examples?.rejected?.length > 0)
+  assert.equal(examples.rejected[0].status, 422)
+})
+
+test('keeps lookup eligibility and dependent relationship lifecycle rules explicit', () => {
+  assert.match(
+    paths['/lookups/legal-entities'].get.description,
+    /customers\.create.*sites\.create.*employees\.create/i
+  )
+  assert.match(
+    paths['/lookups/legal-entities/{legal_entity}/establishments'].get.description,
+    /same tenant, active, assignable, non-deleted/i
+  )
+  assert.match(paths['/sites'].post.description, /customer-establishment link/i)
+  assert.match(
+    paths['/lookups/establishments/{establishment}/customers'].get.description,
+    /existing customer-establishment link/i
+  )
+  assert.match(
+    paths['/customers/{customer}'].patch.description,
+    /no customer-establishment links or sites/i
+  )
+  assert.match(
+    paths['/customer-establishments/{customer_establishment}'].delete
+      .description,
+    /blocked.*sites/i
+  )
+  assert.equal(
+    paths['/customer-establishments/{customer_establishment}'].delete.responses[
+      '409'
+    ].$ref,
+    '#/components/responses/Conflict'
+  )
+})
+
 test('guard rejects restored OU fields and list filters', () => {
   const candidate = structuredClone(contract)
   candidate.components.schemas.Employee.properties.organizational_unit_id = {

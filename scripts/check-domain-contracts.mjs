@@ -229,6 +229,74 @@ for (const schemaName of ['SiteCreateRequest', 'EmployeeCreateRequest']) {
     )
   }
 }
+
+function hasTenantConsistentCustomerEstablishmentExamples() {
+  const schema = schemas.CustomerEstablishmentCreateRequest ?? {}
+  const examples = schema['x-validation-examples'] ?? {}
+  const accepted = examples.accepted?.[0]
+  const rejected = examples.rejected?.[0]
+  const payloadIsPresent = (example) =>
+    ['customer_id', 'establishment_id'].every((property) =>
+      Object.hasOwn(example?.value ?? {}, property)
+    )
+  const tenantIds = (example) =>
+    [example?.customer_tenant_id, example?.establishment_tenant_id]
+  const legalEntityIds = (example) =>
+    [example?.customer_legal_entity_id, example?.establishment_legal_entity_id]
+  const isValid = (example) =>
+    payloadIsPresent(example) &&
+    [...tenantIds(example), ...legalEntityIds(example), example?.value?.customer_id, example?.value?.establishment_id].every(uuidValue)
+
+  return (
+    isValid(accepted) &&
+    isValid(rejected) &&
+    tenantIds(accepted)[0] === tenantIds(accepted)[1] &&
+    legalEntityIds(accepted)[0] === legalEntityIds(accepted)[1] &&
+    rejected?.status === 422 &&
+    (tenantIds(rejected)[0] !== tenantIds(rejected)[1] ||
+      legalEntityIds(rejected)[0] !== legalEntityIds(rejected)[1])
+  )
+}
+
+if (!hasTenantConsistentCustomerEstablishmentExamples()) {
+  errors.push(
+    'CustomerEstablishmentCreateRequest must retain accepted and rejected tenant-consistent link examples.'
+  )
+}
+
+const legalEntityLookupDescription =
+  paths['/lookups/legal-entities']?.get?.description ?? ''
+if (!/customers\.create.*sites\.create.*employees\.create/i.test(legalEntityLookupDescription)) {
+  errors.push(
+    'GET /lookups/legal-entities must authorize every domain-assignment creation workflow.'
+  )
+}
+const establishmentLookupDescription =
+  paths['/lookups/legal-entities/{legal_entity}/establishments']?.get
+    ?.description ?? ''
+if (!/same tenant, active, assignable, non-deleted/i.test(establishmentLookupDescription)) {
+  errors.push(
+    'GET establishment lookups must return only eligible establishments.'
+  )
+}
+if (!/existing customer-establishment link/i.test(paths['/sites']?.post?.description ?? '')) {
+  errors.push('POST /sites must require an existing customer-establishment link.')
+}
+if (
+  !/no customer-establishment links or sites/i.test(
+    paths['/customers/{customer}']?.patch?.description ?? ''
+  )
+) {
+  errors.push('PATCH /customers/{customer} must protect dependent links and sites during Legal Entity reassignment.')
+}
+const customerEstablishmentDelete = customerEstablishmentPath.delete
+if (
+  !/blocked.*sites/i.test(customerEstablishmentDelete?.description ?? '') ||
+  customerEstablishmentDelete?.responses?.['409']?.$ref !==
+    '#/components/responses/Conflict'
+) {
+  errors.push('DELETE customer establishments must block deletion while dependent sites exist.')
+}
 const siteIncludes = paths['/sites/{site}']?.get?.parameters?.find(
   (parameter) => parameter?.name === 'include'
 )?.schema?.enum
@@ -312,6 +380,16 @@ for (const [pathName, responseRef] of [
       `GET ${pathName} must return the minimal authorized lookup response.`
     )
   }
+}
+if (
+  !/existing customer-establishment link/i.test(
+    paths['/lookups/establishments/{establishment}/customers']?.get
+      ?.description ?? ''
+  )
+) {
+  errors.push(
+    'GET customer lookups must return only customers with an existing customer-establishment link.'
+  )
 }
 
 const duplicateError = schemas.DuplicateResourceError ?? {}
