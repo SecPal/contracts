@@ -29,8 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   existing link; dependent links and sites block incompatible reassignment or
   deletion. Site and employee updates validate the complete resulting domain
   assignment, and referenced Legal Entities or establishments cannot be
-  deleted. Added minimal authorized Legal Entity,
-  establishment, and customer lookups plus one atomic, information-poor
+  role-downgraded or deleted. Added separate minimal lookups for customers
+  already linked to an establishment and eligible unlinked link candidates,
+  plus authorized Legal Entity and establishment lookups and one atomic, information-poor
   duplicate-conflict response shared by all domain create operations. Existing
   organizational-unit and scope administration contracts remain unchanged
   (US-001; supersedes the unreleased customer-only US-002 lookup surface).

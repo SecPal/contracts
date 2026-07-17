@@ -21,6 +21,22 @@ const uuidValue = (value) =>
     value
   )
 
+function requireTextRules(rules) {
+  for (const { label, text: value, patterns } of rules) {
+    if (patterns.some((pattern) => !pattern.test(value ?? ''))) {
+      errors.push(`${label} must document its complete domain invariant.`)
+    }
+  }
+}
+
+function requireResponseRefs(rules) {
+  for (const { label, operation, status, ref } of rules) {
+    if (operation?.responses?.[status]?.$ref !== ref) {
+      errors.push(`${label} must use ${ref} for HTTP ${status}.`)
+    }
+  }
+}
+
 function requireUuid(schemaName, propertyName, required) {
   const schema = schemas[schemaName]
   if (
@@ -236,65 +252,6 @@ for (const schemaName of ['EmployeeCreateRequest', 'EmployeeUpdateRequest']) {
   }
 }
 
-if (
-  !/active, assignable, non-deleted.*organizational write access/i.test(
-    paths['/employees']?.post?.description ?? ''
-  )
-) {
-  errors.push('POST /employees must require eligible authorized assignment targets.')
-}
-if (
-  !/resulting.*same tenant.*Legal Entity.*active, assignable, non-deleted/i.test(
-    paths['/employees/{employee}']?.patch?.description ?? ''
-  )
-) {
-  errors.push('PATCH employee assignments must validate the resulting domain pair.')
-}
-if (
-  !/resulting.*existing customer-establishment link/i.test(
-    schemas.SiteUpdateRequest?.description ?? ''
-  )
-) {
-  errors.push('PATCH site assignments must require a valid resulting customer-establishment link.')
-}
-
-for (const [label, description] of [
-  [
-    'POST customer-establishment links',
-    paths['/customer-establishments']?.post?.description,
-  ],
-  ['POST site assignments', paths['/sites']?.post?.description],
-  ['PATCH site assignments', schemas.SiteUpdateRequest?.description],
-]) {
-  if (
-    !/active, non-deleted customer.*active, assignable, non-deleted.*organizational write access/i.test(
-      description ?? ''
-    )
-  ) {
-    errors.push(`${label} must enforce eligible authorized assignment targets.`)
-  }
-}
-
-const customerDelete = paths['/customers/{customer}']?.delete
-if (
-  !/customer-establishment links or sites/i.test(customerDelete?.description ?? '') ||
-  customerDelete?.responses?.['409']?.$ref !==
-    '#/components/responses/Conflict'
-) {
-  errors.push('DELETE customers must block remaining domain dependents with Conflict.')
-}
-const organizationalUnitDelete =
-  paths['/organizational-units/{organizational_unit}']?.delete
-if (
-  !/customers, customer-establishment links, sites, or employees/i.test(
-    organizationalUnitDelete?.description ?? ''
-  ) ||
-  organizationalUnitDelete?.responses?.['409']?.$ref !==
-    '#/components/responses/OrganizationalUnitDeletionConflict'
-) {
-  errors.push('DELETE organizational units must block remaining domain dependents with Conflict.')
-}
-
 function hasTenantConsistentCustomerEstablishmentExamples() {
   const schema = schemas.CustomerEstablishmentCreateRequest ?? {}
   const examples = schema['x-validation-examples'] ?? {}
@@ -329,39 +286,164 @@ if (!hasTenantConsistentCustomerEstablishmentExamples()) {
   )
 }
 
-const legalEntityLookupDescription =
-  paths['/lookups/legal-entities']?.get?.description ?? ''
-if (!/customers\.create.*sites\.create.*employees\.create/i.test(legalEntityLookupDescription)) {
-  errors.push(
-    'GET /lookups/legal-entities must authorize every domain-assignment creation workflow.'
-  )
-}
-const establishmentLookupDescription =
-  paths['/lookups/legal-entities/{legal_entity}/establishments']?.get
-    ?.description ?? ''
-if (!/same tenant, active, assignable, non-deleted/i.test(establishmentLookupDescription)) {
-  errors.push(
-    'GET establishment lookups must return only eligible establishments.'
-  )
-}
-if (!/existing customer-establishment link/i.test(paths['/sites']?.post?.description ?? '')) {
-  errors.push('POST /sites must require an existing customer-establishment link.')
-}
-if (
-  !/no customer-establishment links or sites/i.test(
-    paths['/customers/{customer}']?.patch?.description ?? ''
-  )
-) {
-  errors.push('PATCH /customers/{customer} must protect dependent links and sites during Legal Entity reassignment.')
-}
 const customerEstablishmentDelete = customerEstablishmentPath.delete
-if (
-  !/blocked.*sites/i.test(customerEstablishmentDelete?.description ?? '') ||
-  customerEstablishmentDelete?.responses?.['409']?.$ref !==
-    '#/components/responses/Conflict'
-) {
-  errors.push('DELETE customer establishments must block deletion while dependent sites exist.')
-}
+const customerDelete = paths['/customers/{customer}']?.delete
+const organizationalUnitUpdate =
+  paths['/organizational-units/{organizational_unit}']?.patch
+const organizationalUnitDelete =
+  paths['/organizational-units/{organizational_unit}']?.delete
+
+requireTextRules([
+  {
+    label: 'POST employee assignments',
+    text: paths['/employees']?.post?.description,
+    patterns: [
+      /active, assignable, non-deleted/i,
+      /organizational write access/i,
+    ],
+  },
+  {
+    label: 'PATCH employee assignments',
+    text: paths['/employees/{employee}']?.patch?.description,
+    patterns: [
+      /resulting.*same tenant.*Legal Entity/i,
+      /active, assignable, non-deleted/i,
+    ],
+  },
+  {
+    label: 'POST customer-establishment links',
+    text: paths['/customer-establishments']?.post?.description,
+    patterns: [
+      /customers\.update/i,
+      /active, non-deleted customer/i,
+      /active, assignable, non-deleted establishment/i,
+      /organizational write access/i,
+    ],
+  },
+  {
+    label: 'POST site assignments',
+    text: paths['/sites']?.post?.description,
+    patterns: [
+      /active, non-deleted customer/i,
+      /active, assignable, non-deleted/i,
+      /organizational write access/i,
+      /existing customer-establishment link/i,
+    ],
+  },
+  {
+    label: 'PATCH site assignments',
+    text: schemas.SiteUpdateRequest?.description,
+    patterns: [
+      /resulting/i,
+      /active, non-deleted customer/i,
+      /active, assignable, non-deleted/i,
+      /organizational write access/i,
+      /existing customer-establishment link/i,
+    ],
+  },
+  {
+    label: 'PATCH customer Legal Entity reassignment',
+    text: paths['/customers/{customer}']?.patch?.description,
+    patterns: [/no customer-establishment links or sites/i],
+  },
+  {
+    label: 'PATCH customer-establishment links',
+    text: customerEstablishmentPath.patch?.description,
+    patterns: [/customers\.update/i],
+  },
+  {
+    label: 'DELETE customer-establishment links',
+    text: customerEstablishmentDelete?.description,
+    patterns: [/customers\.update/i, /blocked.*sites/i],
+  },
+  {
+    label: 'DELETE customers',
+    text: customerDelete?.description,
+    patterns: [/customer-establishment links or sites/i],
+  },
+  {
+    label: 'PATCH organizational-unit roles',
+    text: organizationalUnitUpdate?.description,
+    patterns: [
+      /is_legal_entity.*is_establishment/i,
+      /referenced.*customers.*customer-establishment links.*sites.*employees/i,
+    ],
+  },
+  {
+    label: 'DELETE organizational units',
+    text: organizationalUnitDelete?.description,
+    patterns: [/customers, customer-establishment links, sites, or employees/i],
+  },
+  {
+    label: 'GET Legal Entity lookups',
+    text: paths['/lookups/legal-entities']?.get?.description,
+    patterns: [
+      /customers\.create.*customers\.update.*sites\.create.*employees\.create/i,
+    ],
+  },
+  {
+    label: 'GET establishment lookups',
+    text: paths['/lookups/legal-entities/{legal_entity}/establishments']?.get
+      ?.description,
+    patterns: [
+      /customers\.update.*sites\.create.*employees\.create/i,
+      /same tenant, active, assignable, non-deleted/i,
+    ],
+  },
+  {
+    label: 'GET linked customer lookups',
+    text: paths['/lookups/establishments/{establishment}/customers']?.get
+      ?.description,
+    patterns: [
+      /sites\.create/i,
+      /active, assignable, non-deleted establishment/i,
+      /organizational write access/i,
+      /active, non-deleted customers/i,
+      /existing customer-establishment link/i,
+    ],
+  },
+  {
+    label: 'GET customer link candidates',
+    text: paths[
+      '/lookups/establishments/{establishment}/customer-candidates'
+    ]?.get?.description,
+    patterns: [
+      /customers\.update/i,
+      /active, assignable, non-deleted establishment/i,
+      /same tenant and Legal Entity/i,
+      /active, non-deleted customers/i,
+      /not yet linked/i,
+      /organizational write access/i,
+    ],
+  },
+])
+
+requireResponseRefs([
+  {
+    label: 'DELETE customer-establishment links',
+    operation: customerEstablishmentDelete,
+    status: '409',
+    ref: '#/components/responses/Conflict',
+  },
+  {
+    label: 'DELETE customers',
+    operation: customerDelete,
+    status: '409',
+    ref: '#/components/responses/Conflict',
+  },
+  {
+    label: 'PATCH organizational-unit roles',
+    operation: organizationalUnitUpdate,
+    status: '409',
+    ref: '#/components/responses/Conflict',
+  },
+  {
+    label: 'DELETE organizational units',
+    operation: organizationalUnitDelete,
+    status: '409',
+    ref: '#/components/responses/OrganizationalUnitDeletionConflict',
+  },
+])
 const siteIncludes = paths['/sites/{site}']?.get?.parameters?.find(
   (parameter) => parameter?.name === 'include'
 )?.schema?.enum
@@ -432,6 +514,10 @@ for (const [pathName, responseRef] of [
     '/lookups/establishments/{establishment}/customers',
     '#/components/schemas/CustomerLookupCollectionResponse',
   ],
+  [
+    '/lookups/establishments/{establishment}/customer-candidates',
+    '#/components/schemas/CustomerLookupCollectionResponse',
+  ],
 ]) {
   const operation = paths[pathName]?.get
   const actualRef =
@@ -445,16 +531,6 @@ for (const [pathName, responseRef] of [
       `GET ${pathName} must return the minimal authorized lookup response.`
     )
   }
-}
-if (
-  !/existing customer-establishment link/i.test(
-    paths['/lookups/establishments/{establishment}/customers']?.get
-      ?.description ?? ''
-  )
-) {
-  errors.push(
-    'GET customer lookups must return only customers with an existing customer-establishment link.'
-  )
 }
 
 const duplicateError = schemas.DuplicateResourceError ?? {}

@@ -289,6 +289,73 @@ test('enforces lookup eligibility when assignment UUIDs are submitted directly',
   )
 })
 
+test('separates customer link candidates from customers already linked for sites', () => {
+  const linkedCustomers =
+    paths['/lookups/establishments/{establishment}/customers'].get
+  assert.match(
+    linkedCustomers.description,
+    /active, non-deleted customers.*existing customer-establishment link/i
+  )
+
+  const linkCandidates =
+    paths['/lookups/establishments/{establishment}/customer-candidates']?.get
+  assert.ok(linkCandidates)
+  assert.match(linkCandidates.description, /customers\.update/i)
+  assert.match(
+    linkCandidates.description,
+    /active, non-deleted customers.*not yet linked/i
+  )
+  assert.equal(
+    linkCandidates.responses['200'].content['application/json'].schema.$ref,
+    '#/components/schemas/CustomerLookupCollectionResponse'
+  )
+})
+
+test('keeps lookup permissions aligned with every link and assignment workflow', () => {
+  assert.match(
+    paths['/lookups/legal-entities'].get.description,
+    /customers\.create.*customers\.update.*sites\.create.*employees\.create/i
+  )
+  assert.match(
+    paths['/lookups/legal-entities/{legal_entity}/establishments'].get
+      .description,
+    /customers\.update.*sites\.create.*employees\.create/i
+  )
+  assert.match(
+    paths['/lookups/establishments/{establishment}/customers'].get.description,
+    /sites\.create.*active, assignable, non-deleted establishment/i
+  )
+  assert.match(
+    paths[
+      '/lookups/establishments/{establishment}/customer-candidates'
+    ].get.description,
+    /customers\.update.*active, assignable, non-deleted establishment/i
+  )
+
+  const linkPath =
+    paths['/customer-establishments/{customer_establishment}']
+  assert.match(linkPath.patch.description, /customers\.update/i)
+  assert.match(linkPath.delete.description, /customers\.update/i)
+})
+
+test('names link-management permission and blocks referenced OU role downgrades', () => {
+  assert.match(
+    paths['/customer-establishments'].post.description,
+    /customers\.update/i
+  )
+
+  const organizationalUnitUpdate =
+    paths['/organizational-units/{organizational_unit}'].patch
+  assert.match(
+    organizationalUnitUpdate.description,
+    /is_legal_entity.*is_establishment.*referenced.*customers.*customer-establishment links.*sites.*employees/i
+  )
+  assert.equal(
+    organizationalUnitUpdate.responses['409'].$ref,
+    '#/components/responses/Conflict'
+  )
+})
+
 test('blocks deletion of domain records that still have dependents', () => {
   const customerDelete = paths['/customers/{customer}'].delete
   assert.match(
@@ -368,6 +435,39 @@ test('guard rejects widened lookup data', () => {
 
   assert.notEqual(result.status, 0, result.stdout)
   assert.match(result.stderr, /CustomerLookup/)
+})
+
+test('guard rejects weakened lookup, permission, and OU role invariants', () => {
+  const candidate = structuredClone(contract)
+  candidate.paths[
+    '/lookups/establishments/{establishment}/customers'
+  ].get.description = 'Returns authorized customer options.'
+  candidate.paths[
+    '/lookups/establishments/{establishment}/customer-candidates'
+  ].get.description = 'Returns authorized customer options.'
+  candidate.paths['/customer-establishments'].post.description =
+    'Creates a customer-establishment link.'
+  candidate.paths[
+    '/customer-establishments/{customer_establishment}'
+  ].patch.description = 'Updates local contact data.'
+  candidate.paths[
+    '/customer-establishments/{customer_establishment}'
+  ].delete.description = 'Deletes a link when unused.'
+  candidate.paths[
+    '/organizational-units/{organizational_unit}'
+  ].patch.description = 'Updates an organizational unit.'
+  delete candidate.paths['/organizational-units/{organizational_unit}'].patch
+    .responses['409']
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /GET linked customer lookups/)
+  assert.match(result.stderr, /GET customer link candidates/)
+  assert.match(result.stderr, /POST customer-establishment links/)
+  assert.match(result.stderr, /PATCH customer-establishment links/)
+  assert.match(result.stderr, /DELETE customer-establishment links/)
+  assert.match(result.stderr, /PATCH organizational-unit roles/)
 })
 
 test('guard rejects distinguishable duplicate responses', () => {

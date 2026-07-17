@@ -9591,6 +9591,8 @@ paths:
         Update organizational-unit fields with PATCH semantics.
 
         `OrganizationalUnitPolicy::update` enforces same-tenant access plus write scope. If `type` is changed, the API validates the structural type enum; changing it to `custom` requires a `custom_type_name` containing a non-whitespace character in the same payload. The API returns `422` if the name is absent, `null`, empty, or whitespace-only when changing to `custom`, or if a caller clears the name of an existing custom unit. Status flags remain independent and are never inferred from `type`.
+
+        Clearing `is_legal_entity` or `is_establishment` is rejected with `409` while that role is referenced by customers, customer-establishment links, sites, or employees; callers must migrate or remove dependent domain records first.
       operationId: updateOrganizationalUnit
       tags:
         - Organizational Units
@@ -9625,6 +9627,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
         '500':
@@ -9943,7 +9947,7 @@ paths:
   /lookups/legal-entities:
     get:
       summary: List Authorized Legal Entities
-      description: Requires at least one of `customers.create`, `sites.create`, or `employees.create` and returns only authorized, same tenant, active, assignable, non-deleted Legal Entity options for which the caller has organizational write access. Each item contains only its UUID and display name; no hierarchy, RBAC, tenant, or status metadata is exposed.
+      description: Requires at least one of `customers.create`, `customers.update`, `sites.create`, or `employees.create` and returns only authorized, same tenant, active, assignable, non-deleted Legal Entity options for which the caller has organizational write access. Each item contains only its UUID and display name; no hierarchy, RBAC, tenant, or status metadata is exposed.
       operationId: listLegalEntityLookups
       tags:
         - Lookups
@@ -9966,7 +9970,7 @@ paths:
   /lookups/legal-entities/{legal_entity}/establishments:
     get:
       summary: List Authorized Establishments
-      description: Returns only same tenant, active, assignable, non-deleted establishments the caller is authorized to use under the selected authorized Legal Entity. Each item contains only its UUID and display name.
+      description: Requires at least one of `customers.update`, `sites.create`, or `employees.create` and returns only same tenant, active, assignable, non-deleted establishments the caller is authorized to use under the selected authorized Legal Entity. Each item contains only its UUID and display name.
       operationId: listEstablishmentLookups
       tags:
         - Lookups
@@ -9999,7 +10003,7 @@ paths:
   /lookups/establishments/{establishment}/customers:
     get:
       summary: List Authorized Customers
-      description: Returns only customers the caller is authorized to use through an existing customer-establishment link for the selected authorized establishment. Each item contains only its UUID and display name.
+      description: Requires `sites.create` and an active, assignable, non-deleted establishment within the caller's organizational write access. Returns only authorized, active, non-deleted customers available through an existing customer-establishment link for that establishment. Each item contains only its UUID and display name.
       operationId: listCustomerLookups
       tags:
         - Lookups
@@ -10016,6 +10020,39 @@ paths:
       responses:
         '200':
           description: Authorized customer lookup options
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerLookupCollectionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /lookups/establishments/{establishment}/customer-candidates:
+    get:
+      summary: List Customer Link Candidates
+      description: Requires `customers.update` and an active, assignable, non-deleted establishment within the caller's organizational write access. Returns only authorized, active, non-deleted customers from the same tenant and Legal Entity that are not yet linked to that establishment. Each item contains only its UUID and display name.
+      operationId: listCustomerLinkCandidateLookups
+      tags:
+        - Lookups
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: establishment
+          in: path
+          required: true
+          description: Authorized establishment UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Authorized customer link candidates
           content:
             application/json:
               schema:
@@ -10081,7 +10118,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     post:
       summary: Link Customer to Establishment
-      description: Creates a unique customer-to-establishment link with optional local contact data. The request must use an active, non-deleted customer and an active, assignable, non-deleted establishment within the caller's organizational write access; both must belong to the same tenant and Legal Entity. Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing whether the pair or local identifying data matched.
+      description: Requires `customers.update` and creates a unique customer-to-establishment link with optional local contact data. The request must use an active, non-deleted customer and an active, assignable, non-deleted establishment within the caller's organizational write access; both must belong to the same tenant and Legal Entity. Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing whether the pair or local identifying data matched.
       operationId: createCustomerEstablishment
       tags:
         - Customers
@@ -10143,6 +10180,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     patch:
       summary: Update Customer Establishment Contact Data
+      description: Requires `customers.update` and updates only the link's local contact data.
       operationId: updateCustomerEstablishment
       tags:
         - Customers
@@ -10173,7 +10211,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     delete:
       summary: Delete Customer Establishment
-      description: Deletion is blocked while one or more sites use this customer-establishment link, preserving the relationship required by each site.
+      description: Requires `customers.update`. Deletion is blocked while one or more sites use this customer-establishment link, preserving the relationship required by each site.
       operationId: deleteCustomerEstablishment
       tags:
         - Customers
