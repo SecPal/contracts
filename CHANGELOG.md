@@ -51,8 +51,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   while customer and site create schemas retain the API-supported nullable
   business identifiers, activation defaults, and contact input. Customer and
   Site record reads now distinguish assignment access from OU scopes that can
-  open an empty collection but grant no record visibility, and their domain
-  writes explicitly reject OU-scoped callers. Employee create, update, and
+  open an empty collection but grant no record visibility. All create, update,
+  and delete operations for Customer, CustomerEstablishment, and Site
+  explicitly reject OU-scoped callers. Employee create, update, and
   lookup contracts name the effective `employee.write`, `employee.create`, and
   `employee.update` permissions
   (US-001; supersedes the unreleased customer-only US-002 lookup surface).

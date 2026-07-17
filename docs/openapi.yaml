@@ -6023,7 +6023,7 @@ components:
     SiteUpdateRequest:
       type: object
       additionalProperties: false
-      description: Partial site update. If any domain relationship changes, validation uses the resulting customer, Legal Entity, and establishment combination after applying supplied values to the stored site; the result must use an active, non-deleted customer plus an active, non-deleted Legal Entity and establishment, remain tenant- and Legal-Entity-consistent, and reference an existing customer-establishment link. Changing any domain relationship requires `sites.update`; callers with any organizational scopes receive HTTP **403** for such reassignment.
+      description: Partial site update. If any domain relationship changes, validation uses the resulting customer, Legal Entity, and establishment combination after applying supplied values to the stored site; the result must use an active, non-deleted customer plus an active, non-deleted Legal Entity and establishment, remain tenant- and Legal-Entity-consistent, and reference an existing customer-establishment link.
       properties:
         name:
           type: string
@@ -10298,7 +10298,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     patch:
       summary: Update Customer Establishment Contact Data
-      description: Requires `customers.update` and updates only the link's local contact data.
+      description: Requires `customers.update` and updates only the link's local contact data. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `customers.update`.
       operationId: updateCustomerEstablishment
       tags:
         - Customers
@@ -10329,7 +10329,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     delete:
       summary: Delete Customer Establishment
-      description: Requires `customers.update`. Deletion is blocked while one or more sites use this customer-establishment link, preserving the relationship required by each site.
+      description: Requires `customers.update`. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `customers.update`. Deletion is blocked while one or more sites use this customer-establishment link, preserving the relationship required by each site.
       operationId: deleteCustomerEstablishment
       tags:
         - Customers
@@ -10393,7 +10393,7 @@ paths:
       summary: Update Customer
       description: |
         Update customer fields (PATCH semantics - all fields optional).
-        Requires `customers.update` and view access to the customer. If `legal_entity_id` differs from the customer's current value, it must identify a same-tenant, active, non-deleted Legal Entity. Legal Entity reassignment requires `customers.update`; callers with any organizational scopes receive HTTP **403** for reassignment. Reassignment is allowed only when the customer has no customer-establishment links or sites; clients must migrate or delete dependent records first.
+        Requires `customers.update` and view access to the customer. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `customers.update` and view access. If `legal_entity_id` differs from the customer's current value, it must identify a same-tenant, active, non-deleted Legal Entity. Reassignment is allowed only when the customer has no customer-establishment links or sites; clients must migrate or delete dependent records first.
       operationId: updateCustomer
       tags:
         - Customers
@@ -10443,7 +10443,7 @@ paths:
     delete:
       summary: Delete Customer
       description: |
-        Soft delete a customer. Requires customers.delete permission.
+        Soft delete a customer. Requires `customers.delete`. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `customers.delete`.
         Deletion is blocked while customer-establishment links or sites reference the customer; callers must move or delete dependents first.
       operationId: deleteCustomer
       tags:
@@ -10727,7 +10727,7 @@ paths:
       summary: Update Site
       description: |
         Update site fields (PATCH semantics - all fields optional).
-        Requires `sites.update` and view access to the site. Changing any domain relationship (`customer_id`, `legal_entity_id`, or `establishment_id`) requires `sites.update`; callers with any organizational scopes receive HTTP **403** for such reassignment.
+        Requires `sites.update` and view access to the site. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `sites.update` and view access.
       operationId: updateSite
       tags:
         - Sites
@@ -10775,7 +10775,7 @@ paths:
     delete:
       summary: Delete Site
       description: |
-        Soft delete a site. Requires sites.delete permission.
+        Soft delete a site. Requires `sites.delete`. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `sites.delete`.
         Will fail if site has active cost centers.
       operationId: deleteSite
       tags:

@@ -61,6 +61,53 @@ function requireContractRules(rules) {
   }
 }
 
+function requireNoOuScopeDomainMutations(rules) {
+  const coveredOperations = new Set()
+  const mutationMethods = new Set(['post', 'put', 'patch', 'delete'])
+  const domainTags = new Set(['Customers', 'Sites'])
+  const noOuBoundary =
+    /OU scopes do not grant access to customer or site domain writes.*callers with any organizational scopes.*403/is
+  const contradictoryOuAccess = [
+    /organizational write access/i,
+    /OU scopes? (?:also )?grant access to (?:this|customer|site|the) domain write/i,
+  ]
+
+  for (const { label, operation, permission } of rules) {
+    if (operation) {
+      coveredOperations.add(operation)
+    }
+    const description = operation?.description ?? ''
+    const unscopedPermission = new RegExp(
+      'unscoped callers require `' + permission.replaceAll('.', '\\.') + '`',
+      'i'
+    )
+    if (
+      !noOuBoundary.test(description) ||
+      !unscopedPermission.test(description) ||
+      contradictoryOuAccess.some((pattern) => pattern.test(description)) ||
+      operation?.responses?.['403']?.$ref !== '#/components/responses/Forbidden'
+    ) {
+      errors.push(
+        `${label} must keep its permission, complete no-OU domain-write boundary, and 403 response aligned.`
+      )
+    }
+  }
+
+  for (const [pathName, pathItem] of Object.entries(paths)) {
+    for (const [method, operation] of Object.entries(pathItem ?? {})) {
+      if (
+        mutationMethods.has(method) &&
+        operation?.tags?.some((tag) => domainTags.has(tag)) &&
+        !coveredOperations.has(operation)
+      ) {
+        errors.push(
+          `${method.toUpperCase()} ${pathName} must be covered by the customer/site no-OU domain mutation model.`
+        )
+      }
+    }
+  }
+}
+
 function requireEmployeeSubresourceAuthorization({
   familyLabel,
   pathPrefixes,
@@ -759,6 +806,55 @@ if (!hasTenantConsistentCustomerEstablishmentExamples()) {
 const customerUpdate = paths['/customers/{customer}']?.patch
 const customerDelete = paths['/customers/{customer}']?.delete
 const customerEstablishmentDelete = customerEstablishmentPath.delete
+const customerSiteDomainMutations = [
+  {
+    label: 'POST customers',
+    operation: paths['/customers']?.post,
+    permission: 'customers.create',
+  },
+  {
+    label: 'PATCH customers',
+    operation: customerUpdate,
+    permission: 'customers.update',
+  },
+  {
+    label: 'DELETE customers',
+    operation: customerDelete,
+    permission: 'customers.delete',
+  },
+  {
+    label: 'POST customer-establishment links',
+    operation: paths['/customer-establishments']?.post,
+    permission: 'customers.update',
+  },
+  {
+    label: 'PATCH customer-establishment links',
+    operation: customerEstablishmentPath.patch,
+    permission: 'customers.update',
+  },
+  {
+    label: 'DELETE customer-establishment links',
+    operation: customerEstablishmentDelete,
+    permission: 'customers.update',
+  },
+  {
+    label: 'POST sites',
+    operation: paths['/sites']?.post,
+    permission: 'sites.create',
+  },
+  {
+    label: 'PATCH sites',
+    operation: paths['/sites/{site}']?.patch,
+    permission: 'sites.update',
+  },
+  {
+    label: 'DELETE sites',
+    operation: paths['/sites/{site}']?.delete,
+    permission: 'sites.delete',
+  },
+]
+requireNoOuScopeDomainMutations(customerSiteDomainMutations)
+
 const assignmentLookups = {
   legalEntities: {
     label: 'GET Legal Entity lookups',
@@ -857,19 +953,11 @@ requireContractRules([
   {
     label: 'POST customer assignments',
     text: paths['/customers']?.post?.description,
-    patterns: [
-      /active, non-deleted/i,
-      /OU scopes do not grant access to customer or site domain writes.*callers with any organizational scopes.*403/is,
-    ],
+    patterns: [/active, non-deleted/i],
     forbiddenPatterns: [
       /organizational write access/i,
       tenantDomainAssignablePattern,
     ],
-    response: {
-      operation: paths['/customers']?.post,
-      status: '403',
-      ref: '#/components/responses/Forbidden',
-    },
   },
   {
     label: 'POST employee assignments',
@@ -890,7 +978,6 @@ requireContractRules([
       /customers\.update/i,
       /active, non-deleted customer/i,
       /active, non-deleted establishment/i,
-      /OU scopes do not grant access to customer or site domain writes.*callers with any organizational scopes.*403/is,
     ],
     forbiddenPatterns: [
       /organizational write access/i,
@@ -903,7 +990,6 @@ requireContractRules([
     patterns: [
       /active, non-deleted customer/i,
       /active, non-deleted/i,
-      /OU scopes do not grant access to customer or site domain writes.*callers with any organizational scopes.*403/is,
       /existing customer-establishment link/i,
     ],
     forbiddenPatterns: [
@@ -918,29 +1004,12 @@ requireContractRules([
       /resulting/i,
       /active, non-deleted customer/i,
       /active, non-deleted/i,
-      /domain relationship.*sites\.update.*organizational scopes.*403/is,
       /existing customer-establishment link/i,
     ],
     forbiddenPatterns: [
       /organizational write access/i,
       tenantDomainAssignablePattern,
     ],
-  },
-  {
-    label: 'PATCH site assignment operation',
-    text: paths['/sites/{site}']?.patch?.description,
-    patterns: [
-      /domain relationship.*sites\.update.*organizational scopes.*403/is,
-    ],
-    forbiddenPatterns: [
-      /organizational write access/i,
-      tenantDomainAssignablePattern,
-    ],
-  },
-  {
-    label: 'PATCH customer-establishment links',
-    text: customerEstablishmentPath.patch?.description,
-    patterns: [/customers\.update/i],
   },
   ...[
     ['GET customer collections', paths['/customers']?.get],
@@ -1149,8 +1218,8 @@ requireContractRules([
     label: 'PATCH customer Legal Entity reassignment',
     text: customerUpdate?.description,
     patterns: [
+      /legal_entity_id.*same-tenant, active, non-deleted Legal Entity/is,
       /no customer-establishment links or sites/i,
-      /legal_entity_id.*customers\.update.*organizational scopes.*403/is,
     ],
     forbiddenPatterns: [
       /organizational write access/i,

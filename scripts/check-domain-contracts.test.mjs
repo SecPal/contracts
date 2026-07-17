@@ -493,19 +493,34 @@ test('documents tenant-consistent customer establishment links', () => {
 })
 
 test('keeps customer and site domain mutations outside OU entitlement', () => {
-  const createOperations = [
+  const domainMutations = [
     [paths['/customers'].post, 'customers.create'],
+    [paths['/customers/{customer}'].patch, 'customers.update'],
+    [paths['/customers/{customer}'].delete, 'customers.delete'],
     [paths['/customer-establishments'].post, 'customers.update'],
+    [
+      paths['/customer-establishments/{customer_establishment}'].patch,
+      'customers.update',
+    ],
+    [
+      paths['/customer-establishments/{customer_establishment}'].delete,
+      'customers.update',
+    ],
     [paths['/sites'].post, 'sites.create'],
+    [paths['/sites/{site}'].patch, 'sites.update'],
+    [paths['/sites/{site}'].delete, 'sites.delete'],
   ]
-  for (const [operation, permission] of createOperations) {
+  for (const [operation, permission] of domainMutations) {
     assert.match(
       operation.description,
       /OU scopes do not grant access to customer or site domain writes.*callers with any organizational scopes.*403/is
     )
     assert.match(
       operation.description,
-      new RegExp(permission.replace('.', '\\.'))
+      new RegExp(
+        'unscoped callers require `' + permission.replace('.', '\\.') + '`',
+        'i'
+      )
     )
     assert.doesNotMatch(operation.description, /organizational write access/i)
     assert.equal(
@@ -516,18 +531,16 @@ test('keeps customer and site domain mutations outside OU entitlement', () => {
 
   assert.match(
     paths['/customers/{customer}'].patch.description,
-    /legal_entity_id.*customers\.update.*organizational scopes.*403/is
+    /legal_entity_id.*same-tenant, active, non-deleted Legal Entity/is
   )
-  for (const description of [
-    paths['/sites/{site}'].patch.description,
+  assert.match(
     schemas.SiteUpdateRequest.description,
-  ]) {
-    assert.match(
-      description,
-      /domain relationship.*sites\.update.*organizational scopes.*403/is
-    )
-    assert.doesNotMatch(description, /organizational write access/i)
-  }
+    /resulting customer, Legal Entity, and establishment combination/is
+  )
+  assert.doesNotMatch(
+    schemas.SiteUpdateRequest.description,
+    /organizational scopes.*403/is
+  )
 })
 
 test('documents customer record read authorization without OU entitlement', () => {
@@ -748,7 +761,7 @@ test('enforces lookup eligibility when assignment UUIDs are submitted directly',
   )
   assert.match(
     schemas.SiteUpdateRequest.description,
-    /active, non-deleted customer.*active, non-deleted Legal Entity and establishment.*sites\.update.*organizational scopes.*403/is
+    /active, non-deleted customer.*active, non-deleted Legal Entity and establishment.*existing customer-establishment link/is
   )
 })
 
@@ -1124,16 +1137,61 @@ test('guard rejects OU-entitled customer and site record reads', () => {
 
 test('guard rejects OU-entitled customer or site domain mutations', () => {
   const candidate = structuredClone(contract)
-  candidate.paths['/customers'].post.description +=
+  const domainMutations = [
+    candidate.paths['/customers'].post,
+    candidate.paths['/customers/{customer}'].patch,
+    candidate.paths['/customers/{customer}'].delete,
+    candidate.paths['/customer-establishments'].post,
+    candidate.paths['/customer-establishments/{customer_establishment}'].patch,
+    candidate.paths['/customer-establishments/{customer_establishment}'].delete,
+    candidate.paths['/sites'].post,
+    candidate.paths['/sites/{site}'].patch,
+    candidate.paths['/sites/{site}'].delete,
+  ]
+  domainMutations[0].description +=
     ' Organizational write access also grants this write.'
-  candidate.paths['/sites/{site}'].patch.description +=
-    ' Domain reassignment also follows organizational write access.'
+  domainMutations[1].description = domainMutations[1].description.replace(
+    'unscoped callers require `customers.update`',
+    'unscoped callers require `customers.read`'
+  )
+  for (const operation of domainMutations.slice(2)) {
+    operation.description = operation.description.replace(
+      /OU scopes do not grant access to customer or site domain writes/i,
+      'OU scopes grant access to this domain write'
+    )
+  }
+  candidate.paths['/customers/{customer}/archive'] = {
+    post: {
+      operationId: 'archiveCustomer',
+      tags: ['Customers'],
+      description:
+        'Requires customers.update. Callers with organizational scopes receive 403.',
+      responses: {
+        403: { $ref: '#/components/responses/Forbidden' },
+      },
+    },
+  }
 
   const result = runGuard(candidate)
 
   assert.notEqual(result.status, 0, result.stdout)
-  assert.match(result.stderr, /POST customer assignments/)
-  assert.match(result.stderr, /PATCH site assignment operation/)
+  for (const label of [
+    'POST customers',
+    'PATCH customers',
+    'DELETE customers',
+    'POST customer-establishment links',
+    'PATCH customer-establishment links',
+    'DELETE customer-establishment links',
+    'POST sites',
+    'PATCH sites',
+    'DELETE sites',
+  ]) {
+    assert.match(result.stderr, new RegExp(label))
+  }
+  assert.match(
+    result.stderr,
+    /POST \/customers\/\{customer\}\/archive.*no-OU domain mutation model/
+  )
 })
 
 test('guard rejects stale OU-based employee subresource access', () => {
