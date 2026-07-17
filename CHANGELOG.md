@@ -14,21 +14,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Defined the customer Legal Entity assignment contract: customer responses and
-  customer create/update payloads carry the explicit same-tenant
-  `legal_entity_id` relationship, while the contract explicitly prohibits a
-  default assignment for existing customers. Any backfill remains blocked until
-  a product-approved deterministic tenant-consistent rule is available.
-  Create and reassignment schemas include accepted same-tenant and rejected
-  cross-tenant validation examples (closes #351; parent epic
-  `SecPal/frontend#1391`).
-- Added the optional nullable customer `vat_id` field to customer responses and
-  create/update request contracts.
-- **Breaking:** Required `legal_entity_id` on customer responses and
-  `POST /customers` request payloads, documented optional authorized
-  Legal Entity reassignment through `PATCH /customers/{customer}`, and documented the narrow
-  `GET /customers/legal-entities` lookup for same-tenant, active,
-  non-deleted Legal Entity options with organizational write access (US-002).
+- **Breaking:** Defined OU-free domain contracts for Legal Entities,
+  establishments, customers, sites, and employees. Customer now contains only
+  Legal-Entity-wide master data (including billing address, optional VAT ID,
+  and status), while `CustomerEstablishment` owns the unique
+  customer/establishment link plus local contact data. Site and employee
+  requests and responses now require explicit `legal_entity_id` and
+  `establishment_id` relationships; customer, site, and employee contracts and
+  list filters no longer expose OU fields or relations. Single-customer
+  responses no longer advertise undeclared relationship includes; dedicated
+  relationship endpoints remain available, with complete pagination metadata
+  for customer/establishment links. Customer-establishment links now require
+  tenant- and Legal-Entity-consistent assignments, and sites require an
+  existing link; dependent links and sites block incompatible reassignment or
+  deletion. Site and employee updates validate the complete resulting domain
+  assignment. Tenant-local Legal Entities and establishments use active and
+  soft-deleted lifecycle state without inheriting OU `is_assignable` or role
+  flags, so organizational-unit administration remains lifecycle-independent.
+  Added separate minimal
+  lookups for customers already linked to an establishment and eligible
+  unlinked link candidates, plus authorized Legal Entity and establishment
+  lookups covering both create and reassignment permissions. Dependency-blocked
+  customer reassignment uses an explicit conflict response, and one atomic,
+  information-poor duplicate-conflict response is shared by all domain create
+  operations. Local customer-establishment contact data remains reusable and
+  only the tenant-scoped customer/establishment pair is unique. Employee
+  creation audit examples now use the runtime `employee_changes` category,
+  carry Legal Entity and establishment IDs, and omit obsolete OU and personal
+  name values across attributes and subject embeds. All Employee Qualification
+  and Employee Document operations now document that OU scopes do not grant
+  access to domain employees, including explicit self-service exceptions and
+  fail-closed `403` behavior for scoped non-self access. Migrated customer,
+  site, and employee collection filters now match the domain API identifiers
+  and search fields, and the unsupported site `currently_valid` filter was
+  removed. Closed customer responses retain the caller-visible `sites_count`,
+  while customer and site create schemas retain the API-supported nullable
+  business identifiers, activation defaults, and contact input. Customer and
+  Site record reads now distinguish assignment access from OU scopes that can
+  open an empty collection but grant no record visibility. All create, update,
+  and delete operations for Customer, CustomerEstablishment, and Site
+  explicitly reject OU-scoped callers. Employee create, update, and
+  lookup contracts name the effective `employee.write`, `employee.create`, and
+  `employee.update` permissions
+  (US-001; supersedes the unreleased customer-only US-002 lookup surface).
 - Defined independent organizational-unit `is_active` (administrative status) and `is_assignable` (eligibility for new operational assignments, scopes, and related workflows) flags across response, create, update, and list-filter contracts (closes #338). Both response fields are required booleans and neither is derived from hierarchy, soft deletion, parent status, unit type, or the other flag; create requests default both omitted status fields to `true`, and deletion remains blocked by every non-deleted direct child regardless of its `is_active` value. This is an additive response change: clients generated from older contracts should regenerate types before relying on the fields, while clients that may deserialize cached or staged older responses must tolerate either newly documented field being absent until their deployment is fully aligned.
 - Documented the organizational-unit OpenAPI surface in `docs/openapi.yaml`, including all nine verified OU operations, reusable response/request/permissions/collection/pagination/conflict schemas, full-resource relationship shapes, PATCH-safe independent `is_legal_entity` and `is_establishment` boolean flags, the conditional custom type-name requirement, exact root-or-UUID filtering, tenant isolation, need-to-know parent filtering, policy behavior, type hierarchy validation, and semantic verified-endpoint guard coverage for the OU routes.
 - Added `npm test` as the standard contract-test entry point; it runs the repository's canonical lint and formatting validation pipeline (closes #339).

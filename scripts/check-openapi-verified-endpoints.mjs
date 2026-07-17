@@ -45,7 +45,7 @@ const REQUIRED_OPERATIONS = [
   ['get', '/organizational-units/{organizational_unit}/ancestors'],
   ['post', '/organizational-units/{organizational_unit}/parent'],
   ['delete', '/organizational-units/{organizational_unit}/parent/{parent}'],
-  ['get', '/customers/legal-entities'],
+  ['get', '/lookups/legal-entities'],
 ]
 
 const target = process.argv[2]
@@ -107,7 +107,7 @@ const customerUpdateRequestBody =
   paths['/customers/{customer}']?.patch?.requestBody ?? {}
 const customerUpdateSchema =
   customerUpdateRequestBody?.content?.['application/json']?.schema ?? {}
-const customerLegalEntityLookup = schemas.CustomerLegalEntityLookup ?? {}
+const legalEntityLookup = schemas.LegalEntityLookup ?? {}
 const customerUpdateRequest = schemas.CustomerUpdateRequest ?? {}
 const organizationalUnit = schemas.OrganizationalUnit ?? {}
 const createRequest = schemas.OrganizationalUnitCreateRequest ?? {}
@@ -297,42 +297,36 @@ for (const [label, responseSchema] of [
 }
 
 const legalEntityLookupProperties = Object.keys(
-  customerLegalEntityLookup.properties ?? {}
+  legalEntityLookup.properties ?? {}
 )
 const legalEntityLookupAllowed = new Set(['id', 'name'])
 if (
-  customerLegalEntityLookup.type !== 'object' ||
-  customerLegalEntityLookup.additionalProperties !== false ||
+  legalEntityLookup.type !== 'object' ||
+  legalEntityLookup.additionalProperties !== false ||
   legalEntityLookupProperties.some(
     (property) => !legalEntityLookupAllowed.has(property)
   ) ||
-  !customerLegalEntityLookup.required?.includes('id') ||
-  !customerLegalEntityLookup.required?.includes('name') ||
-  customerLegalEntityLookup.properties?.id?.type !== 'string' ||
-  customerLegalEntityLookup.properties?.id?.format !== 'uuid' ||
-  customerLegalEntityLookup.properties?.name?.type !== 'string'
+  !legalEntityLookup.required?.includes('id') ||
+  !legalEntityLookup.required?.includes('name') ||
+  legalEntityLookup.properties?.id?.type !== 'string' ||
+  legalEntityLookup.properties?.id?.format !== 'uuid' ||
+  legalEntityLookup.properties?.name?.type !== 'string'
 ) {
   contractErrors.push(
-    'CustomerLegalEntityLookup must expose only required id and name fields.'
+    'LegalEntityLookup must expose only required id and name fields.'
   )
 }
 
-const customerLegalEntitiesResponse =
-  paths['/customers/legal-entities']?.get?.responses?.['200']?.content?.[
+const legalEntitiesResponse =
+  paths['/lookups/legal-entities']?.get?.responses?.['200']?.content?.[
     'application/json'
   ]?.schema
-const customerLegalEntitiesItems =
-  customerLegalEntitiesResponse?.properties?.data?.items
 if (
-  customerLegalEntitiesResponse?.type !== 'object' ||
-  customerLegalEntitiesResponse?.additionalProperties !== false ||
-  !customerLegalEntitiesResponse?.required?.includes('data') ||
-  customerLegalEntitiesResponse?.properties?.data?.type !== 'array' ||
-  customerLegalEntitiesItems?.$ref !==
-    '#/components/schemas/CustomerLegalEntityLookup'
+  legalEntitiesResponse?.$ref !==
+  '#/components/schemas/LegalEntityLookupCollectionResponse'
 ) {
   contractErrors.push(
-    'GET /customers/legal-entities must return data[] of CustomerLegalEntityLookup.'
+    'GET /lookups/legal-entities must return LegalEntityLookupCollectionResponse.'
   )
 }
 
@@ -402,38 +396,9 @@ for (const [schemaName, schema] of [
   }
 }
 
-const customerCreateDescription = paths['/customers']?.post?.description ?? ''
-const customerUpdateDescription =
-  paths['/customers/{customer}']?.patch?.description ?? ''
-const legalEntitiesDescription =
-  paths['/customers/legal-entities']?.get?.description ?? ''
 const customerDescription = customer.description ?? ''
 const customerLegalEntityDescription =
   customer.properties?.legal_entity_id?.description ?? ''
-for (const [label, description, requiredPermission] of [
-  ['POST /customers', customerCreateDescription, 'customers.create'],
-  [
-    'PATCH /customers/{customer}',
-    customerUpdateDescription,
-    'customers.update',
-  ],
-  [
-    'GET /customers/legal-entities',
-    legalEntitiesDescription,
-    'customers.create',
-  ],
-]) {
-  for (const requiredText of [
-    requiredPermission,
-    'same tenant',
-    'active, assignable, non-deleted Legal Entity',
-    'organizational write access',
-  ]) {
-    if (!description.includes(requiredText)) {
-      contractErrors.push(`${label} must document ${requiredText}.`)
-    }
-  }
-}
 
 for (const [label, description] of [
   ['Customer', customerDescription],
@@ -451,21 +416,14 @@ for (const [label, description] of [
   }
 }
 
-for (const relationship of [
-  'parent',
-  'children',
-  'ancestors',
-  'descendants',
-]) {
+for (const relationship of ['parent', 'children', 'ancestors', 'descendants']) {
   const property = organizationalUnit.properties?.[relationship]
   const reference =
     relationship === 'parent'
       ? property?.anyOf?.find((schema) => schema?.$ref)?.$ref
       : property?.items?.$ref
   const mustBeNullable = relationship === 'parent'
-  const isNullable = property?.anyOf?.some(
-    (schema) => schema?.type === 'null'
-  )
+  const isNullable = property?.anyOf?.some((schema) => schema?.type === 'null')
   if (
     reference !== '#/components/schemas/OrganizationalUnit' ||
     (mustBeNullable && !isNullable)
@@ -690,12 +648,13 @@ if (
   responses.OrganizationalUnitHasChildrenConflict == null
 ) {
   contractErrors.push(
-    'Organizational-unit deletion must document its child-conflict response shape.'
+    'Organizational-unit deletion must document its direct-child conflict response shape.'
   )
 }
 
 const organizationalUnitDeleteDescription =
-  paths['/organizational-units/{organizational_unit}']?.delete?.description ?? ''
+  paths['/organizational-units/{organizational_unit}']?.delete?.description ??
+  ''
 const organizationalUnitHierarchyDescriptions = [
   paths['/organizational-units/{organizational_unit}/descendants']?.get
     ?.description ?? '',
@@ -724,7 +683,8 @@ if (
 if (
   organizationalUnitHierarchyDescriptions.some(
     (description) =>
-      !description.includes('is_active') || !description.includes('is_assignable')
+      !description.includes('is_active') ||
+      !description.includes('is_assignable')
   )
 ) {
   contractErrors.push(

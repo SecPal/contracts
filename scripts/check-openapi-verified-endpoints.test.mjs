@@ -67,6 +67,18 @@ test('accepts the repository contract', () => {
   assert.equal(result.status, 0, result.stderr)
 })
 
+test('rejects an OU deletion response without the direct-child conflict', () => {
+  const candidate = structuredClone(parsedContract)
+  candidate.paths[
+    '/organizational-units/{organizational_unit}'
+  ].delete.responses['409'].$ref = '#/components/responses/Conflict'
+
+  const result = runGuard(yaml.dump(candidate))
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /direct-child conflict response/i)
+})
+
 test('defines organizational-unit filters as booleans', () => {
   for (const name of ['is_active', 'is_assignable']) {
     const parameter = organizationalUnitListParameter(
@@ -152,10 +164,7 @@ test('accepts additional organizational-unit wire examples with allowed values',
       candidate.paths['/organizational-units'].get.parameters,
       name
     )
-    const wireExamples = organizationalUnitWireExamples(
-      parameter,
-      name
-    )
+    const wireExamples = organizationalUnitWireExamples(parameter, name)
     wireExamples.additional_text_true = { value: 'true' }
   }
 
@@ -171,10 +180,7 @@ test('rejects organizational-unit boolean filters with unrelated wire values', (
       candidate.paths['/organizational-units'].get.parameters,
       name
     )
-    const wireExamples = organizationalUnitWireExamples(
-      parameter,
-      name
-    )
+    const wireExamples = organizationalUnitWireExamples(parameter, name)
     wireExamples.unsupported = { value: 'yes' }
 
     const result = runGuard(yaml.dump(candidate))
@@ -186,7 +192,7 @@ test('rejects organizational-unit boolean filters with unrelated wire values', (
 test('accepts schema-valid nullable example fields', () => {
   const candidate = contract.replaceAll(
     '              name: ACME Corporation GmbH\n',
-    '              name: ACME Corporation GmbH\n              contact: null\n'
+    '              name: ACME Corporation GmbH\n              vat_id: null\n'
   )
   const result = runGuard(candidate)
 
