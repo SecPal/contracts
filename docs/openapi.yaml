@@ -10033,6 +10033,7 @@ paths:
                           postal_code: '10115'
                           country: DE
                         is_active: true
+                        sites_count: 2
                         customer_establishments:
                           - id: '790e8400-e29b-41d4-a716-446655440000'
                             customer_id: '550e8400-e29b-41d4-a716-446655440000'
@@ -10063,6 +10064,7 @@ paths:
                           postal_code: '10117'
                           country: DE
                         is_active: true
+                        sites_count: 0
                         customer_establishments: []
                         created_at: '2025-12-05T10:00:00Z'
                         updated_at: '2025-12-15T14:30:00Z'
@@ -10453,6 +10455,7 @@ paths:
                         postal_code: '10115'
                         country: DE
                       is_active: true
+                      sites_count: 2
                       customer_establishments:
                         - id: '790e8400-e29b-41d4-a716-446655440000'
                           customer_id: '550e8400-e29b-41d4-a716-446655440000'
@@ -10479,6 +10482,7 @@ paths:
                         postal_code: '10117'
                         country: DE
                       is_active: true
+                      sites_count: 0
                       customer_establishments: []
                       created_at: '2025-12-05T10:00:00Z'
                       updated_at: '2025-12-15T14:30:00Z'

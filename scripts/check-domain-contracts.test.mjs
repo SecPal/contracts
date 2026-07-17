@@ -277,26 +277,33 @@ test('documents embedded customer-establishment assignments in customer response
     /visible to the current caller.*site-only access.*active site assignments/is
   )
 
-  const listResponse = paths['/customers'].get.responses['200'].content[
-    'application/json'
-  ]
-  const detailResponse = paths['/customers/{customer}'].get.responses['200']
-    .content['application/json']
+  const listResponse =
+    paths['/customers'].get.responses['200'].content['application/json']
+  const detailResponse =
+    paths['/customers/{customer}'].get.responses['200'].content[
+      'application/json'
+    ]
 
   for (const response of [listResponse, detailResponse]) {
     const customer = response.examples.withCustomerEstablishment.value.data
     const customers = Array.isArray(customer) ? customer : [customer]
 
     for (const item of customers) {
+      assert.equal(Number.isInteger(item.sites_count), true)
+      assert.ok(item.sites_count >= 0)
       assert.ok(Array.isArray(item.customer_establishments))
       assert.equal(
-        Object.hasOwn(item.customer_establishments[0], 'organizational_unit_id'),
+        Object.hasOwn(
+          item.customer_establishments[0],
+          'organizational_unit_id'
+        ),
         false
       )
       assert.equal(
         Object.hasOwn(item.customer_establishments[0], 'organizational_unit'),
         false
       )
+      assert.equal(item.customer_establishments[0].customer_id, item.id)
     }
 
     const customerWithoutAssignments =
@@ -308,6 +315,8 @@ test('documents embedded customer-establishment assignments in customer response
       : [customerWithoutAssignments]
 
     for (const item of customersWithoutAssignments) {
+      assert.equal(Number.isInteger(item.sites_count), true)
+      assert.ok(item.sites_count >= 0)
       assert.deepEqual(item.customer_establishments, [])
     }
   }
@@ -1361,6 +1370,24 @@ test('guard rejects weakened customer-establishment embedding visibility or empt
   assert.notEqual(result.status, 0, result.stdout)
   assert.match(result.stderr, /caller-visible customer_establishments/)
   assert.match(result.stderr, /empty customer_establishments response example/)
+})
+
+test('guard rejects customer examples with invalid site counts or foreign assignments', () => {
+  const candidate = structuredClone(contract)
+  const listCustomer =
+    candidate.paths['/customers'].get.responses['200'].content[
+      'application/json'
+    ].examples.withCustomerEstablishment.value.data[0]
+
+  listCustomer.sites_count = -1
+  listCustomer.customer_establishments[0].customer_id =
+    '550e8400-e29b-41d4-a716-446655440001'
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /non-negative sites_count/)
+  assert.match(result.stderr, /matching customer_id/)
 })
 
 test('guard rejects unapproved contact example domains', () => {

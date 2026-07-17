@@ -500,9 +500,7 @@ if (
 for (const [label, response] of [
   [
     'GET /customers',
-    paths['/customers']?.get?.responses?.['200']?.content?.[
-      'application/json'
-    ],
+    paths['/customers']?.get?.responses?.['200']?.content?.['application/json'],
   ],
   [
     'GET /customers/{customer}',
@@ -517,6 +515,8 @@ for (const [label, response] of [
     customers.length > 0 &&
     customers.every(
       (customer) =>
+        Number.isInteger(customer?.sites_count) &&
+        customer.sites_count >= 0 &&
         Array.isArray(customer?.customer_establishments) &&
         customer.customer_establishments.length > 0 &&
         customer.customer_establishments.every(
@@ -524,6 +524,7 @@ for (const [label, response] of [
             uuidValue(assignment?.id) &&
             uuidValue(assignment?.customer_id) &&
             uuidValue(assignment?.establishment_id) &&
+            assignment.customer_id === customer.id &&
             !Object.hasOwn(assignment, 'organizational_unit_id') &&
             !Object.hasOwn(assignment, 'organizational_unit')
         )
@@ -531,7 +532,7 @@ for (const [label, response] of [
 
   if (!hasValidAssignments) {
     errors.push(
-      `${label} must include an OU-free customer_establishments response example.`
+      `${label} must include a non-negative sites_count and OU-free customer_establishments with matching customer_id values.`
     )
   }
 
@@ -544,12 +545,14 @@ for (const [label, response] of [
     customersWithoutAssignments.length === 0 ||
     customersWithoutAssignments.some(
       (customer) =>
+        !Number.isInteger(customer?.sites_count) ||
+        customer.sites_count < 0 ||
         !Array.isArray(customer?.customer_establishments) ||
         customer.customer_establishments.length !== 0
     )
   ) {
     errors.push(
-      `${label} must include an empty customer_establishments response example.`
+      `${label} must include a non-negative sites_count and an empty customer_establishments response example.`
     )
   }
 }
