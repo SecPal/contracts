@@ -55,6 +55,8 @@ tags:
     description: Qualification catalog and per-employee qualification assignments.
   - name: Customers
     description: Customer management and related customer-scoped resources.
+  - name: Lookups
+    description: Minimal authorized domain-assignment lookup endpoints.
   - name: Sites
     description: Site management endpoints and site-related nested resources.
   - name: Organizational Units
@@ -2034,55 +2036,6 @@ components:
               type: string
               example: 'department'
 
-    EmployeeOrganizationalUnitSummary:
-      type: object
-      description: Minimal embedded organizational unit information for an employee
-      required:
-        - id
-        - type
-        - name
-        - created_at
-        - updated_at
-      properties:
-        id:
-          type: string
-          format: uuid
-          example: '550e8400-e29b-41d4-a716-446655440200'
-        type:
-          type: string
-          example: 'department'
-        name:
-          type: string
-          example: 'Operations'
-        custom_type_name:
-          type: [string, 'null']
-        description:
-          type: [string, 'null']
-        metadata:
-          type: [object, 'null']
-        parent:
-          type: ['null', object]
-          additionalProperties: true
-        children:
-          type: array
-          items:
-            type: object
-            additionalProperties: true
-        ancestors:
-          type: array
-          items:
-            type: object
-            additionalProperties: true
-        descendants:
-          type: array
-          items:
-            type: object
-            additionalProperties: true
-        created_at:
-          $ref: '#/components/schemas/ApiTimestamp'
-        updated_at:
-          $ref: '#/components/schemas/ApiTimestamp'
-
     EmployeeAddress:
       type: object
       description: |
@@ -2210,7 +2163,8 @@ components:
         - position
         - contract_start_date
         - contract_type
-        - organizational_unit_id
+        - legal_entity_id
+        - establishment_id
       properties:
         first_name:
           type: string
@@ -2399,7 +2353,10 @@ components:
         criminal_record_check_date:
           type: [string, 'null']
           format: date
-        organizational_unit_id:
+        legal_entity_id:
+          type: string
+          format: uuid
+        establishment_id:
           type: string
           format: uuid
 
@@ -2593,8 +2550,11 @@ components:
         criminal_record_check_date:
           type: [string, 'null']
           format: date
-        organizational_unit_id:
-          type: [string, 'null']
+        legal_entity_id:
+          type: string
+          format: uuid
+        establishment_id:
+          type: string
           format: uuid
 
     EmployeeResponse:
@@ -2671,6 +2631,8 @@ components:
         - onboarding_completed
         - onboarding_workflow
         - onboarding_invitation
+        - legal_entity_id
+        - establishment_id
         - created_at
         - updated_at
       properties:
@@ -2881,16 +2843,15 @@ components:
             `onboarding_workflow.status = ready_for_activation` signals activation readiness.
         onboarding_invitation:
           $ref: '#/components/schemas/EmployeeOnboardingInvitation'
-        organizational_unit_id:
-          type: [string, 'null']
+        legal_entity_id:
+          type: string
+          format: uuid
+        establishment_id:
+          type: string
           format: uuid
         user:
           anyOf:
             - $ref: '#/components/schemas/EmployeeUserSummary'
-            - type: 'null'
-        organizational_unit:
-          anyOf:
-            - $ref: '#/components/schemas/EmployeeOrganizationalUnitSummary'
             - type: 'null'
         created_at:
           $ref: '#/components/schemas/ApiTimestamp'
@@ -5376,6 +5337,7 @@ components:
 
     Customer:
       type: object
+      additionalProperties: false
       description: |
         Customer (client organization) entity with an explicit Legal Entity assignment.
 
@@ -5406,7 +5368,7 @@ components:
           type: string
           format: uuid
           description: |
-            Same-tenant Legal Entity organizational unit explicitly assigned to this customer.
+            Same-tenant Legal Entity explicitly assigned to this customer.
             No default Legal Entity assignment is permitted for existing customers; backfill
             requires a product-approved deterministic tenant-consistent rule.
           example: '770e8400-e29b-41d4-a716-446655440000'
@@ -5422,27 +5384,10 @@ components:
           example: 'ACME Corporation GmbH'
         billing_address:
           $ref: '#/components/schemas/Address'
-        contact:
-          anyOf:
-            - $ref: '#/components/schemas/Contact'
-            - type: 'null'
         is_active:
           type: boolean
           description: Whether customer is active
           example: true
-        notes:
-          type: [string, 'null']
-          description: Internal notes (conditionally visible)
-          example: 'VIP customer - handle with priority'
-        metadata:
-          type: [object, 'null']
-          description: Custom metadata as JSON
-          additionalProperties: true
-          example: { 'industry': 'retail', 'employee_count': 500 }
-        sites_count:
-          type: integer
-          description: Number of sites (when counted)
-          example: 5
         created_at:
           allOf:
             - $ref: '#/components/schemas/ApiTimestamp'
@@ -5459,10 +5404,10 @@ components:
           description: Soft deletion timestamp
           example: null
 
-    CustomerLegalEntityLookup:
+    LegalEntityLookup:
       type: object
       additionalProperties: false
-      description: Minimal Legal Entity option for creating customers. This intentionally does not expose the general organizational-unit resource.
+      description: Minimal authorized Legal Entity option for domain assignment workflows.
       required:
         - id
         - name
@@ -5470,16 +5415,196 @@ components:
         id:
           type: string
           format: uuid
-          description: Legal Entity organizational unit UUID
           example: '770e8400-e29b-41d4-a716-446655440000'
         name:
           type: string
           maxLength: 255
-          description: Display name for the Legal Entity option
           example: 'SecPal GmbH'
+
+    EstablishmentLookup:
+      type: object
+      additionalProperties: false
+      description: Minimal authorized establishment option belonging to the selected Legal Entity.
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: '780e8400-e29b-41d4-a716-446655440000'
+        name:
+          type: string
+          maxLength: 255
+          example: 'Berlin Establishment'
+
+    CustomerLookup:
+      type: object
+      additionalProperties: false
+      description: Minimal authorized customer option linked to the selected establishment.
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        name:
+          type: string
+          maxLength: 255
+          example: 'ACME Corporation GmbH'
+
+    LegalEntityLookupCollectionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LegalEntityLookup'
+
+    EstablishmentLookupCollectionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/EstablishmentLookup'
+
+    CustomerLookupCollectionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerLookup'
+
+    CustomerEstablishment:
+      type: object
+      additionalProperties: false
+      description: Customer-to-establishment assignment with local contact data. A unique tenant-scoped pair of `customer_id` and `establishment_id` links each customer and establishment once.
+      required:
+        - id
+        - customer_id
+        - establishment_id
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: '790e8400-e29b-41d4-a716-446655440000'
+        customer_id:
+          type: string
+          format: uuid
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        establishment_id:
+          type: string
+          format: uuid
+          example: '780e8400-e29b-41d4-a716-446655440000'
+        contact_name:
+          type: [string, 'null']
+          maxLength: 255
+          example: 'Max Mustermann'
+        phone:
+          type: [string, 'null']
+          maxLength: 50
+          example: '+49 30 12345678'
+        email:
+          type: [string, 'null']
+          format: email
+          maxLength: 255
+          example: 'max.mustermann@example.com'
+        comments:
+          type: [string, 'null']
+          maxLength: 2000
+          example: 'Use the service entrance after 18:00.'
+        created_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+        updated_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+
+    CustomerEstablishmentCreateRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - customer_id
+        - establishment_id
+      properties:
+        customer_id:
+          type: string
+          format: uuid
+        establishment_id:
+          type: string
+          format: uuid
+        contact_name:
+          type: [string, 'null']
+          maxLength: 255
+        phone:
+          type: [string, 'null']
+          maxLength: 50
+        email:
+          type: [string, 'null']
+          format: email
+          maxLength: 255
+        comments:
+          type: [string, 'null']
+          maxLength: 2000
+
+    CustomerEstablishmentUpdateRequest:
+      type: object
+      additionalProperties: false
+      description: Partial update of local contact data; the customer-to-establishment pair is immutable.
+      properties:
+        contact_name:
+          type: [string, 'null']
+          maxLength: 255
+        phone:
+          type: [string, 'null']
+          maxLength: 50
+        email:
+          type: [string, 'null']
+          format: email
+          maxLength: 255
+        comments:
+          type: [string, 'null']
+          maxLength: 2000
+
+    CustomerEstablishmentResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/CustomerEstablishment'
+
+    CustomerEstablishmentCollectionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerEstablishment'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
 
     CustomerCreateRequest:
       type: object
+      additionalProperties: false
       required:
         - legal_entity_id
         - name
@@ -5488,7 +5613,7 @@ components:
         legal_entity_id:
           type: string
           format: uuid
-          description: Same-tenant active, assignable, non-deleted Legal Entity organizational unit for the new customer
+          description: Same-tenant active, assignable, non-deleted Legal Entity for the new customer
           example: '770e8400-e29b-41d4-a716-446655440000'
         vat_id:
           type: [string, 'null']
@@ -5501,20 +5626,9 @@ components:
           example: 'ACME Corporation GmbH'
         billing_address:
           $ref: '#/components/schemas/Address'
-        contact:
-          anyOf:
-            - $ref: '#/components/schemas/Contact'
-            - type: 'null'
         is_active:
           type: boolean
           default: true
-        notes:
-          type: [string, 'null']
-          example: 'VIP customer'
-        metadata:
-          type: [object, 'null']
-          additionalProperties: true
-          example: { 'industry': 'retail' }
       x-validation-examples:
         accepted:
           - name: Explicit Legal Entity from the customer's tenant
@@ -5544,6 +5658,7 @@ components:
 
     CustomerUpdateRequest:
       type: object
+      additionalProperties: false
       properties:
         legal_entity_id:
           type: string
@@ -5560,17 +5675,8 @@ components:
           maxLength: 255
         billing_address:
           $ref: '#/components/schemas/Address'
-        contact:
-          anyOf:
-            - $ref: '#/components/schemas/Contact'
-            - type: 'null'
         is_active:
           type: boolean
-        notes:
-          type: [string, 'null']
-        metadata:
-          type: [object, 'null']
-          additionalProperties: true
       x-validation-examples:
         accepted:
           - name: Reassign to a Legal Entity from the customer's tenant
@@ -5592,7 +5698,8 @@ components:
       required:
         - id
         - customer_id
-        - organizational_unit_id
+        - legal_entity_id
+        - establishment_id
         - site_number
         - name
         - type
@@ -5613,11 +5720,16 @@ components:
           format: uuid
           description: Customer that owns this site
           example: '550e8400-e29b-41d4-a716-446655440000'
-        organizational_unit_id:
+        legal_entity_id:
           type: string
           format: uuid
-          description: Internal organizational unit responsible for this site
+          description: Legal Entity responsible for this site
           example: '770e8400-e29b-41d4-a716-446655440000'
+        establishment_id:
+          type: string
+          format: uuid
+          description: Establishment responsible for this site
+          example: '780e8400-e29b-41d4-a716-446655440000'
         site_number:
           type: string
           maxLength: 50
@@ -5689,6 +5801,97 @@ components:
             - $ref: '#/components/schemas/NullableApiTimestamp'
           description: Soft deletion timestamp
           example: null
+
+    SiteCreateRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - customer_id
+        - legal_entity_id
+        - establishment_id
+        - type
+        - address
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          example: 'Airport Terminal 1'
+        customer_id:
+          type: string
+          format: uuid
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        legal_entity_id:
+          type: string
+          format: uuid
+          example: '770e8400-e29b-41d4-a716-446655440000'
+        establishment_id:
+          type: string
+          format: uuid
+          example: '780e8400-e29b-41d4-a716-446655440000'
+        type:
+          type: string
+          enum: [permanent, temporary]
+          example: 'permanent'
+        address:
+          $ref: '#/components/schemas/Address'
+        contact:
+          $ref: '#/components/schemas/Contact'
+        access_instructions:
+          type: [string, 'null']
+        notes:
+          type: [string, 'null']
+        metadata:
+          type: [object, 'null']
+          additionalProperties: true
+        valid_from:
+          type: [string, 'null']
+          format: date
+        valid_until:
+          type: [string, 'null']
+          format: date
+
+    SiteUpdateRequest:
+      type: object
+      additionalProperties: false
+      description: Partial site update. Domain relationships may be reassigned only to an authorized, tenant-consistent customer, Legal Entity, and establishment combination.
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        customer_id:
+          type: string
+          format: uuid
+        legal_entity_id:
+          type: string
+          format: uuid
+        establishment_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [permanent, temporary]
+        address:
+          $ref: '#/components/schemas/Address'
+        contact:
+          anyOf:
+            - $ref: '#/components/schemas/Contact'
+            - type: 'null'
+        access_instructions:
+          type: [string, 'null']
+        notes:
+          type: [string, 'null']
+        metadata:
+          type: [object, 'null']
+          additionalProperties: true
+        is_active:
+          type: boolean
+        valid_from:
+          type: [string, 'null']
+          format: date
+        valid_until:
+          type: [string, 'null']
+          format: date
 
     CustomerAssignment:
       type: object
@@ -5868,6 +6071,23 @@ components:
           description: Soft deletion timestamp
           example: null
 
+    DuplicateResourceError:
+      type: object
+      additionalProperties: false
+      description: Neutral duplicate response shared by all domain create operations so callers cannot infer which identifying value matched.
+      required:
+        - message
+        - code
+      properties:
+        message:
+          type: string
+          enum:
+            - A matching record already exists.
+        code:
+          type: string
+          enum:
+            - DUPLICATE_RESOURCE
+
   responses:
     BadRequest:
       description: Bad Request - Invalid input parameters
@@ -5888,6 +6108,16 @@ components:
           example:
             message: The request cannot be completed in the current resource state.
             code: CONFLICT
+
+    DuplicateConflict:
+      description: Duplicate identification is evaluated atomically in the same transaction as the write. Every duplicate case returns this identical neutral payload.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DuplicateResourceError'
+          example:
+            message: A matching record already exists.
+            code: DUPLICATE_RESOURCE
 
     OrganizationalUnitHasChildrenConflict:
       description: Conflict - Non-deleted direct child units must be moved or deleted first, regardless of their `is_active` values
@@ -8177,13 +8407,6 @@ paths:
           schema:
             type: string
             maxLength: 255
-        - name: organizational_unit_id
-          in: query
-          required: false
-          description: Filter employees by organizational unit.
-          schema:
-            type: string
-            format: uuid
       responses:
         '200':
           description: List of employees
@@ -8200,7 +8423,9 @@ paths:
 
     post:
       summary: Create Employee
-      description: Create a new employee record. Onboarding invitations may only be requested during the `pre_contract` phase.
+      description: |
+        Create a new employee record. Onboarding invitations may only be requested during the `pre_contract` phase.
+        Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing which identifying field matched.
       operationId: createEmployee
       tags:
         - Employees
@@ -8225,6 +8450,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/DuplicateConflict'
         '422':
           $ref: '#/components/responses/ValidationError'
         '500':
@@ -9567,7 +9794,8 @@ paths:
       summary: Create Customer
       description: |
         Create a new customer. Customer number is auto-generated (KD-YYYY-####).
-        Requires `customers.create`. The supplied `legal_entity_id` must be a same tenant, active, assignable, non-deleted Legal Entity organizational unit, and the caller must have organizational write access for that Legal Entity.
+        Requires `customers.create`. The supplied `legal_entity_id` must be a same tenant, active, assignable, non-deleted Legal Entity, and the caller must have organizational write access for that Legal Entity.
+        Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing which identifying field matched.
       operationId: createCustomer
       tags:
         - Customers
@@ -9597,42 +9825,274 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/DuplicateConflict'
         '422':
           $ref: '#/components/responses/ValidationError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /customers/legal-entities:
+  /lookups/legal-entities:
     get:
-      summary: List Customer Legal Entity Options
-      description: |
-        Return only the Legal Entity options allowed for customer creation.
-
-        Requires `customers.create`. Results are limited to same tenant, active, assignable, non-deleted Legal Entity organizational units for which the caller has organizational write access. The response is intentionally minimal and does not expose the general organizational-unit resource or hierarchy metadata.
-      operationId: listCustomerLegalEntities
+      summary: List Authorized Legal Entities
+      description: Requires `customers.create` and returns only authorized, same tenant, active, assignable, non-deleted Legal Entity options for which the caller has organizational write access. Each item contains only its UUID and display name; no hierarchy, RBAC, tenant, or status metadata is exposed.
+      operationId: listLegalEntityLookups
       tags:
-        - Customers
+        - Lookups
       security:
         - BearerAuth: []
       responses:
         '200':
-          description: Legal Entity options retrieved successfully
+          description: Authorized Legal Entity lookup options
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: false
-                required:
-                  - data
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/CustomerLegalEntityLookup'
+                $ref: '#/components/schemas/LegalEntityLookupCollectionResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /lookups/legal-entities/{legal_entity}/establishments:
+    get:
+      summary: List Authorized Establishments
+      description: Returns only establishments the caller is authorized to use under the selected authorized Legal Entity. Each item contains only its UUID and display name.
+      operationId: listEstablishmentLookups
+      tags:
+        - Lookups
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: legal_entity
+          in: path
+          required: true
+          description: Authorized Legal Entity UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Authorized establishment lookup options
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EstablishmentLookupCollectionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /lookups/establishments/{establishment}/customers:
+    get:
+      summary: List Authorized Customers
+      description: Returns only customers the caller is authorized to use through the selected authorized establishment. Each item contains only its UUID and display name.
+      operationId: listCustomerLookups
+      tags:
+        - Lookups
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: establishment
+          in: path
+          required: true
+          description: Authorized establishment UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Authorized customer lookup options
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerLookupCollectionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /customer-establishments:
+    get:
+      summary: List Customer Establishments
+      description: Lists authorized customer-to-establishment assignments without exposing organizational-unit relationships.
+      operationId: listCustomerEstablishments
+      tags:
+        - Customers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 15
+        - name: customer_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: establishment_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Customer establishments retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerEstablishmentCollectionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      summary: Link Customer to Establishment
+      description: Creates a unique customer-to-establishment link with optional local contact data. Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing whether the pair or local identifying data matched.
+      operationId: createCustomerEstablishment
+      tags:
+        - Customers
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerEstablishmentCreateRequest'
+      responses:
+        '201':
+          description: Customer establishment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerEstablishmentResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/DuplicateConflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /customer-establishments/{customer_establishment}:
+    get:
+      summary: Get Customer Establishment
+      operationId: getCustomerEstablishment
+      tags:
+        - Customers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: customer_establishment
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Customer establishment retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerEstablishmentResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      summary: Update Customer Establishment Contact Data
+      operationId: updateCustomerEstablishment
+      tags:
+        - Customers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: customer_establishment
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerEstablishmentUpdateRequest'
+      responses:
+        '200':
+          description: Customer establishment updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerEstablishmentResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      summary: Delete Customer Establishment
+      operationId: deleteCustomerEstablishment
+      tags:
+        - Customers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: customer_establishment
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Customer establishment deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -9687,7 +10147,7 @@ paths:
       summary: Update Customer
       description: |
         Update customer fields (PATCH semantics - all fields optional).
-        Requires `customers.update` and view access to the customer. If `legal_entity_id` differs from the customer's current value, it must identify a same tenant, active, assignable, non-deleted Legal Entity organizational unit, and the caller must have organizational write access for that Legal Entity.
+        Requires `customers.update` and view access to the customer. If `legal_entity_id` differs from the customer's current value, it must identify a same tenant, active, assignable, non-deleted Legal Entity, and the caller must have organizational write access for that Legal Entity.
       operationId: updateCustomer
       tags:
         - Customers
@@ -9851,7 +10311,7 @@ paths:
       summary: List Sites
       description: |
         Retrieve a paginated list of sites with comprehensive filtering.
-        Users see sites via organizational unit access, direct assignment, or customer assignment.
+        Users see sites through their authorized domain relationships or direct assignments.
       operationId: listSites
       tags:
         - Sites
@@ -9887,13 +10347,6 @@ paths:
             type: string
             format: uuid
           description: Filter by customer
-        - name: organizational_unit_id
-          in: query
-          required: false
-          schema:
-            type: string
-            format: uuid
-          description: Filter by organizational unit
         - name: type
           in: query
           required: false
@@ -9939,7 +10392,7 @@ paths:
       summary: Create Site
       description: |
         Create a new site. Site number is auto-generated (OBJ-YYYY-####).
-        Requires sites.create permission and access to organizational unit.
+        Requires sites.create permission and an authorized, tenant-consistent customer, Legal Entity, and establishment combination. Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing which identifying field matched.
       operationId: createSite
       tags:
         - Sites
@@ -9950,51 +10403,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - name
-                - customer_id
-                - organizational_unit_id
-                - type
-                - address
-              properties:
-                name:
-                  type: string
-                  maxLength: 255
-                  example: 'Airport Terminal 1'
-                customer_id:
-                  type: string
-                  format: uuid
-                  example: '550e8400-e29b-41d4-a716-446655440000'
-                organizational_unit_id:
-                  type: string
-                  format: uuid
-                  example: '770e8400-e29b-41d4-a716-446655440000'
-                type:
-                  type: string
-                  enum: [permanent, temporary]
-                  example: 'permanent'
-                address:
-                  $ref: '#/components/schemas/Address'
-                contact:
-                  $ref: '#/components/schemas/Contact'
-                access_instructions:
-                  type: string
-                  example: 'Gate 5, Security Check'
-                notes:
-                  type: string
-                  example: 'High security area'
-                metadata:
-                  type: object
-                  additionalProperties: true
-                valid_from:
-                  type: string
-                  format: date
-                  example: '2025-01-01'
-                valid_until:
-                  type: string
-                  format: date
-                  example: '2025-12-31'
+              $ref: '#/components/schemas/SiteCreateRequest'
       responses:
         '201':
           description: Site created successfully
@@ -10013,6 +10422,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/DuplicateConflict'
         '422':
           $ref: '#/components/responses/ValidationError'
         '500':
@@ -10023,7 +10434,7 @@ paths:
       summary: Get Site
       description: |
         Retrieve a single site by ID with optional relationships.
-        Requires view access via assignment, organizational unit, or customer assignment.
+        Requires view access via assignment or authorized domain relationships.
       operationId: getSite
       tags:
         - Sites
@@ -10042,14 +10453,7 @@ paths:
           required: false
           schema:
             type: string
-            enum:
-              [
-                customer,
-                organizationalUnit,
-                assignments,
-                costCenters,
-                customer.assignments,
-              ]
+            enum: [customer, assignments, costCenters, customer.assignments]
           description: Comma-separated list of relationships to include
       responses:
         '200':
@@ -10095,36 +10499,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                  maxLength: 255
-                organizational_unit_id:
-                  type: string
-                  format: uuid
-                type:
-                  type: string
-                  enum: [permanent, temporary]
-                address:
-                  $ref: '#/components/schemas/Address'
-                contact:
-                  $ref: '#/components/schemas/Contact'
-                access_instructions:
-                  type: string
-                notes:
-                  type: string
-                metadata:
-                  type: object
-                  additionalProperties: true
-                is_active:
-                  type: boolean
-                valid_from:
-                  type: string
-                  format: date
-                valid_until:
-                  type: string
-                  format: date
+              $ref: '#/components/schemas/SiteUpdateRequest'
       responses:
         '200':
           description: Site updated successfully

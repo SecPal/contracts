@@ -45,7 +45,7 @@ const REQUIRED_OPERATIONS = [
   ['get', '/organizational-units/{organizational_unit}/ancestors'],
   ['post', '/organizational-units/{organizational_unit}/parent'],
   ['delete', '/organizational-units/{organizational_unit}/parent/{parent}'],
-  ['get', '/customers/legal-entities'],
+  ['get', '/lookups/legal-entities'],
 ]
 
 const target = process.argv[2]
@@ -107,7 +107,7 @@ const customerUpdateRequestBody =
   paths['/customers/{customer}']?.patch?.requestBody ?? {}
 const customerUpdateSchema =
   customerUpdateRequestBody?.content?.['application/json']?.schema ?? {}
-const customerLegalEntityLookup = schemas.CustomerLegalEntityLookup ?? {}
+const legalEntityLookup = schemas.LegalEntityLookup ?? {}
 const customerUpdateRequest = schemas.CustomerUpdateRequest ?? {}
 const organizationalUnit = schemas.OrganizationalUnit ?? {}
 const createRequest = schemas.OrganizationalUnitCreateRequest ?? {}
@@ -297,42 +297,36 @@ for (const [label, responseSchema] of [
 }
 
 const legalEntityLookupProperties = Object.keys(
-  customerLegalEntityLookup.properties ?? {}
+  legalEntityLookup.properties ?? {}
 )
 const legalEntityLookupAllowed = new Set(['id', 'name'])
 if (
-  customerLegalEntityLookup.type !== 'object' ||
-  customerLegalEntityLookup.additionalProperties !== false ||
+  legalEntityLookup.type !== 'object' ||
+  legalEntityLookup.additionalProperties !== false ||
   legalEntityLookupProperties.some(
     (property) => !legalEntityLookupAllowed.has(property)
   ) ||
-  !customerLegalEntityLookup.required?.includes('id') ||
-  !customerLegalEntityLookup.required?.includes('name') ||
-  customerLegalEntityLookup.properties?.id?.type !== 'string' ||
-  customerLegalEntityLookup.properties?.id?.format !== 'uuid' ||
-  customerLegalEntityLookup.properties?.name?.type !== 'string'
+  !legalEntityLookup.required?.includes('id') ||
+  !legalEntityLookup.required?.includes('name') ||
+  legalEntityLookup.properties?.id?.type !== 'string' ||
+  legalEntityLookup.properties?.id?.format !== 'uuid' ||
+  legalEntityLookup.properties?.name?.type !== 'string'
 ) {
   contractErrors.push(
-    'CustomerLegalEntityLookup must expose only required id and name fields.'
+    'LegalEntityLookup must expose only required id and name fields.'
   )
 }
 
-const customerLegalEntitiesResponse =
-  paths['/customers/legal-entities']?.get?.responses?.['200']?.content?.[
+const legalEntitiesResponse =
+  paths['/lookups/legal-entities']?.get?.responses?.['200']?.content?.[
     'application/json'
   ]?.schema
-const customerLegalEntitiesItems =
-  customerLegalEntitiesResponse?.properties?.data?.items
 if (
-  customerLegalEntitiesResponse?.type !== 'object' ||
-  customerLegalEntitiesResponse?.additionalProperties !== false ||
-  !customerLegalEntitiesResponse?.required?.includes('data') ||
-  customerLegalEntitiesResponse?.properties?.data?.type !== 'array' ||
-  customerLegalEntitiesItems?.$ref !==
-    '#/components/schemas/CustomerLegalEntityLookup'
+  legalEntitiesResponse?.$ref !==
+  '#/components/schemas/LegalEntityLookupCollectionResponse'
 ) {
   contractErrors.push(
-    'GET /customers/legal-entities must return data[] of CustomerLegalEntityLookup.'
+    'GET /lookups/legal-entities must return LegalEntityLookupCollectionResponse.'
   )
 }
 
@@ -406,7 +400,7 @@ const customerCreateDescription = paths['/customers']?.post?.description ?? ''
 const customerUpdateDescription =
   paths['/customers/{customer}']?.patch?.description ?? ''
 const legalEntitiesDescription =
-  paths['/customers/legal-entities']?.get?.description ?? ''
+  paths['/lookups/legal-entities']?.get?.description ?? ''
 const customerDescription = customer.description ?? ''
 const customerLegalEntityDescription =
   customer.properties?.legal_entity_id?.description ?? ''
@@ -418,7 +412,7 @@ for (const [label, description, requiredPermission] of [
     'customers.update',
   ],
   [
-    'GET /customers/legal-entities',
+    'GET /lookups/legal-entities',
     legalEntitiesDescription,
     'customers.create',
   ],

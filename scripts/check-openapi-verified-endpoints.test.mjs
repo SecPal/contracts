@@ -186,7 +186,7 @@ test('rejects organizational-unit boolean filters with unrelated wire values', (
 test('accepts schema-valid nullable example fields', () => {
   const candidate = contract.replaceAll(
     '              name: ACME Corporation GmbH\n',
-    '              name: ACME Corporation GmbH\n              contact: null\n'
+    '              name: ACME Corporation GmbH\n              vat_id: null\n'
   )
   const result = runGuard(candidate)
 
