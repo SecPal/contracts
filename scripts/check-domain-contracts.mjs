@@ -15,6 +15,11 @@ const errors = []
 
 const uuidProperty = (property) =>
   property?.type === 'string' && property?.format === 'uuid'
+const uuidValue = (value) =>
+  typeof value === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  )
 
 function requireUuid(schemaName, propertyName, required) {
   const schema = schemas[schemaName]
@@ -49,10 +54,25 @@ const customerAllowedProperties = new Set([
   'updated_at',
   'deleted_at',
 ])
+if (schemas.Customer?.additionalProperties !== false) {
+  errors.push('Customer must remain a closed master-data response schema.')
+}
 for (const propertyName of Object.keys(schemas.Customer?.properties ?? {})) {
   if (!customerAllowedProperties.has(propertyName)) {
     errors.push(`Customer must not expose non-master-data field ${propertyName}.`)
   }
+}
+
+const customerGet = paths['/customers/{customer}']?.get
+if (
+  (customerGet?.parameters ?? []).some(
+    (parameter) => parameter?.name === 'include'
+  ) ||
+  /optional relationships/i.test(customerGet?.description ?? '')
+) {
+  errors.push(
+    'GET /customers/{customer} must not advertise relationships that the closed Customer response cannot represent.'
+  )
 }
 
 for (const schemaName of [
@@ -101,6 +121,114 @@ for (const [pathName, operation] of [
     errors.push(`GET ${pathName} must not expose an organizational_unit_id filter.`)
   }
 }
+
+const customerEstablishment = schemas.CustomerEstablishment ?? {}
+const customerEstablishmentEmailExample =
+  customerEstablishment.properties?.email?.example
+if (
+  typeof customerEstablishmentEmailExample !== 'string' ||
+  !customerEstablishmentEmailExample.endsWith('@secpal.dev')
+) {
+  errors.push(
+    'CustomerEstablishment.email must use the approved secpal.dev example domain.'
+  )
+}
+
+const customerEstablishmentCollection =
+  schemas.CustomerEstablishmentCollectionResponse ?? {}
+if (
+  customerEstablishmentCollection.additionalProperties !== false ||
+  JSON.stringify(customerEstablishmentCollection.required) !==
+    JSON.stringify(['data', 'links', 'meta']) ||
+  customerEstablishmentCollection.properties?.links?.$ref !==
+    '#/components/schemas/PaginationLinks' ||
+  customerEstablishmentCollection.properties?.meta?.$ref !==
+    '#/components/schemas/PaginationMeta'
+) {
+  errors.push(
+    'CustomerEstablishmentCollectionResponse must include pagination links and metadata.'
+  )
+}
+
+const customerEstablishmentPath =
+  paths['/customer-establishments/{customer_establishment}'] ?? {}
+const customerEstablishmentParameter = customerEstablishmentPath.parameters
+if (
+  !Array.isArray(customerEstablishmentParameter) ||
+  customerEstablishmentParameter.length !== 1 ||
+  customerEstablishmentParameter[0]?.name !== 'customer_establishment' ||
+  customerEstablishmentParameter[0]?.in !== 'path' ||
+  customerEstablishmentParameter[0]?.required !== true ||
+  !uuidProperty(customerEstablishmentParameter[0]?.schema) ||
+  ['get', 'patch', 'delete'].some((method) =>
+    (customerEstablishmentPath[method]?.parameters ?? []).some(
+      (parameter) => parameter?.name === 'customer_establishment'
+    )
+  )
+) {
+  errors.push(
+    'Customer establishment operations must share one path-level UUID parameter.'
+  )
+}
+
+function hasTenantConsistentDomainExamples(schemaName) {
+  const schema = schemas[schemaName] ?? {}
+  const examples = schema['x-validation-examples'] ?? {}
+  const accepted = examples.accepted?.[0]
+  const rejected = examples.rejected?.[0]
+  const requiredPayloadIsPresent = (example) =>
+    schema.required?.every((property) =>
+      Object.hasOwn(example?.value ?? {}, property)
+    )
+  const tenantIds = (example) =>
+    Object.entries(example ?? {})
+      .filter(([key, value]) => key.endsWith('_tenant_id') && value)
+      .map(([, value]) => value)
+  const relatedLegalEntityIds = (example) =>
+    Object.entries(example ?? {})
+      .filter(([key, value]) => key.endsWith('_legal_entity_id') && value)
+      .map(([, value]) => value)
+  const assignmentIds = (example) =>
+    ['customer_id', 'legal_entity_id', 'establishment_id']
+      .filter((property) => Object.hasOwn(example?.value ?? {}, property))
+      .map((property) => example.value[property])
+  const identifiersAreUuids = (example) =>
+    [
+      ...tenantIds(example),
+      ...relatedLegalEntityIds(example),
+      ...assignmentIds(example),
+    ].every(uuidValue)
+  const isConsistent = (example) =>
+    new Set(tenantIds(example)).size === 1 &&
+    relatedLegalEntityIds(example).every(
+      (value) => value === example?.value?.legal_entity_id
+    )
+  const isInconsistent = (example) =>
+    new Set(tenantIds(example)).size > 1 ||
+    relatedLegalEntityIds(example).some(
+      (value) => value !== example?.value?.legal_entity_id
+    )
+
+  return (
+    requiredPayloadIsPresent(accepted) &&
+    requiredPayloadIsPresent(rejected) &&
+    uuidProperty(schema.properties?.legal_entity_id) &&
+    uuidProperty(schema.properties?.establishment_id) &&
+    identifiersAreUuids(accepted) &&
+    identifiersAreUuids(rejected) &&
+    isConsistent(accepted) &&
+    rejected?.status === 422 &&
+    isInconsistent(rejected)
+  )
+}
+
+for (const schemaName of ['SiteCreateRequest', 'EmployeeCreateRequest']) {
+  if (!hasTenantConsistentDomainExamples(schemaName)) {
+    errors.push(
+      `${schemaName} must retain accepted and rejected tenant-consistent domain-assignment examples.`
+    )
+  }
+}
 const siteIncludes = paths['/sites/{site}']?.get?.parameters?.find(
   (parameter) => parameter?.name === 'include'
 )?.schema?.enum
@@ -108,7 +236,6 @@ if (siteIncludes?.some((value) => /organizational/i.test(value))) {
   errors.push('GET /sites/{site} must not expose an organizational-unit include.')
 }
 
-const customerEstablishment = schemas.CustomerEstablishment ?? {}
 const expectedCustomerEstablishmentRequired = [
   'id',
   'customer_id',

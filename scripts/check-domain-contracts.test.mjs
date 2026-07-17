@@ -20,6 +20,7 @@ const guardPath = fileURLToPath(
 const contractSource = readFileSync(contractPath, 'utf8')
 const contract = yaml.load(contractSource)
 const schemas = contract.components.schemas
+const paths = contract.paths
 
 function runGuard(candidate) {
   const directory = mkdtempSync(join(tmpdir(), 'domain-contracts-'))
@@ -156,6 +157,65 @@ test('uses one neutral duplicate response for every domain create operation', ()
   )
 })
 
+test('keeps the closed customer response free of undeclared relationship includes', () => {
+  assert.equal(schemas.Customer.additionalProperties, false)
+  assert.equal(
+    paths['/customers/{customer}'].get.parameters.some(
+      (parameter) => parameter.name === 'include'
+    ),
+    false
+  )
+  assert.doesNotMatch(
+    paths['/customers/{customer}'].get.description,
+    /optional relationships/i
+  )
+})
+
+test('uses an approved example domain for customer establishment contacts', () => {
+  assert.equal(
+    schemas.CustomerEstablishment.properties.email.example,
+    'max.mustermann@secpal.dev'
+  )
+})
+
+test('defines the customer establishment path parameter once', () => {
+  const pathItem = paths['/customer-establishments/{customer_establishment}']
+
+  assert.deepEqual(pathItem.parameters, [
+    {
+      name: 'customer_establishment',
+      in: 'path',
+      required: true,
+      schema: { type: 'string', format: 'uuid' },
+    },
+  ])
+  for (const operation of ['get', 'patch', 'delete']) {
+    assert.equal(pathItem[operation].parameters, undefined, operation)
+  }
+})
+
+test('models pagination links for customer establishment collections', () => {
+  assert.deepEqual(schemas.CustomerEstablishmentCollectionResponse.required, [
+    'data',
+    'links',
+    'meta',
+  ])
+  assert.equal(
+    schemas.CustomerEstablishmentCollectionResponse.properties.links.$ref,
+    '#/components/schemas/PaginationLinks'
+  )
+})
+
+test('documents accepted and rejected site and employee domain assignments', () => {
+  for (const schemaName of ['SiteCreateRequest', 'EmployeeCreateRequest']) {
+    const examples = schemas[schemaName]['x-validation-examples']
+
+    assert.ok(examples?.accepted?.length > 0, `${schemaName} accepted example`)
+    assert.ok(examples?.rejected?.length > 0, `${schemaName} rejected example`)
+    assert.equal(examples.rejected[0].status, 422, schemaName)
+  }
+})
+
 test('guard rejects restored OU fields and list filters', () => {
   const candidate = structuredClone(contract)
   candidate.components.schemas.Employee.properties.organizational_unit_id = {
@@ -210,4 +270,70 @@ test('guard rejects distinguishable duplicate responses', () => {
 
   assert.notEqual(result.status, 0, result.stdout)
   assert.match(result.stderr, /neutral fixed shape/)
+})
+
+test('guard rejects customer includes that widen the closed response', () => {
+  const candidate = structuredClone(contract)
+  candidate.paths['/customers/{customer}'].get.parameters.push({
+    name: 'include',
+    in: 'query',
+    schema: { type: 'string', enum: ['sites'] },
+  })
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /closed Customer response/)
+})
+
+test('guard rejects unapproved contact example domains', () => {
+  const candidate = structuredClone(contract)
+  candidate.components.schemas.CustomerEstablishment.properties.email.example =
+    'max.mustermann@example.com'
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /secpal\.dev/)
+})
+
+test('guard rejects duplicated customer establishment path parameters', () => {
+  const candidate = structuredClone(contract)
+  const pathItem =
+    candidate.paths['/customer-establishments/{customer_establishment}']
+  pathItem.get.parameters = structuredClone(pathItem.parameters)
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /path-level UUID parameter/)
+})
+
+test('guard rejects incomplete pagination and domain-assignment examples', () => {
+  const candidate = structuredClone(contract)
+  delete candidate.components.schemas.CustomerEstablishmentCollectionResponse
+    .properties.links
+  candidate.components.schemas.CustomerEstablishmentCollectionResponse.required =
+    ['data', 'meta']
+  delete candidate.components.schemas.EmployeeCreateRequest[
+    'x-validation-examples'
+  ].rejected
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /pagination links/)
+  assert.match(result.stderr, /EmployeeCreateRequest/)
+})
+
+test('guard rejects malformed UUIDs in domain-assignment examples', () => {
+  const candidate = structuredClone(contract)
+  candidate.components.schemas.SiteCreateRequest[
+    'x-validation-examples'
+  ].accepted[0].value.establishment_id = 'not-a-uuid'
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /SiteCreateRequest/)
 })

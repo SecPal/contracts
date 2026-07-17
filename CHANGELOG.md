@@ -21,12 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   customer/establishment link plus local contact data. Site and employee
   requests and responses now require explicit `legal_entity_id` and
   `establishment_id` relationships; customer, site, and employee contracts and
-  list filters no longer expose OU fields or relations. Added minimal authorized
-  Legal Entity, establishment, and customer lookups plus one atomic,
-  information-poor duplicate-conflict response shared by all domain create
-  operations. Existing organizational-unit and scope administration contracts
-  remain unchanged (US-001; supersedes the unreleased customer-only US-002
-  lookup surface).
+  list filters no longer expose OU fields or relations. Single-customer
+  responses no longer advertise undeclared relationship includes; dedicated
+  relationship endpoints remain available, with complete pagination metadata
+  for customer/establishment links. Added minimal authorized Legal Entity,
+  establishment, and customer lookups plus one atomic, information-poor
+  duplicate-conflict response shared by all domain create operations. Existing
+  organizational-unit and scope administration contracts remain unchanged
+  (US-001; supersedes the unreleased customer-only US-002 lookup surface).
 - Defined independent organizational-unit `is_active` (administrative status) and `is_assignable` (eligibility for new operational assignments, scopes, and related workflows) flags across response, create, update, and list-filter contracts (closes #338). Both response fields are required booleans and neither is derived from hierarchy, soft deletion, parent status, unit type, or the other flag; create requests default both omitted status fields to `true`, and deletion remains blocked by every non-deleted direct child regardless of its `is_active` value. This is an additive response change: clients generated from older contracts should regenerate types before relying on the fields, while clients that may deserialize cached or staged older responses must tolerate either newly documented field being absent until their deployment is fully aligned.
 - Documented the organizational-unit OpenAPI surface in `docs/openapi.yaml`, including all nine verified OU operations, reusable response/request/permissions/collection/pagination/conflict schemas, full-resource relationship shapes, PATCH-safe independent `is_legal_entity` and `is_establishment` boolean flags, the conditional custom type-name requirement, exact root-or-UUID filtering, tenant isolation, need-to-know parent filtering, policy behavior, type hierarchy validation, and semantic verified-endpoint guard coverage for the OU routes.
 - Added `npm test` as the standard contract-test entry point; it runs the repository's canonical lint and formatting validation pipeline (closes #339).

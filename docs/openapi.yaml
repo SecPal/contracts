@@ -2356,9 +2356,47 @@ components:
         legal_entity_id:
           type: string
           format: uuid
+          description: Same-tenant Legal Entity assigned to the employee.
         establishment_id:
           type: string
           format: uuid
+          description: Establishment assigned to the employee; it must belong to the selected Legal Entity and tenant.
+      x-validation-examples:
+        accepted:
+          - name: Employee assigned within one tenant and Legal Entity
+            employee_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            legal_entity_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            establishment_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            establishment_legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+            value:
+              first_name: Max
+              last_name: Mustermann
+              date_of_birth: '1990-05-15'
+              email: max.mustermann@secpal.dev
+              status: active
+              position: Security Guard
+              contract_start_date: '2026-08-01'
+              contract_type: full_time
+              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+              establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+        rejected:
+          - name: Establishment belongs to another Legal Entity
+            employee_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            legal_entity_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            establishment_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            establishment_legal_entity_id: '770e8400-e29b-41d4-a716-446655440002'
+            status: 422
+            value:
+              first_name: Max
+              last_name: Mustermann
+              date_of_birth: '1990-05-15'
+              email: max.mustermann@secpal.dev
+              status: active
+              position: Security Guard
+              contract_start_date: '2026-08-01'
+              contract_type: full_time
+              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+              establishment_id: '780e8400-e29b-41d4-a716-446655440002'
 
     EmployeeUpdateRequest:
       type: object
@@ -5523,7 +5561,7 @@ components:
           type: [string, 'null']
           format: email
           maxLength: 255
-          example: 'max.mustermann@example.com'
+          example: 'max.mustermann@secpal.dev'
         comments:
           type: [string, 'null']
           maxLength: 2000
@@ -5593,12 +5631,15 @@ components:
       additionalProperties: false
       required:
         - data
+        - links
         - meta
       properties:
         data:
           type: array
           items:
             $ref: '#/components/schemas/CustomerEstablishment'
+        links:
+          $ref: '#/components/schemas/PaginationLinks'
         meta:
           $ref: '#/components/schemas/PaginationMeta'
 
@@ -5824,10 +5865,12 @@ components:
         legal_entity_id:
           type: string
           format: uuid
+          description: Same-tenant Legal Entity responsible for the site.
           example: '770e8400-e29b-41d4-a716-446655440000'
         establishment_id:
           type: string
           format: uuid
+          description: Establishment responsible for the site; it must belong to the selected Legal Entity and tenant.
           example: '780e8400-e29b-41d4-a716-446655440000'
         type:
           type: string
@@ -5850,6 +5893,46 @@ components:
         valid_until:
           type: [string, 'null']
           format: date
+      x-validation-examples:
+        accepted:
+          - name: Site relationships belong to one tenant and Legal Entity
+            site_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            customer_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            customer_legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+            legal_entity_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            establishment_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            establishment_legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+            value:
+              name: Airport Terminal 1
+              customer_id: '550e8400-e29b-41d4-a716-446655440000'
+              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+              establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+              type: permanent
+              address:
+                street: Flughafenstraße 1
+                city: Berlin
+                postal_code: '10115'
+                country: DE
+        rejected:
+          - name: Customer belongs to another Legal Entity
+            site_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            customer_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            customer_legal_entity_id: '770e8400-e29b-41d4-a716-446655440002'
+            legal_entity_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            establishment_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            establishment_legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+            status: 422
+            value:
+              name: Airport Terminal 1
+              customer_id: '550e8400-e29b-41d4-a716-446655440002'
+              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+              establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+              type: permanent
+              address:
+                street: Flughafenstraße 1
+                city: Berlin
+                postal_code: '10115'
+                country: DE
 
     SiteUpdateRequest:
       type: object
@@ -10004,6 +10087,13 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
   /customer-establishments/{customer_establishment}:
+    parameters:
+      - name: customer_establishment
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
     get:
       summary: Get Customer Establishment
       operationId: getCustomerEstablishment
@@ -10011,13 +10101,6 @@ paths:
         - Customers
       security:
         - BearerAuth: []
-      parameters:
-        - name: customer_establishment
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
       responses:
         '200':
           description: Customer establishment retrieved successfully
@@ -10040,13 +10123,6 @@ paths:
         - Customers
       security:
         - BearerAuth: []
-      parameters:
-        - name: customer_establishment
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
       requestBody:
         required: true
         content:
@@ -10077,13 +10153,6 @@ paths:
         - Customers
       security:
         - BearerAuth: []
-      parameters:
-        - name: customer_establishment
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
       responses:
         '204':
           description: Customer establishment deleted successfully
@@ -10100,7 +10169,7 @@ paths:
     get:
       summary: Get Customer
       description: |
-        Retrieve a single customer by ID with optional relationships.
+        Retrieve a single customer's Legal-Entity-wide master data.
         Requires view access via assignment or organizational scope.
       operationId: getCustomer
       tags:
@@ -10115,13 +10184,6 @@ paths:
             type: string
             format: uuid
           description: Customer UUID
-        - name: include
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [sites, assignments, sites.assignments]
-          description: Comma-separated list of relationships to include
       responses:
         '200':
           description: Customer retrieved successfully
