@@ -484,6 +484,19 @@ if (
   )
 }
 
+if (
+  !/visible to the current caller/i.test(
+    customerEstablishments?.description ?? ''
+  ) ||
+  !/site-only access.*active site assignments/i.test(
+    customerEstablishments?.description ?? ''
+  )
+) {
+  errors.push(
+    'Customer must preserve caller-visible customer_establishments filtering for customer and site assignments.'
+  )
+}
+
 for (const [label, response] of [
   [
     'GET /customers',
@@ -499,19 +512,44 @@ for (const [label, response] of [
   ],
 ]) {
   const data = response?.examples?.withCustomerEstablishment?.value?.data
-  const customer = Array.isArray(data) ? data[0] : data
-  const assignment = customer?.customer_establishments?.[0]
+  const customers = Array.isArray(data) ? data : [data]
+  const hasValidAssignments =
+    customers.length > 0 &&
+    customers.every(
+      (customer) =>
+        Array.isArray(customer?.customer_establishments) &&
+        customer.customer_establishments.length > 0 &&
+        customer.customer_establishments.every(
+          (assignment) =>
+            uuidValue(assignment?.id) &&
+            uuidValue(assignment?.customer_id) &&
+            uuidValue(assignment?.establishment_id) &&
+            !Object.hasOwn(assignment, 'organizational_unit_id') &&
+            !Object.hasOwn(assignment, 'organizational_unit')
+        )
+    )
 
-  if (
-    !Array.isArray(customer?.customer_establishments) ||
-    !uuidValue(assignment?.id) ||
-    !uuidValue(assignment?.customer_id) ||
-    !uuidValue(assignment?.establishment_id) ||
-    Object.hasOwn(assignment ?? {}, 'organizational_unit_id') ||
-    Object.hasOwn(assignment ?? {}, 'organizational_unit')
-  ) {
+  if (!hasValidAssignments) {
     errors.push(
       `${label} must include an OU-free customer_establishments response example.`
+    )
+  }
+
+  const emptyData =
+    response?.examples?.withoutCustomerEstablishments?.value?.data
+  const customersWithoutAssignments = Array.isArray(emptyData)
+    ? emptyData
+    : [emptyData]
+  if (
+    customersWithoutAssignments.length === 0 ||
+    customersWithoutAssignments.some(
+      (customer) =>
+        !Array.isArray(customer?.customer_establishments) ||
+        customer.customer_establishments.length !== 0
+    )
+  ) {
+    errors.push(
+      `${label} must include an empty customer_establishments response example.`
     )
   }
 }

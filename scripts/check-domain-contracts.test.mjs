@@ -242,7 +242,7 @@ test('moves local customer data to a unique customer establishment contract', ()
   assert.deepEqual(schemas.Customer.properties.customer_establishments, {
     type: 'array',
     description:
-      'Customer-to-establishment assignments with local contact data. Always present; empty when the customer has no assignments. No organizational-unit relationships are exposed.',
+      "Customer-to-establishment assignments with local contact data that are visible to the current caller. Always present; empty when the customer has no visible assignments. Unrestricted customer readers and callers with an active customer assignment may see all links for that customer; site-only access returns only links matching the caller's active site assignments. No organizational-unit relationships are exposed.",
     items: {
       $ref: '#/components/schemas/CustomerEstablishment',
     },
@@ -272,6 +272,11 @@ test('moves local customer data to a unique customer establishment contract', ()
 })
 
 test('documents embedded customer-establishment assignments in customer responses', () => {
+  assert.match(
+    schemas.Customer.properties.customer_establishments.description,
+    /visible to the current caller.*site-only access.*active site assignments/is
+  )
+
   const listResponse = paths['/customers'].get.responses['200'].content[
     'application/json'
   ]
@@ -292,6 +297,18 @@ test('documents embedded customer-establishment assignments in customer response
         Object.hasOwn(item.customer_establishments[0], 'organizational_unit'),
         false
       )
+    }
+
+    const customerWithoutAssignments =
+      response.examples.withoutCustomerEstablishments.value.data
+    const customersWithoutAssignments = Array.isArray(
+      customerWithoutAssignments
+    )
+      ? customerWithoutAssignments
+      : [customerWithoutAssignments]
+
+    for (const item of customersWithoutAssignments) {
+      assert.deepEqual(item.customer_establishments, [])
     }
   }
 })
@@ -1326,6 +1343,24 @@ test('guard rejects a closed customer response without its visible site count', 
 
   assert.notEqual(result.status, 0, result.stdout)
   assert.match(result.stderr, /Customer\.sites_count/)
+})
+
+test('guard rejects weakened customer-establishment embedding visibility or empty-array evidence', () => {
+  const candidate = structuredClone(contract)
+  candidate.components.schemas.Customer.properties.customer_establishments.description =
+    'Customer-to-establishment assignments with local contact data. Always present; empty when the customer has no assignments.'
+  delete candidate.paths['/customers'].get.responses['200'].content[
+    'application/json'
+  ].examples.withoutCustomerEstablishments
+  delete candidate.paths['/customers/{customer}'].get.responses['200'].content[
+    'application/json'
+  ].examples.withoutCustomerEstablishments
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /caller-visible customer_establishments/)
+  assert.match(result.stderr, /empty customer_establishments response example/)
 })
 
 test('guard rejects unapproved contact example domains', () => {
