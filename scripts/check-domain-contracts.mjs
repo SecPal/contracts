@@ -230,6 +230,71 @@ for (const schemaName of ['SiteCreateRequest', 'EmployeeCreateRequest']) {
   }
 }
 
+for (const schemaName of ['EmployeeCreateRequest', 'EmployeeUpdateRequest']) {
+  if (schemas[schemaName]?.additionalProperties !== false) {
+    errors.push(`${schemaName} must remain closed to obsolete OU fields.`)
+  }
+}
+
+if (
+  !/active, assignable, non-deleted.*organizational write access/i.test(
+    paths['/employees']?.post?.description ?? ''
+  )
+) {
+  errors.push('POST /employees must require eligible authorized assignment targets.')
+}
+if (
+  !/resulting.*same tenant.*Legal Entity.*active, assignable, non-deleted/i.test(
+    paths['/employees/{employee}']?.patch?.description ?? ''
+  )
+) {
+  errors.push('PATCH employee assignments must validate the resulting domain pair.')
+}
+if (
+  !/resulting.*existing customer-establishment link/i.test(
+    schemas.SiteUpdateRequest?.description ?? ''
+  )
+) {
+  errors.push('PATCH site assignments must require a valid resulting customer-establishment link.')
+}
+
+for (const [label, description] of [
+  [
+    'POST customer-establishment links',
+    paths['/customer-establishments']?.post?.description,
+  ],
+  ['POST site assignments', paths['/sites']?.post?.description],
+  ['PATCH site assignments', schemas.SiteUpdateRequest?.description],
+]) {
+  if (
+    !/active, non-deleted customer.*active, assignable, non-deleted.*organizational write access/i.test(
+      description ?? ''
+    )
+  ) {
+    errors.push(`${label} must enforce eligible authorized assignment targets.`)
+  }
+}
+
+const customerDelete = paths['/customers/{customer}']?.delete
+if (
+  !/customer-establishment links or sites/i.test(customerDelete?.description ?? '') ||
+  customerDelete?.responses?.['409']?.$ref !==
+    '#/components/responses/Conflict'
+) {
+  errors.push('DELETE customers must block remaining domain dependents with Conflict.')
+}
+const organizationalUnitDelete =
+  paths['/organizational-units/{organizational_unit}']?.delete
+if (
+  !/customers, customer-establishment links, sites, or employees/i.test(
+    organizationalUnitDelete?.description ?? ''
+  ) ||
+  organizationalUnitDelete?.responses?.['409']?.$ref !==
+    '#/components/responses/OrganizationalUnitDeletionConflict'
+) {
+  errors.push('DELETE organizational units must block remaining domain dependents with Conflict.')
+}
+
 function hasTenantConsistentCustomerEstablishmentExamples() {
   const schema = schemas.CustomerEstablishmentCreateRequest ?? {}
   const examples = schema['x-validation-examples'] ?? {}

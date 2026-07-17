@@ -680,11 +680,11 @@ if (
 if (
   paths['/organizational-units/{organizational_unit}']?.delete?.responses?.[
     '409'
-  ]?.$ref !== '#/components/responses/OrganizationalUnitHasChildrenConflict' ||
-  responses.OrganizationalUnitHasChildrenConflict == null
+  ]?.$ref !== '#/components/responses/OrganizationalUnitDeletionConflict' ||
+  responses.OrganizationalUnitDeletionConflict == null
 ) {
   contractErrors.push(
-    'Organizational-unit deletion must document its child-conflict response shape.'
+    'Organizational-unit deletion must document its child and domain dependency conflict response shapes.'
   )
 }
 
@@ -703,7 +703,7 @@ const childConflictDescriptions = [
 ]
 if (
   !organizationalUnitDeleteDescription.includes('non-deleted direct child') ||
-  !responses.OrganizationalUnitHasChildrenConflict?.description
+  !responses.OrganizationalUnitDeletionConflict?.description
     ?.toLowerCase()
     .includes('non-deleted direct child') ||
   childConflictDescriptions.some(

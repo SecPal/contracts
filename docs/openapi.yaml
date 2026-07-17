@@ -2154,6 +2154,7 @@ components:
 
     EmployeeCreateRequest:
       type: object
+      additionalProperties: false
       required:
         - first_name
         - last_name
@@ -2400,7 +2401,8 @@ components:
 
     EmployeeUpdateRequest:
       type: object
-      description: Partial employee update request. All properties are optional.
+      additionalProperties: false
+      description: Partial employee update request. All properties are optional. If either domain relationship changes, validation uses the resulting Legal Entity and establishment pair after applying supplied values to the stored employee; the result must remain same tenant and same Legal Entity, use active, assignable, non-deleted targets, and stay within the caller's organizational write access.
       properties:
         employee_number:
           type: [string, 'null']
@@ -5957,7 +5959,7 @@ components:
     SiteUpdateRequest:
       type: object
       additionalProperties: false
-      description: Partial site update. Domain relationships may be reassigned only to an authorized, tenant-consistent customer, Legal Entity, and establishment combination.
+      description: Partial site update. If any domain relationship changes, validation uses the resulting customer, Legal Entity, and establishment combination after applying supplied values to the stored site; the result must use an active, non-deleted customer, active, assignable, non-deleted Legal Entity and establishment within the caller's organizational write access, remain tenant- and Legal-Entity-consistent, and reference an existing customer-establishment link.
       properties:
         name:
           type: string
@@ -6222,12 +6224,14 @@ components:
             message: A matching record already exists.
             code: DUPLICATE_RESOURCE
 
-    OrganizationalUnitHasChildrenConflict:
-      description: Conflict - Non-deleted direct child units must be moved or deleted first, regardless of their `is_active` values
+    OrganizationalUnitDeletionConflict:
+      description: Conflict - Non-deleted direct child units or domain records still reference the organizational unit
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/OrganizationalUnitHasChildrenConflict'
+            oneOf:
+              - $ref: '#/components/schemas/OrganizationalUnitHasChildrenConflict'
+              - $ref: '#/components/schemas/Error'
 
     Unauthorized:
       description: Unauthorized - Authentication required
@@ -8528,6 +8532,7 @@ paths:
       summary: Create Employee
       description: |
         Create a new employee record. Onboarding invitations may only be requested during the `pre_contract` phase.
+        Requires `employees.create`. The supplied Legal Entity and establishment must be same tenant and belong to the same Legal Entity, both targets must be active, assignable, non-deleted, and the caller must have organizational write access for them.
         Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing which identifying field matched.
       operationId: createEmployee
       tags:
@@ -8595,7 +8600,7 @@ paths:
 
     patch:
       summary: Update Employee
-      description: Update employee details (partial update)
+      description: Update employee details with partial-update semantics. If either domain relationship is supplied, the resulting stored Legal Entity and establishment pair must remain same tenant and same Legal Entity, use active, assignable, non-deleted targets, and remain within the caller's organizational write access.
       operationId: updateEmployee
       tags:
         - Employees
@@ -9630,7 +9635,7 @@ paths:
       description: |
         Soft-delete an organizational unit.
 
-        `OrganizationalUnitPolicy::delete` requires same-tenant manage access. The API rejects deletion while non-deleted direct child units exist, regardless of each child's `is_active` value; callers must move or delete children first.
+        `OrganizationalUnitPolicy::delete` requires same-tenant manage access. The API rejects deletion while non-deleted direct child units exist, regardless of each child's `is_active` value, or while the unit is referenced by customers, customer-establishment links, sites, or employees; callers must move or delete dependents first.
       operationId: deleteOrganizationalUnit
       tags:
         - Organizational Units
@@ -9656,7 +9661,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          $ref: '#/components/responses/OrganizationalUnitHasChildrenConflict'
+          $ref: '#/components/responses/OrganizationalUnitDeletionConflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -10076,7 +10081,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     post:
       summary: Link Customer to Establishment
-      description: Creates a unique customer-to-establishment link with optional local contact data. The customer and establishment must belong to the same tenant and Legal Entity. Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing whether the pair or local identifying data matched.
+      description: Creates a unique customer-to-establishment link with optional local contact data. The request must use an active, non-deleted customer and an active, assignable, non-deleted establishment within the caller's organizational write access; both must belong to the same tenant and Legal Entity. Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing whether the pair or local identifying data matched.
       operationId: createCustomerEstablishment
       tags:
         - Customers
@@ -10281,7 +10286,7 @@ paths:
       summary: Delete Customer
       description: |
         Soft delete a customer. Requires customers.delete permission.
-        Will fail if customer has active sites.
+        Deletion is blocked while customer-establishment links or sites reference the customer; callers must move or delete dependents first.
       operationId: deleteCustomer
       tags:
         - Customers
@@ -10304,12 +10309,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-        '422':
-          description: Cannot delete customer with active sites
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -10477,7 +10478,7 @@ paths:
       summary: Create Site
       description: |
         Create a new site. Site number is auto-generated (OBJ-YYYY-####).
-        Requires sites.create permission and an authorized, tenant-consistent customer, Legal Entity, and establishment combination with an existing customer-establishment link for the selected customer and establishment. Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing which identifying field matched.
+        Requires `sites.create`, an active, non-deleted customer, active, assignable, non-deleted Legal Entity and establishment within the caller's organizational write access, and a tenant- and Legal-Entity-consistent combination with an existing customer-establishment link for the selected customer and establishment. Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing which identifying field matched.
       operationId: createSite
       tags:
         - Sites

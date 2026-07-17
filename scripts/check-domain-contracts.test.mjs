@@ -257,6 +257,75 @@ test('keeps lookup eligibility and dependent relationship lifecycle rules explic
   )
 })
 
+test('keeps create and update domain assignments closed and validates their final state', () => {
+  assert.equal(schemas.EmployeeCreateRequest.additionalProperties, false)
+  assert.equal(schemas.EmployeeUpdateRequest.additionalProperties, false)
+  assert.match(
+    paths['/employees'].post.description,
+    /active, assignable, non-deleted.*organizational write access/i
+  )
+  assert.match(
+    paths['/employees/{employee}'].patch.description,
+    /resulting.*same tenant.*Legal Entity.*active, assignable, non-deleted/i
+  )
+  assert.match(
+    schemas.SiteUpdateRequest.description,
+    /resulting.*existing customer-establishment link/i
+  )
+})
+
+test('enforces lookup eligibility when assignment UUIDs are submitted directly', () => {
+  assert.match(
+    paths['/customer-establishments'].post.description,
+    /active, non-deleted customer.*active, assignable, non-deleted establishment.*organizational write access/i
+  )
+  assert.match(
+    paths['/sites'].post.description,
+    /active, non-deleted customer.*active, assignable, non-deleted.*organizational write access/i
+  )
+  assert.match(
+    schemas.SiteUpdateRequest.description,
+    /active, non-deleted customer.*active, assignable, non-deleted.*organizational write access/i
+  )
+})
+
+test('blocks deletion of domain records that still have dependents', () => {
+  const customerDelete = paths['/customers/{customer}'].delete
+  assert.match(
+    customerDelete.description,
+    /customer-establishment links or sites/i
+  )
+  assert.equal(
+    customerDelete.responses['409'].$ref,
+    '#/components/responses/Conflict'
+  )
+
+  const organizationalUnitDelete =
+    paths['/organizational-units/{organizational_unit}'].delete
+  assert.match(
+    organizationalUnitDelete.description,
+    /customers, customer-establishment links, sites, or employees/i
+  )
+  assert.equal(
+    organizationalUnitDelete.responses['409'].$ref,
+    '#/components/responses/OrganizationalUnitDeletionConflict'
+  )
+})
+
+test('guard rejects reopened writes and weakened final-state or deletion rules', () => {
+  const candidate = structuredClone(contract)
+  delete candidate.components.schemas.EmployeeUpdateRequest.additionalProperties
+  candidate.components.schemas.SiteUpdateRequest.description = 'Partial update.'
+  candidate.paths['/customers/{customer}'].delete.responses['409'] = undefined
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /EmployeeUpdateRequest/)
+  assert.match(result.stderr, /PATCH site assignments/)
+  assert.match(result.stderr, /DELETE customers/)
+})
+
 test('guard rejects restored OU fields and list filters', () => {
   const candidate = structuredClone(contract)
   candidate.components.schemas.Employee.properties.organizational_unit_id = {

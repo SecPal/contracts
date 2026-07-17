@@ -27,7 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for customer/establishment links. Customer-establishment links now require
   tenant- and Legal-Entity-consistent assignments, and sites require an
   existing link; dependent links and sites block incompatible reassignment or
-  link deletion. Added minimal authorized Legal Entity,
+  deletion. Site and employee updates validate the complete resulting domain
+  assignment, and referenced Legal Entities or establishments cannot be
+  deleted. Added minimal authorized Legal Entity,
   establishment, and customer lookups plus one atomic, information-poor
   duplicate-conflict response shared by all domain create operations. Existing
   organizational-unit and scope administration contracts remain unchanged
