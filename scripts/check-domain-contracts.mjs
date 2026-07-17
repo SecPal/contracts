@@ -444,6 +444,7 @@ const customerAllowedProperties = new Set([
   'billing_address',
   'is_active',
   'sites_count',
+  'customer_establishments',
   'created_at',
   'updated_at',
   'deleted_at',
@@ -467,6 +468,52 @@ if (
   errors.push(
     'Customer.sites_count must remain an optional non-negative visible-site count.'
   )
+}
+
+const customerEstablishments =
+  schemas.Customer?.properties?.customer_establishments
+if (
+  customerEstablishments?.type !== 'array' ||
+  customerEstablishments?.items?.$ref !==
+    '#/components/schemas/CustomerEstablishment' ||
+  !schemas.Customer?.required?.includes('customer_establishments') ||
+  !/always present.*empty/i.test(customerEstablishments?.description ?? '')
+) {
+  errors.push(
+    'Customer.customer_establishments must be a required, always-present CustomerEstablishment array.'
+  )
+}
+
+for (const [label, response] of [
+  [
+    'GET /customers',
+    paths['/customers']?.get?.responses?.['200']?.content?.[
+      'application/json'
+    ],
+  ],
+  [
+    'GET /customers/{customer}',
+    paths['/customers/{customer}']?.get?.responses?.['200']?.content?.[
+      'application/json'
+    ],
+  ],
+]) {
+  const data = response?.examples?.withCustomerEstablishment?.value?.data
+  const customer = Array.isArray(data) ? data[0] : data
+  const assignment = customer?.customer_establishments?.[0]
+
+  if (
+    !Array.isArray(customer?.customer_establishments) ||
+    !uuidValue(assignment?.id) ||
+    !uuidValue(assignment?.customer_id) ||
+    !uuidValue(assignment?.establishment_id) ||
+    Object.hasOwn(assignment ?? {}, 'organizational_unit_id') ||
+    Object.hasOwn(assignment ?? {}, 'organizational_unit')
+  ) {
+    errors.push(
+      `${label} must include an OU-free customer_establishments response example.`
+    )
+  }
 }
 
 const customerGet = paths['/customers/{customer}']?.get

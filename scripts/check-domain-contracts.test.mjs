@@ -234,6 +234,19 @@ test('moves local customer data to a unique customer establishment contract', ()
   assert.equal(Object.hasOwn(schemas.Customer.properties, 'contact'), false)
   assert.equal(Object.hasOwn(schemas.Customer.properties, 'notes'), false)
   assert.equal(Object.hasOwn(schemas.Customer.properties, 'metadata'), false)
+  assert.equal(
+    schemas.Customer.required.includes('customer_establishments'),
+    true,
+    'customer responses must always include customer_establishments, including when empty'
+  )
+  assert.deepEqual(schemas.Customer.properties.customer_establishments, {
+    type: 'array',
+    description:
+      'Customer-to-establishment assignments with local contact data. Always present; empty when the customer has no assignments. No organizational-unit relationships are exposed.',
+    items: {
+      $ref: '#/components/schemas/CustomerEstablishment',
+    },
+  })
 
   assert.deepEqual(schemas.CustomerEstablishment.required, [
     'id',
@@ -255,6 +268,31 @@ test('moves local customer data to a unique customer establishment contract', ()
     'comments',
   ]) {
     assert.ok(schemas.CustomerEstablishment.properties[property], property)
+  }
+})
+
+test('documents embedded customer-establishment assignments in customer responses', () => {
+  const listResponse = paths['/customers'].get.responses['200'].content[
+    'application/json'
+  ]
+  const detailResponse = paths['/customers/{customer}'].get.responses['200']
+    .content['application/json']
+
+  for (const response of [listResponse, detailResponse]) {
+    const customer = response.examples.withCustomerEstablishment.value.data
+    const customers = Array.isArray(customer) ? customer : [customer]
+
+    for (const item of customers) {
+      assert.ok(Array.isArray(item.customer_establishments))
+      assert.equal(
+        Object.hasOwn(item.customer_establishments[0], 'organizational_unit_id'),
+        false
+      )
+      assert.equal(
+        Object.hasOwn(item.customer_establishments[0], 'organizational_unit'),
+        false
+      )
+    }
   }
 })
 
