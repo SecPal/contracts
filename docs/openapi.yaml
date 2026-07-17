@@ -8061,8 +8061,8 @@ paths:
                     data:
                       - id: 550e8400-e29b-41d4-a716-446655440001
                         tenant_id: 550e8400-e29b-41d4-a716-446655440000
-                        log_name: employee
-                        description: Created Employee "John Doe"
+                        log_name: employee_changes
+                        description: created
                         subject_type: App\Models\Employee
                         subject_id: 550e8400-e29b-41d4-a716-446655440010
                         causer_type: App\Models\User
@@ -8070,8 +8070,10 @@ paths:
                         event: created
                         properties:
                           attributes:
-                            name: John Doe
+                            employee_number: EMP-2026-0001
                             status: active
+                            legal_entity_id: 770e8400-e29b-41d4-a716-446655440000
+                            establishment_id: 780e8400-e29b-41d4-a716-446655440000
                         ip_address: 192.0.2.1
                         user_agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36
                         batch_uuid: 550e8400-e29b-41d4-a716-446655440100
@@ -8250,8 +8252,8 @@ paths:
                     data:
                       id: 550e8400-e29b-41d4-a716-446655440001
                       tenant_id: 550e8400-e29b-41d4-a716-446655440000
-                      log_name: employee
-                      description: Created Employee "John Doe"
+                      log_name: employee_changes
+                      description: created
                       subject_type: App\Models\Employee
                       subject_id: 550e8400-e29b-41d4-a716-446655440010
                       causer_type: App\Models\User
@@ -8259,9 +8261,10 @@ paths:
                       event: created
                       properties:
                         attributes:
-                          name: John Doe
+                          employee_number: EMP-2026-0001
                           status: active
-                          organizational_unit_id: 550e8400-e29b-41d4-a716-446655440030
+                          legal_entity_id: 770e8400-e29b-41d4-a716-446655440000
+                          establishment_id: 780e8400-e29b-41d4-a716-446655440000
                         ip: 192.0.2.1
                         user_agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36
                       ip_address: 192.0.2.1
@@ -8977,8 +8980,8 @@ paths:
 
         **Relations:** `employee` and `qualification` are eager-loaded; each `data[]` item includes both embeds.
 
-        **Organizational scope:** users with `User::organizationalScopes` only see employees in their allowed units; otherwise the controller
-        returns HTTP **403** (with an English message such as “You do not have access to this employee's organizational unit”).
+        **Authorization boundary:** OU scopes do not grant access to domain employees. A caller with any organizational scopes
+        (`User::organizationalScopes`) receives HTTP **403** with “No organizational entitlement exists for this employee.” Unscoped callers still require the permission below.
 
         **Authorization:** `employee_qualification.read` via `EmployeeQualificationPolicy::viewAny`.
       operationId: listEmployeeQualifications

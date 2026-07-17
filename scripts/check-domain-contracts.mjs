@@ -23,6 +23,19 @@ const uuidValue = (value) =>
     value
   )
 
+function collectMatchingObjects(value, predicate, matches = []) {
+  if (value === null || typeof value !== 'object') {
+    return matches
+  }
+  if (predicate(value)) {
+    matches.push(value)
+  }
+  for (const child of Object.values(value)) {
+    collectMatchingObjects(child, predicate, matches)
+  }
+  return matches
+}
+
 function requireContractRules(rules) {
   for (const {
     label,
@@ -297,6 +310,39 @@ for (const schemaName of [
   'EmployeeUpdateRequest',
 ]) {
   rejectOuFields(schemaName)
+}
+
+const employeeCreationAuditExamples = collectMatchingObjects(
+  paths,
+  (value) =>
+    value.subject_type === 'App\\Models\\Employee' && value.event === 'created'
+)
+const forbiddenEmployeeAuditFields = [
+  'organizational_unit_id',
+  'name',
+  'first_name',
+  'last_name',
+  'email',
+  'phone',
+]
+if (
+  employeeCreationAuditExamples.length < 2 ||
+  employeeCreationAuditExamples.some((activity) => {
+    const attributes = activity.properties?.attributes ?? {}
+    return (
+      activity.log_name !== 'employee_changes' ||
+      activity.description !== 'created' ||
+      !uuidValue(attributes.legal_entity_id) ||
+      !uuidValue(attributes.establishment_id) ||
+      forbiddenEmployeeAuditFields.some((field) =>
+        Object.hasOwn(attributes, field)
+      )
+    )
+  })
+) {
+  errors.push(
+    'All employee creation audit examples must use employee_changes, include domain assignment UUIDs, and exclude OU and personal contact fields.'
+  )
 }
 
 requireUuid('Customer', 'legal_entity_id', true)
@@ -663,6 +709,22 @@ requireContractRules([
       ref: '#/components/responses/Forbidden',
     },
   })),
+  {
+    label: 'GET employee qualifications',
+    text: paths['/employees/{employee}/qualifications']?.get?.description,
+    patterns: [
+      /OU scopes do not grant access.*organizational scopes.*403.*No organizational entitlement exists/is,
+    ],
+    forbiddenPatterns: [
+      /organizational scopes.*allowed units/is,
+      /employee's organizational unit/i,
+    ],
+    response: {
+      operation: paths['/employees/{employee}/qualifications']?.get,
+      status: '403',
+      ref: '#/components/responses/SimpleForbidden',
+    },
+  },
   {
     label: 'GET Legal Entity lookups',
     text: assignmentLookups.legalEntities.operation?.description,

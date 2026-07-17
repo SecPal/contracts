@@ -87,6 +87,45 @@ test('defines OU-free customer, site, and employee domain relationships', () => 
   }
 })
 
+test('keeps employee creation audit examples aligned with domain assignments', () => {
+  const employeeCreationActivities = [
+    paths['/activity-logs'].get.responses['200'].content['application/json']
+      .examples.paginatedResponse.value.data[0],
+    paths['/activity-logs/{activity}'].get.responses['200'].content[
+      'application/json'
+    ].examples.employeeCreation.value.data,
+  ]
+
+  for (const activity of employeeCreationActivities) {
+    assert.equal(activity.subject_type, 'App\\Models\\Employee')
+    assert.equal(activity.event, 'created')
+    assert.equal(activity.log_name, 'employee_changes')
+    assert.equal(activity.description, 'created')
+    assert.match(
+      activity.properties.attributes.legal_entity_id,
+      /^[0-9a-f-]{36}$/i
+    )
+    assert.match(
+      activity.properties.attributes.establishment_id,
+      /^[0-9a-f-]{36}$/i
+    )
+    for (const forbiddenField of [
+      'organizational_unit_id',
+      'name',
+      'first_name',
+      'last_name',
+      'email',
+      'phone',
+    ]) {
+      assert.equal(
+        Object.hasOwn(activity.properties.attributes, forbiddenField),
+        false,
+        `employee audit attributes must not expose ${forbiddenField}`
+      )
+    }
+  }
+})
+
 test('moves local customer data to a unique customer establishment contract', () => {
   assert.equal(Object.hasOwn(schemas.Customer.properties, 'contact'), false)
   assert.equal(Object.hasOwn(schemas.Customer.properties, 'notes'), false)
@@ -327,6 +366,19 @@ test('documents customer-establishment read authorization consistently', () => {
   }
 })
 
+test('documents employee qualification access after OU decoupling', () => {
+  const operation = paths['/employees/{employee}/qualifications'].get
+
+  assert.match(
+    operation.description,
+    /OU scopes do not grant access.*organizational scopes.*403.*No organizational entitlement exists/is
+  )
+  assert.equal(
+    operation.responses['403'].$ref,
+    '#/components/responses/SimpleForbidden'
+  )
+})
+
 test('keeps lookup eligibility and dependent relationship lifecycle rules explicit', () => {
   assert.match(
     paths['/lookups/legal-entities'].get.description,
@@ -522,6 +574,28 @@ test('guard rejects restored OU fields and list filters', () => {
   assert.match(result.stderr, /organizational_unit_id/)
 })
 
+test('guard rejects stale or privacy-widened employee creation audit examples', () => {
+  const candidate = structuredClone(contract)
+  const listActivity =
+    candidate.paths['/activity-logs'].get.responses['200'].content[
+      'application/json'
+    ].examples.paginatedResponse.value.data[0]
+  const detailActivity =
+    candidate.paths['/activity-logs/{activity}'].get.responses['200'].content[
+      'application/json'
+    ].examples.employeeCreation.value.data
+
+  delete listActivity.properties.attributes.establishment_id
+  detailActivity.properties.attributes.organizational_unit_id =
+    '550e8400-e29b-41d4-a716-446655440030'
+  detailActivity.properties.attributes.name = 'John Doe'
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /employee creation audit examples/)
+})
+
 test('guard rejects optionalized domain relationships', () => {
   const candidate = structuredClone(contract)
   candidate.components.schemas.Site.required =
@@ -677,6 +751,17 @@ test('guard rejects incomplete customer-establishment read authorization', () =>
   assert.notEqual(result.status, 0, result.stdout)
   assert.match(result.stderr, /GET customer-establishment collections/)
   assert.match(result.stderr, /GET customer-establishment links/)
+})
+
+test('guard rejects stale OU-based employee qualification access', () => {
+  const candidate = structuredClone(contract)
+  candidate.paths['/employees/{employee}/qualifications'].get.description =
+    'Users with organizational scopes see employees in their allowed units.'
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /GET employee qualifications/)
 })
 
 test('guard rejects missing assignment workflow evidence', () => {
