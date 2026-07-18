@@ -6,7 +6,7 @@
  * Regression guard: fail if docs/openapi.yaml omits verified API operations
  * or regresses their critical contract invariants (email verification resend +
  * German address reference data + employee documents + qualification catalog +
- * employee qualifications + organizational units).
+ * employee qualifications + organizational units + employee compliance alerts).
  *
  * Usage: node scripts/check-openapi-verified-endpoints.mjs <path-to-openapi.yaml>
  */
@@ -21,6 +21,7 @@ const REQUIRED_OPERATIONS = [
   ['get', '/addresses/de/streets'],
   ['get', '/addresses/de/localities'],
   ['get', '/addresses/de/status'],
+  ['get', '/employees/compliance-alerts'],
   ['get', '/employees/{employee}/documents'],
   ['post', '/employees/{employee}/documents'],
   ['get', '/employees/{employee}/documents/{document}'],
@@ -117,7 +118,69 @@ const parentIdParameter = paths['/organizational-units']?.get?.parameters?.find(
 )
 const organizationalUnitListParameters =
   paths['/organizational-units']?.get?.parameters ?? []
+const employeeComplianceAlerts = paths['/employees/compliance-alerts']?.get
 const contractErrors = []
+
+const employeeComplianceAlertParameters =
+  employeeComplianceAlerts?.parameters ?? []
+const expectedEmployeeComplianceAlertParameters = [
+  'page',
+  'per_page',
+  'status',
+  'compliance_status',
+  'search',
+  'legal_entity_id',
+  'establishment_id',
+]
+if (
+  employeeComplianceAlertParameters.map(({ name }) => name).join(',') !==
+  expectedEmployeeComplianceAlertParameters.join(',')
+) {
+  contractErrors.push(
+    'GET /employees/compliance-alerts must document exactly the effective page, per_page, status, compliance_status, search, legal_entity_id, and establishment_id query parameters.'
+  )
+}
+
+const complianceStatusParameter = employeeComplianceAlertParameters.find(
+  (parameter) =>
+    parameter?.name === 'compliance_status' && parameter?.in === 'query'
+)
+if (
+  complianceStatusParameter?.schema?.$ref !==
+  '#/components/schemas/EmployeeComplianceAlertStatus'
+) {
+  contractErrors.push(
+    'GET /employees/compliance-alerts must use EmployeeComplianceAlertStatus for compliance_status.'
+  )
+}
+
+const complianceStatusSchema = schemas.EmployeeComplianceAlertStatus ?? {}
+if (
+  complianceStatusSchema.type !== 'string' ||
+  complianceStatusSchema.enum?.join(',') !== 'warning,critical,expired'
+) {
+  contractErrors.push(
+    'EmployeeComplianceAlertStatus must allow exactly warning, critical, and expired.'
+  )
+}
+
+if (
+  employeeComplianceAlerts?.security?.[0]?.BearerAuth == null ||
+  employeeComplianceAlerts?.responses?.['200']?.content?.['application/json']
+    ?.schema?.$ref !== '#/components/schemas/EmployeeCollectionResponse' ||
+  employeeComplianceAlerts?.responses?.['401']?.$ref !==
+    '#/components/responses/Unauthorized' ||
+  employeeComplianceAlerts?.responses?.['403']?.$ref !==
+    '#/components/responses/Forbidden' ||
+  employeeComplianceAlerts?.responses?.['422']?.$ref !==
+    '#/components/responses/ValidationError' ||
+  employeeComplianceAlerts?.responses?.['500']?.$ref !==
+    '#/components/responses/InternalServerError'
+) {
+  contractErrors.push(
+    'GET /employees/compliance-alerts must reuse the authenticated employee collection and standard error responses.'
+  )
+}
 
 if (
   !customer.required?.includes('legal_entity_id') ||

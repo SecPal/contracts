@@ -67,6 +67,39 @@ test('accepts the repository contract', () => {
   assert.equal(result.status, 0, result.stderr)
 })
 
+test('rejects a missing employee compliance-alert collection operation', () => {
+  const candidate = structuredClone(parsedContract)
+  delete candidate.paths['/employees/compliance-alerts']
+
+  const result = runGuard(yaml.dump(candidate))
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /GET \/employees\/compliance-alerts/)
+})
+
+test('rejects employee compliance-alert filters that drift from the API', () => {
+  const candidate = structuredClone(parsedContract)
+  const parameters =
+    candidate.paths['/employees/compliance-alerts'].get.parameters
+  candidate.paths['/employees/compliance-alerts'].get.parameters =
+    parameters.filter(({ name }) => name !== 'compliance_status')
+
+  const result = runGuard(yaml.dump(candidate))
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /effective.*compliance_status/i)
+})
+
+test('rejects unsupported employee compliance-alert severity values', () => {
+  const candidate = structuredClone(parsedContract)
+  candidate.components.schemas.EmployeeComplianceAlertStatus.enum = ['warning']
+
+  const result = runGuard(yaml.dump(candidate))
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /warning, critical, and expired/i)
+})
+
 test('rejects an OU deletion response without the direct-child conflict', () => {
   const candidate = structuredClone(parsedContract)
   candidate.paths[

@@ -2670,6 +2670,14 @@ components:
         meta:
           $ref: '#/components/schemas/PaginationMeta'
 
+    EmployeeComplianceAlertStatus:
+      type: string
+      description: Active employee compliance-alert severity.
+      enum:
+        - warning
+        - critical
+        - expired
+
     Employee:
       type: object
       description: Employee entity with decrypted personal data
@@ -8666,6 +8674,83 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/DuplicateConflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employees/compliance-alerts:
+    get:
+      summary: List Employees With Compliance Alerts
+      description: |
+        Get a paginated collection of employees with active compliance alerts. The collection is limited to employees in `pre_contract`, `active`, or `on_leave` lifecycle status; if `status` is supplied it further narrows that set. Use `compliance_status` to limit alerts to `warning`, `critical`, or `expired`.
+      operationId: listEmployeeComplianceAlerts
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number for pagination.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          required: false
+          description: Number of items per page (max 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 15
+        - name: status
+          in: query
+          required: false
+          description: Further filter the eligible employee lifecycle statuses.
+          schema:
+            $ref: '#/components/schemas/EmployeeStatus'
+        - name: compliance_status
+          in: query
+          required: false
+          description: Filter active compliance alerts by severity.
+          schema:
+            $ref: '#/components/schemas/EmployeeComplianceAlertStatus'
+        - name: search
+          in: query
+          required: false
+          description: Search employees by email and employee_number.
+          schema:
+            type: string
+            maxLength: 255
+        - name: legal_entity_id
+          in: query
+          required: false
+          description: Filter employees by Legal Entity.
+          schema:
+            type: string
+            format: uuid
+        - name: establishment_id
+          in: query
+          required: false
+          description: Filter employees by establishment.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated employees with active compliance alerts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeCollectionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '422':
           $ref: '#/components/responses/ValidationError'
         '500':
