@@ -104,6 +104,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Completed the `Customer` and `Site` response contracts for every field
+  emitted by their resources. Conditional relationships and counts now use
+  reusable schemas and document their eager-loading/counting presence rules;
+  Site `access_instructions` and `notes` now explicitly document their
+  update-authorization gate. Customer and Site endpoint descriptions, examples,
+  and semantic validation distinguish eager-loaded fields from omitted fields,
+  superseding the earlier always-present `customer_establishments` description.
+  Embedded and dedicated assignment schemas and collection role filters now
+  match their distinct runtime resources, including preserved null-user
+  history, and the unsupported Site `include` parameter and `is_primary`
+  assignment field were removed (closes #383).
 - Replaced the unsupported Employee access activity example with the runtime
   `employee_changes` update event and its metadata-free API representation.
   Contract validation rejects unsupported categories/events, automatic diffs
