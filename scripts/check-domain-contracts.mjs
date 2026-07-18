@@ -453,11 +453,59 @@ const customerAllowedProperties = new Set([
   'billing_address',
   'is_active',
   'sites_count',
+  'sites',
+  'assignments',
   'customer_establishments',
   'created_at',
   'updated_at',
   'deleted_at',
 ])
+const resourceSchemaInventories = {
+  Customer: customerAllowedProperties,
+  Site: new Set([
+    'id',
+    'customer_id',
+    'legal_entity_id',
+    'establishment_id',
+    'site_number',
+    'name',
+    'type',
+    'address',
+    'full_address',
+    'contact',
+    'access_instructions',
+    'notes',
+    'metadata',
+    'is_active',
+    'is_expired',
+    'valid_from',
+    'valid_until',
+    'customer',
+    'assignments',
+    'assigned_users_count',
+    'cost_centers_count',
+    'created_at',
+    'updated_at',
+    'deleted_at',
+  ]),
+}
+for (const [schemaName, expectedProperties] of Object.entries(
+  resourceSchemaInventories
+)) {
+  const actualProperties = new Set(
+    Object.keys(schemas[schemaName]?.properties ?? {})
+  )
+  if (
+    actualProperties.size !== expectedProperties.size ||
+    [...expectedProperties].some(
+      (propertyName) => !actualProperties.has(propertyName)
+    )
+  ) {
+    errors.push(
+      `${schemaName} must inventory every field emitted by its resource.`
+    )
+  }
+}
 if (schemas.Customer?.additionalProperties !== false) {
   errors.push('Customer must remain a closed master-data response schema.')
 }
@@ -468,32 +516,68 @@ for (const propertyName of Object.keys(schemas.Customer?.properties ?? {})) {
     )
   }
 }
-const customerSitesCount = schemas.Customer?.properties?.sites_count
+const conditionalResourceFields = {
+  Customer: {
+    sites_count: 'NonNegativeRelationshipCount',
+    sites: 'CustomerSitesRelationship',
+    assignments: 'CustomerAssignmentsRelationship',
+    customer_establishments: 'CustomerEstablishmentRelationship',
+  },
+  Site: {
+    customer: 'SiteCustomerRelationship',
+    assignments: 'SiteAssignmentsRelationship',
+    assigned_users_count: 'NonNegativeRelationshipCount',
+    cost_centers_count: 'NonNegativeRelationshipCount',
+  },
+}
+for (const [schemaName, fields] of Object.entries(conditionalResourceFields)) {
+  for (const [fieldName, componentName] of Object.entries(fields)) {
+    const property = schemas[schemaName]?.properties?.[fieldName]
+    if (
+      property?.$ref !== `#/components/schemas/${componentName}` ||
+      schemas[schemaName]?.required?.includes(fieldName)
+    ) {
+      errors.push(
+        `${schemaName}.${fieldName} must be an optional reusable conditional-resource field.`
+      )
+    }
+  }
+}
+
+const relationshipSchemas = [
+  'CustomerSitesRelationship',
+  'CustomerAssignmentsRelationship',
+  'CustomerEstablishmentRelationship',
+  'SiteCustomerRelationship',
+  'SiteAssignmentsRelationship',
+]
+for (const schemaName of relationshipSchemas) {
+  if (
+    !/eager loaded.*omitted otherwise/i.test(
+      schemas[schemaName]?.description ?? ''
+    )
+  ) {
+    errors.push(
+      `${schemaName} must document eager-loading presence and omission.`
+    )
+  }
+}
+
+const relationshipCount = schemas.NonNegativeRelationshipCount
 if (
-  customerSitesCount?.type !== 'integer' ||
-  customerSitesCount.minimum !== 0 ||
-  schemas.Customer?.required?.includes('sites_count')
+  relationshipCount?.type !== 'integer' ||
+  relationshipCount.minimum !== 0 ||
+  !/counted.*omitted otherwise/i.test(relationshipCount?.description ?? '')
 ) {
   errors.push(
-    'Customer.sites_count must remain an optional non-negative visible-site count.'
+    'NonNegativeRelationshipCount must be a non-negative count emitted only when counted.'
   )
 }
 
-const customerEstablishments =
-  schemas.Customer?.properties?.customer_establishments
+const customerEstablishments = schemas.CustomerEstablishmentRelationship
 if (
-  customerEstablishments?.type !== 'array' ||
   customerEstablishments?.items?.$ref !==
     '#/components/schemas/CustomerEstablishment' ||
-  !schemas.Customer?.required?.includes('customer_establishments') ||
-  !/always present.*empty/i.test(customerEstablishments?.description ?? '')
-) {
-  errors.push(
-    'Customer.customer_establishments must be a required, always-present CustomerEstablishment array.'
-  )
-}
-
-if (
   !/visible to the current caller/i.test(
     customerEstablishments?.description ?? ''
   ) ||
@@ -502,80 +586,21 @@ if (
   )
 ) {
   errors.push(
-    'Customer must preserve caller-visible customer_establishments filtering for customer and site assignments.'
+    'CustomerEstablishmentRelationship must preserve caller-visible assignment filtering.'
   )
 }
 
-for (const [label, response] of [
-  [
-    'GET /customers',
-    paths['/customers']?.get?.responses?.['200']?.content?.['application/json'],
-  ],
-  [
-    'GET /customers/{customer}',
-    paths['/customers/{customer}']?.get?.responses?.['200']?.content?.[
-      'application/json'
-    ],
-  ],
-]) {
-  const data = response?.examples?.withCustomerEstablishment?.value?.data
-  const customers = Array.isArray(data) ? data : [data]
-  const hasValidAssignments =
-    customers.length > 0 &&
-    customers.every(
-      (customer) =>
-        Number.isInteger(customer?.sites_count) &&
-        customer.sites_count >= 0 &&
-        Array.isArray(customer?.customer_establishments) &&
-        customer.customer_establishments.length > 0 &&
-        customer.customer_establishments.every(
-          (assignment) =>
-            uuidValue(assignment?.id) &&
-            uuidValue(assignment?.customer_id) &&
-            uuidValue(assignment?.establishment_id) &&
-            assignment.customer_id === customer.id &&
-            !Object.hasOwn(assignment, 'organizational_unit_id') &&
-            !Object.hasOwn(assignment, 'organizational_unit')
-        )
-    )
-
-  if (!hasValidAssignments) {
-    errors.push(
-      `${label} must include a non-negative sites_count and OU-free customer_establishments with matching customer_id values.`
-    )
-  }
-
-  const emptyData =
-    response?.examples?.withoutCustomerEstablishments?.value?.data
-  const customersWithoutAssignments = Array.isArray(emptyData)
-    ? emptyData
-    : [emptyData]
+for (const fieldName of ['access_instructions', 'notes']) {
+  const field = schemas.Site?.properties?.[fieldName]
   if (
-    customersWithoutAssignments.length === 0 ||
-    customersWithoutAssignments.some(
-      (customer) =>
-        !Number.isInteger(customer?.sites_count) ||
-        customer.sites_count < 0 ||
-        !Array.isArray(customer?.customer_establishments) ||
-        customer.customer_establishments.length !== 0
-    )
+    JSON.stringify(field?.type) !== JSON.stringify(['string', 'null']) ||
+    schemas.Site?.required?.includes(fieldName) ||
+    !/authorized to update.*omitted/i.test(field?.description ?? '')
   ) {
     errors.push(
-      `${label} must include a non-negative sites_count and an empty customer_establishments response example.`
+      `Site.${fieldName} must remain nullable, update-authorized, and omitted for unauthorized callers.`
     )
   }
-}
-
-const customerGet = paths['/customers/{customer}']?.get
-if (
-  (customerGet?.parameters ?? []).some(
-    (parameter) => parameter?.name === 'include'
-  ) ||
-  /optional relationships/i.test(customerGet?.description ?? '')
-) {
-  errors.push(
-    'GET /customers/{customer} must not advertise relationships that the closed Customer response cannot represent.'
-  )
 }
 
 for (const schemaName of [

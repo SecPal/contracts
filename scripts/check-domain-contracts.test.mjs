@@ -323,16 +323,11 @@ test('moves local customer data to a unique customer establishment contract', ()
   assert.equal(Object.hasOwn(schemas.Customer.properties, 'metadata'), false)
   assert.equal(
     schemas.Customer.required.includes('customer_establishments'),
-    true,
-    'customer responses must always include customer_establishments, including when empty'
+    false,
+    'customer_establishments must be omitted unless the relationship is eager loaded'
   )
   assert.deepEqual(schemas.Customer.properties.customer_establishments, {
-    type: 'array',
-    description:
-      "Customer-to-establishment assignments with local contact data that are visible to the current caller. Always present; empty when the customer has no visible assignments. Unrestricted customer readers and callers with an active customer assignment may see all links for that customer; site-only access returns only links matching the caller's active site assignments. No organizational-unit relationships are exposed.",
-    items: {
-      $ref: '#/components/schemas/CustomerEstablishment',
-    },
+    $ref: '#/components/schemas/CustomerEstablishmentRelationship',
   })
 
   assert.deepEqual(schemas.CustomerEstablishment.required, [
@@ -358,54 +353,57 @@ test('moves local customer data to a unique customer establishment contract', ()
   }
 })
 
-test('documents embedded customer-establishment assignments in customer responses', () => {
+test('models every conditional customer and site resource field', () => {
+  const conditionalFields = {
+    Customer: {
+      sites_count: 'NonNegativeRelationshipCount',
+      sites: 'CustomerSitesRelationship',
+      assignments: 'CustomerAssignmentsRelationship',
+      customer_establishments: 'CustomerEstablishmentRelationship',
+    },
+    Site: {
+      customer: 'SiteCustomerRelationship',
+      assignments: 'SiteAssignmentsRelationship',
+      assigned_users_count: 'NonNegativeRelationshipCount',
+      cost_centers_count: 'NonNegativeRelationshipCount',
+    },
+  }
+
+  for (const [schemaName, fields] of Object.entries(conditionalFields)) {
+    for (const [field, component] of Object.entries(fields)) {
+      assert.deepEqual(schemas[schemaName].properties[field], {
+        $ref: `#/components/schemas/${component}`,
+      })
+      assert.equal(
+        schemas[schemaName].required.includes(field),
+        false,
+        `${schemaName}.${field} must remain optional`
+      )
+    }
+  }
+
   assert.match(
-    schemas.Customer.properties.customer_establishments.description,
+    schemas.CustomerSitesRelationship.description,
+    /eager loaded.*omitted otherwise/i
+  )
+  assert.match(
+    schemas.CustomerEstablishmentRelationship.description,
     /visible to the current caller.*site-only access.*active site assignments/is
   )
-
-  const listResponse =
-    paths['/customers'].get.responses['200'].content['application/json']
-  const detailResponse =
-    paths['/customers/{customer}'].get.responses['200'].content[
-      'application/json'
-    ]
-
-  for (const response of [listResponse, detailResponse]) {
-    const customer = response.examples.withCustomerEstablishment.value.data
-    const customers = Array.isArray(customer) ? customer : [customer]
-
-    for (const item of customers) {
-      assert.equal(Number.isInteger(item.sites_count), true)
-      assert.ok(item.sites_count >= 0)
-      assert.ok(Array.isArray(item.customer_establishments))
-      assert.equal(
-        Object.hasOwn(
-          item.customer_establishments[0],
-          'organizational_unit_id'
-        ),
-        false
-      )
-      assert.equal(
-        Object.hasOwn(item.customer_establishments[0], 'organizational_unit'),
-        false
-      )
-      assert.equal(item.customer_establishments[0].customer_id, item.id)
-    }
-
-    const customerWithoutAssignments =
-      response.examples.withoutCustomerEstablishments.value.data
-    const customersWithoutAssignments = Array.isArray(
-      customerWithoutAssignments
+  assert.match(
+    schemas.SiteCustomerRelationship.description,
+    /eager loaded.*omitted otherwise/i
+  )
+  assert.match(
+    schemas.NonNegativeRelationshipCount.description,
+    /counted.*omitted otherwise/i
+  )
+  for (const field of ['access_instructions', 'notes']) {
+    assert.match(
+      schemas.Site.properties[field].description,
+      /authorized to update.*omitted/i
     )
-      ? customerWithoutAssignments
-      : [customerWithoutAssignments]
-
-    for (const item of customersWithoutAssignments) {
-      assert.equal(Number.isInteger(item.sites_count), true)
-      assert.ok(item.sites_count >= 0)
-      assert.deepEqual(item.customer_establishments, [])
-    }
+    assert.equal(schemas.Site.required.includes(field), false)
   }
 })
 
@@ -529,23 +527,14 @@ test('uses one neutral duplicate response for every domain create operation', ()
   )
 })
 
-test('keeps the closed customer response free of undeclared relationship includes', () => {
+test('keeps conditional customer fields reusable and documented', () => {
   assert.equal(schemas.Customer.additionalProperties, false)
   assert.deepEqual(schemas.Customer.properties.sites_count, {
-    type: 'integer',
-    minimum: 0,
-    description:
-      "Number of the customer's sites visible to the current caller. Present on customer list and detail responses.",
+    $ref: '#/components/schemas/NonNegativeRelationshipCount',
   })
-  assert.equal(
-    paths['/customers/{customer}'].get.parameters.some(
-      (parameter) => parameter.name === 'include'
-    ),
-    false
-  )
-  assert.doesNotMatch(
+  assert.match(
     paths['/customers/{customer}'].get.description,
-    /optional relationships/i
+    /eager loads.*sites.*assignments.*customer_establishments/is
   )
 })
 
@@ -1431,18 +1420,16 @@ test('guard rejects distinguishable duplicate responses', () => {
   assert.match(result.stderr, /neutral fixed shape/)
 })
 
-test('guard rejects customer includes that widen the closed response', () => {
+test('guard rejects a missing customer or site resource field', () => {
   const candidate = structuredClone(contract)
-  candidate.paths['/customers/{customer}'].get.parameters.push({
-    name: 'include',
-    in: 'query',
-    schema: { type: 'string', enum: ['sites'] },
-  })
+  delete candidate.components.schemas.Customer.properties.sites
+  delete candidate.components.schemas.Site.properties.metadata
 
   const result = runGuard(candidate)
 
   assert.notEqual(result.status, 0, result.stdout)
-  assert.match(result.stderr, /closed Customer response/)
+  assert.match(result.stderr, /Customer\.sites/)
+  assert.match(result.stderr, /Site must inventory every field/)
 })
 
 test('guard rejects a closed customer response without its visible site count', () => {
@@ -1455,40 +1442,32 @@ test('guard rejects a closed customer response without its visible site count', 
   assert.match(result.stderr, /Customer\.sites_count/)
 })
 
-test('guard rejects weakened customer-establishment embedding visibility or empty-array evidence', () => {
+test('guard rejects weakened conditional relationship and sensitive-field documentation', () => {
   const candidate = structuredClone(contract)
-  candidate.components.schemas.Customer.properties.customer_establishments.description =
-    'Customer-to-establishment assignments with local contact data. Always present; empty when the customer has no assignments.'
-  delete candidate.paths['/customers'].get.responses['200'].content[
-    'application/json'
-  ].examples.withoutCustomerEstablishments
-  delete candidate.paths['/customers/{customer}'].get.responses['200'].content[
-    'application/json'
-  ].examples.withoutCustomerEstablishments
+  candidate.components.schemas.CustomerEstablishmentRelationship.description =
+    'Customer-to-establishment assignments.'
+  candidate.components.schemas.Site.properties.access_instructions.description =
+    'Instructions for accessing the site.'
 
   const result = runGuard(candidate)
 
   assert.notEqual(result.status, 0, result.stdout)
-  assert.match(result.stderr, /caller-visible customer_establishments/)
-  assert.match(result.stderr, /empty customer_establishments response example/)
+  assert.match(result.stderr, /CustomerEstablishmentRelationship/)
+  assert.match(result.stderr, /Site\.access_instructions/)
 })
 
-test('guard rejects customer examples with invalid site counts or foreign assignments', () => {
+test('guard rejects weakened conditional count and relationship schemas', () => {
   const candidate = structuredClone(contract)
-  const listCustomer =
-    candidate.paths['/customers'].get.responses['200'].content[
-      'application/json'
-    ].examples.withCustomerEstablishment.value.data[0]
-
-  listCustomer.sites_count = -1
-  listCustomer.customer_establishments[0].customer_id =
-    '550e8400-e29b-41d4-a716-446655440001'
+  candidate.components.schemas.NonNegativeRelationshipCount.minimum = -1
+  candidate.components.schemas.CustomerEstablishmentRelationship.items = {
+    type: 'string',
+  }
 
   const result = runGuard(candidate)
 
   assert.notEqual(result.status, 0, result.stdout)
-  assert.match(result.stderr, /non-negative sites_count/)
-  assert.match(result.stderr, /matching customer_id/)
+  assert.match(result.stderr, /NonNegativeRelationshipCount/)
+  assert.match(result.stderr, /CustomerEstablishmentRelationship/)
 })
 
 test('guard rejects unapproved contact example domains', () => {

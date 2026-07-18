@@ -5643,6 +5643,8 @@ components:
       additionalProperties: false
       description: |
         Customer (client organization) entity with an explicit Legal Entity assignment.
+        Relationship and count fields are emitted only when the corresponding relationship
+        is eager loaded or counted by the endpoint; clients must tolerate their omission.
 
         No default Legal Entity assignment is permitted for existing customers. A customer
         may be backfilled only after a product-approved deterministic tenant-consistent rule
@@ -5654,7 +5656,6 @@ components:
         - name
         - billing_address
         - is_active
-        - customer_establishments
         - created_at
         - updated_at
       properties:
@@ -5693,14 +5694,13 @@ components:
           description: Whether customer is active
           example: true
         sites_count:
-          type: integer
-          minimum: 0
-          description: Number of the customer's sites visible to the current caller. Present on customer list and detail responses.
+          $ref: '#/components/schemas/NonNegativeRelationshipCount'
+        sites:
+          $ref: '#/components/schemas/CustomerSitesRelationship'
+        assignments:
+          $ref: '#/components/schemas/CustomerAssignmentsRelationship'
         customer_establishments:
-          type: array
-          description: Customer-to-establishment assignments with local contact data that are visible to the current caller. Always present; empty when the customer has no visible assignments. Unrestricted customer readers and callers with an active customer assignment may see all links for that customer; site-only access returns only links matching the caller's active site assignments. No organizational-unit relationships are exposed.
-          items:
-            $ref: '#/components/schemas/CustomerEstablishment'
+          $ref: '#/components/schemas/CustomerEstablishmentRelationship'
         created_at:
           allOf:
             - $ref: '#/components/schemas/ApiTimestamp'
@@ -5716,6 +5716,29 @@ components:
             - $ref: '#/components/schemas/NullableApiTimestamp'
           description: Soft deletion timestamp
           example: null
+
+    NonNegativeRelationshipCount:
+      type: integer
+      minimum: 0
+      description: Non-negative relationship count emitted only when that relationship is counted; omitted otherwise.
+
+    CustomerSitesRelationship:
+      type: array
+      description: Sites visible to the current caller, emitted only when the `sites` relationship is eager loaded; omitted otherwise.
+      items:
+        $ref: '#/components/schemas/Site'
+
+    CustomerAssignmentsRelationship:
+      type: array
+      description: Customer assignments emitted only when the `assignments` relationship is eager loaded; omitted otherwise.
+      items:
+        $ref: '#/components/schemas/CustomerAssignment'
+
+    CustomerEstablishmentRelationship:
+      type: array
+      description: Customer-to-establishment assignments with local contact data that are visible to the current caller, emitted only when the `customerEstablishments` relationship is eager loaded; omitted otherwise. Unrestricted customer readers and callers with an active customer assignment may see all links for that customer; site-only access returns only links matching the caller's active site assignments. No organizational-unit relationships are exposed.
+      items:
+        $ref: '#/components/schemas/CustomerEstablishment'
 
     LegalEntityLookup:
       type: object
@@ -6064,7 +6087,8 @@ components:
 
     Site:
       type: object
-      description: Site (physical location/object) where services are provided
+      additionalProperties: false
+      description: Site (physical location/object) where services are provided. Relationship and count fields are emitted only when the corresponding relationship is eager loaded or counted by the endpoint; clients must tolerate their omission.
       required:
         - id
         - customer_id
@@ -6123,11 +6147,11 @@ components:
             - type: 'null'
         access_instructions:
           type: [string, 'null']
-          description: Instructions for accessing the site (conditionally visible)
+          description: Instructions for accessing the site. Emitted only when the current caller is authorized to update this site; omitted for other callers. When emitted, the value may be null.
           example: 'Gate 5, Security Check, Badge required'
         notes:
           type: [string, 'null']
-          description: Internal notes (conditionally visible)
+          description: Internal site notes. Emitted only when the current caller is authorized to update this site; omitted for other callers. When emitted, the value may be null.
           example: 'High security area'
         metadata:
           type: [object, 'null']
@@ -6148,6 +6172,14 @@ components:
           format: date
           description: Contract end date (for temporary sites)
           example: '2025-12-31'
+        customer:
+          $ref: '#/components/schemas/SiteCustomerRelationship'
+        assignments:
+          $ref: '#/components/schemas/SiteAssignmentsRelationship'
+        assigned_users_count:
+          $ref: '#/components/schemas/NonNegativeRelationshipCount'
+        cost_centers_count:
+          $ref: '#/components/schemas/NonNegativeRelationshipCount'
         is_expired:
           type: boolean
           description: Whether validity period has expired (computed)
@@ -6171,6 +6203,17 @@ components:
             - $ref: '#/components/schemas/NullableApiTimestamp'
           description: Soft deletion timestamp
           example: null
+
+    SiteCustomerRelationship:
+      description: Customer emitted only when the `customer` relationship is eager loaded; omitted otherwise.
+      allOf:
+        - $ref: '#/components/schemas/Customer'
+
+    SiteAssignmentsRelationship:
+      type: array
+      description: Site assignments emitted only when the `assignments` relationship is eager loaded; omitted otherwise.
+      items:
+        $ref: '#/components/schemas/SiteAssignment'
 
     SiteCreateRequest:
       type: object
@@ -10271,7 +10314,7 @@ paths:
     get:
       summary: List Customers
       description: |
-        Retrieve a paginated list of customers with optional filtering.
+        Retrieve a paginated list of customers with optional filtering. The list eager loads a caller-visible `sites_count`; it does not eager load relationship fields, which are omitted.
         Full collection access requires `customers.read` without organizational scopes. Otherwise, records are visible only through an active customer or site assignment. An OU scope alone may authorize opening the collection but grants no customer-record access, so it yields an empty authorized collection.
       operationId: listCustomers
       tags:
@@ -10327,8 +10370,8 @@ paths:
                   meta:
                     $ref: '#/components/schemas/PaginationMeta'
               examples:
-                withCustomerEstablishment:
-                  summary: Customer with an embedded establishment assignment
+                withVisibleSitesCount:
+                  summary: Customer list item with the caller-visible site count
                   value:
                     data:
                       - id: '550e8400-e29b-41d4-a716-446655440000'
@@ -10342,24 +10385,14 @@ paths:
                           country: DE
                         is_active: true
                         sites_count: 2
-                        customer_establishments:
-                          - id: '790e8400-e29b-41d4-a716-446655440000'
-                            customer_id: '550e8400-e29b-41d4-a716-446655440000'
-                            establishment_id: '780e8400-e29b-41d4-a716-446655440000'
-                            contact_name: Max Mustermann
-                            phone: '+49 30 12345678'
-                            email: 'max.mustermann@secpal.dev'
-                            comments: Use the service entrance after 18:00.
-                            created_at: '2025-12-05T10:00:00Z'
-                            updated_at: '2025-12-15T14:30:00Z'
                         created_at: '2025-12-05T10:00:00Z'
                         updated_at: '2025-12-15T14:30:00Z'
                     meta:
                       current_page: 1
                       per_page: 15
                       total: 1
-                withoutCustomerEstablishments:
-                  summary: Customer without a caller-visible establishment assignment
+                withZeroVisibleSites:
+                  summary: Customer list item with no caller-visible sites
                   value:
                     data:
                       - id: '550e8400-e29b-41d4-a716-446655440001'
@@ -10373,7 +10406,6 @@ paths:
                           country: DE
                         is_active: true
                         sites_count: 0
-                        customer_establishments: []
                         created_at: '2025-12-05T10:00:00Z'
                         updated_at: '2025-12-15T14:30:00Z'
                     meta:
@@ -10721,7 +10753,7 @@ paths:
     get:
       summary: Get Customer
       description: |
-        Retrieve a single customer's Legal-Entity-wide master data.
+        Retrieve a single customer's Legal-Entity-wide master data. The response eager loads caller-visible `sites`, `assignments`, and `customer_establishments`, and counts visible sites. Embedded relationships remain omitted on endpoints that do not eager load them.
         Requires an active customer or site assignment, or `customers.read` without organizational scopes. OU scopes alone do not grant record access.
       operationId: getCustomer
       tags:
@@ -10749,8 +10781,8 @@ paths:
                   data:
                     $ref: '#/components/schemas/Customer'
               examples:
-                withCustomerEstablishment:
-                  summary: Customer with an embedded establishment assignment
+                withExpandedRelationships:
+                  summary: Customer with all relationships eager loaded by this endpoint
                   value:
                     data:
                       id: '550e8400-e29b-41d4-a716-446655440000'
@@ -10764,6 +10796,8 @@ paths:
                         country: DE
                       is_active: true
                       sites_count: 2
+                      sites: []
+                      assignments: []
                       customer_establishments:
                         - id: '790e8400-e29b-41d4-a716-446655440000'
                           customer_id: '550e8400-e29b-41d4-a716-446655440000'
@@ -10776,8 +10810,8 @@ paths:
                           updated_at: '2025-12-15T14:30:00Z'
                       created_at: '2025-12-05T10:00:00Z'
                       updated_at: '2025-12-15T14:30:00Z'
-                withoutCustomerEstablishments:
-                  summary: Customer without a caller-visible establishment assignment
+                withNoVisibleRelationships:
+                  summary: Customer whose eager-loaded relationships are empty for this caller
                   value:
                     data:
                       id: '550e8400-e29b-41d4-a716-446655440001'
@@ -10792,6 +10826,8 @@ paths:
                       is_active: true
                       sites_count: 0
                       customer_establishments: []
+                      sites: []
+                      assignments: []
                       created_at: '2025-12-05T10:00:00Z'
                       updated_at: '2025-12-15T14:30:00Z'
         '401':
@@ -10968,7 +11004,7 @@ paths:
     get:
       summary: List Sites
       description: |
-        Retrieve a paginated list of sites with comprehensive filtering.
+        Retrieve a paginated list of sites with comprehensive filtering. Each item eager loads `customer` and `assignments`; relationship counts are omitted because they are not counted by this endpoint. `access_instructions` and `notes` are included only for callers authorized to update the individual site.
         `sites.read` grants tenant-wide access. Otherwise, records are visible only through an active customer or site assignment. An OU scope alone may authorize opening the collection but grants no site-record access, so it yields an empty authorized collection.
       operationId: listSites
       tags:
@@ -11052,7 +11088,7 @@ paths:
     post:
       summary: Create Site
       description: |
-        Create a new site. The optional `site_number` is accepted as supplied; when omitted or null, the API generates an OBJ-YYYY-#### value.
+        Create a new site. The optional `site_number` is accepted as supplied; when omitted or null, the API generates an OBJ-YYYY-#### value. The creation response does not eager load relationship or count fields. `access_instructions` and `notes` are included only when the caller is authorized to update the created site.
         Requires `sites.create`, an active, non-deleted customer, an active, non-deleted Legal Entity and establishment, and a tenant- and Legal-Entity-consistent combination with an existing customer-establishment link for the selected customer and establishment. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `sites.create`. Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing which identifying field matched.
       operationId: createSite
       tags:
@@ -11094,7 +11130,7 @@ paths:
     get:
       summary: Get Site
       description: |
-        Retrieve a single site by ID with optional relationships.
+        Retrieve a single site by ID. The response eager loads `customer` and `assignments`; relationship counts are omitted because they are not counted by this endpoint. `access_instructions` and `notes` are included only for callers authorized to update this site.
         Requires `sites.read` or an active customer or site assignment. OU scopes alone do not grant record access.
       operationId: getSite
       tags:
@@ -11109,13 +11145,6 @@ paths:
             type: string
             format: uuid
           description: Site UUID
-        - name: include
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [customer, assignments, costCenters, customer.assignments]
-          description: Comma-separated list of relationships to include
       responses:
         '200':
           description: Site retrieved successfully
@@ -11140,7 +11169,7 @@ paths:
     patch:
       summary: Update Site
       description: |
-        Update site fields (PATCH semantics - all fields optional).
+        Update site fields (PATCH semantics - all fields optional). The update response does not eager load relationship or count fields. `access_instructions` and `notes` are included only when the caller is authorized to update the site.
         Requires `sites.update` and view access to the site. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `sites.update` and view access.
       operationId: updateSite
       tags:
