@@ -20,7 +20,7 @@ info:
     ## API Policies
 
     - Response timestamps: unless a response field explicitly documents an approved exception, timestamps serialize as RFC 3339 / ISO 8601 UTC strings with a literal trailing `Z` and whole-second precision (`YYYY-MM-DDTHH:MM:SSZ`). Fractional seconds, including milliseconds, are not emitted.
-    - Timestamp exceptions: a response field may only emit a non-UTC offset or fractional seconds when that individual field schema explicitly opts out of the canonical UTC-second format and ships a matching example. No current response schema opts out.
+    - Timestamp exceptions: a response field may only emit a non-UTC offset or fractional seconds when that individual field schema explicitly opts out of the canonical UTC-second format and ships a matching example. Employee retention timestamps are the current approved exception and retain the six fractional digits emitted by the API.
     - Pagination: offset-based (page/per_page) for most endpoints, cursor-based for large datasets
     - Maximum page size: 100 items
   version: 0.0.1
@@ -509,6 +509,20 @@ components:
       description: Canonical SecPal API response timestamp or `null` when the response has no value for that field.
       oneOf:
         - $ref: '#/components/schemas/ApiTimestamp'
+        - type: 'null'
+      example: null
+
+    MicrosecondApiTimestamp:
+      type: string
+      format: date-time
+      pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$'
+      description: Approved SecPal API timestamp exception with exactly six fractional digits.
+      example: '2026-05-06T00:00:00.000000Z'
+
+    NullableMicrosecondApiTimestamp:
+      description: Approved six-fractional-digit API timestamp exception, or `null` when no value is present.
+      oneOf:
+        - $ref: '#/components/schemas/MicrosecondApiTimestamp'
         - type: 'null'
       example: null
 
@@ -2332,7 +2346,7 @@ components:
           format: date
         work_permit_type:
           type: [string, 'null']
-          enum: [unlimited, limited, none]
+          enum: [none, temporary, permanent, blue_card, seasonal, student]
         work_permit_number:
           type: [string, 'null']
           maxLength: 255
@@ -2568,7 +2582,7 @@ components:
           format: date
         work_permit_type:
           type: [string, 'null']
-          enum: [unlimited, limited, none]
+          enum: [none, temporary, permanent, blue_card, seasonal, student]
         work_permit_number:
           type: [string, 'null']
           maxLength: 255
@@ -2723,18 +2737,82 @@ components:
         - first_name
         - last_name
         - full_name
+        - date_of_birth
         - email
+        - phone
+        - photo_path
+        - bwr_id
+        - bwr_status
+        - bwr_registered_at
+        - bwr_submission_date
+        - bwr_notes
+        - gender
+        - birth_name
+        - previous_names
+        - birth_city
+        - birth_country
+        - nationalities
+        - structured_address
+        - emergency_contacts
+        - intended_activities
+        - id_document_type
+        - id_document_expiry
+        - id_document_copy_path
+        - id_document_copy_deleted_at
+        - employment_end_date
+        - retention_period_end
         - status
+        - hire_date
+        - contract_start_date
+        - termination_date
+        - last_working_day
         - contract_type
+        - weekly_hours
+        - monthly_hours
+        - health_insurance_type
+        - health_insurance_provider
+        - sachkunde_type
+        - sachkunde_certificate
+        - sachkunde_exam_date
+        - sachkunde_issued_date
+        - work_permit_type
+        - work_permit_expiry
+        - work_permit_copy_path
+        - work_permit_issued_by
+        - work_permit_copy_deleted_at
+        - firearms_license_expiry
+        - firearms_license_issued_by
+        - first_aid_cert_date
+        - first_aid_cert_expiry
+        - fire_safety_cert_date
+        - fire_safety_cert_expiry
+        - evacuation_cert_date
+        - evacuation_cert_expiry
+        - additional_certifications
+        - residence_permit_type
+        - residence_permit_expiry
+        - requires_work_permit
+        - has_valid_work_authorization
+        - expiring_documents
+        - criminal_record_status
+        - criminal_record_check_date
+        - user_id
         - user_account_active
+        - user_account_activated_at
+        - user_account_deactivated_at
         - onboarding_completed
+        - onboarding_steps
+        - onboarding_started_at
+        - onboarding_completed_at
         - onboarding_workflow
         - onboarding_invitation
-        - expiring_documents
         - legal_entity_id
         - establishment_id
+        - position
+        - management_level
         - created_at
         - updated_at
+        - deleted_at
       properties:
         id:
           type: string
@@ -2828,13 +2906,38 @@ components:
           type: [array, 'null']
           items:
             type: string
+        id_document_type:
+          type: [string, 'null']
+          enum: [passport, id_card, residence_permit]
+          description: Type of identity document recorded for BWR verification.
+          example: id_card
+        id_document_number:
+          type: [string, 'null']
+          description: Decrypted identity-document number. Omitted unless the caller has `employees.read_sensitive`.
+        id_document_expiry:
+          type: [string, 'null']
+          format: date
+          description: Identity-document expiry date, when recorded.
+        id_document_copy_path:
+          type: [string, 'null']
+          description: Internal storage-path metadata for the identity-document copy; null after no copy was retained or after deletion.
+          example: id_documents/550e8400-id-card.pdf
+        id_document_copy_deleted_at:
+          $ref: '#/components/schemas/NullableApiTimestamp'
+          description: Timestamp at which the retained identity-document copy was deleted.
+        employment_end_date:
+          $ref: '#/components/schemas/NullableMicrosecondApiTimestamp'
+          description: Lifecycle-managed employment end timestamp used for retention calculations. Serialized at UTC midnight with six fractional digits.
+        retention_period_end:
+          $ref: '#/components/schemas/NullableMicrosecondApiTimestamp'
+          description: Lifecycle-managed legal retention deadline timestamp. Serialized at UTC midnight with six fractional digits; this field is read-only.
         tax_id:
           type: [string, 'null']
-          description: Decrypted
+          description: Decrypted. Omitted unless the caller has `employees.read_sensitive`.
           example: '12345678901'
         social_security_number:
           type: [string, 'null']
-          description: Decrypted
+          description: Decrypted. Omitted unless the caller has `employees.read_sensitive`.
           example: '12 345678 A 123'
         status:
           allOf:
@@ -2874,7 +2977,7 @@ components:
         hourly_rate:
           type: [number, 'null']
           format: float
-          description: Decrypted
+          description: Decrypted. Omitted unless the caller has `employees.read_salary`.
         health_insurance_type:
           type: [string, 'null']
           enum: [public, private, foreign]
@@ -2882,6 +2985,7 @@ components:
           type: [string, 'null']
         health_insurance_number:
           type: [string, 'null']
+          description: Omitted unless the caller has `employees.read_sensitive`.
         sachkunde_type:
           type: [string, 'null']
           maxLength: 255
@@ -2889,6 +2993,7 @@ components:
           type: [string, 'null']
         sachkunde_ihk_number:
           type: [string, 'null']
+          description: Omitted unless the caller has `employees.read_sensitive`.
         sachkunde_exam_date:
           type: [string, 'null']
           format: date
@@ -2897,20 +3002,78 @@ components:
           format: date
         work_permit_type:
           type: [string, 'null']
-          enum: [unlimited, limited, none]
+          enum: [none, temporary, permanent, blue_card, seasonal, student]
         work_permit_number:
           type: [string, 'null']
+          description: Omitted unless the caller has `employees.read_sensitive`.
         work_permit_expiry:
           type: [string, 'null']
           format: date
+        work_permit_copy_path:
+          type: [string, 'null']
+          description: Internal storage-path metadata for the work-permit copy; null when no copy is retained or it has been deleted.
+        work_permit_issued_by:
+          type: [string, 'null']
+          maxLength: 255
+          description: Issuing authority for the work permit.
+        work_permit_copy_deleted_at:
+          $ref: '#/components/schemas/NullableApiTimestamp'
+          description: Timestamp at which the retained work-permit copy was deleted.
+        firearms_license_number:
+          type: [string, 'null']
+          description: Omitted unless the caller has `employees.read_sensitive`.
+        firearms_license_expiry:
+          type: [string, 'null']
+          format: date
+        firearms_license_issued_by:
+          type: [string, 'null']
+          maxLength: 255
+        first_aid_cert_number:
+          type: [string, 'null']
+          description: Omitted unless the caller has `employees.read_sensitive`.
+        first_aid_cert_date:
+          type: [string, 'null']
+          format: date
+        first_aid_cert_expiry:
+          type: [string, 'null']
+          format: date
+        fire_safety_cert_date:
+          type: [string, 'null']
+          format: date
+        fire_safety_cert_expiry:
+          type: [string, 'null']
+          format: date
+        evacuation_cert_date:
+          type: [string, 'null']
+          format: date
+        evacuation_cert_expiry:
+          type: [string, 'null']
+          format: date
+        additional_certifications:
+          type: array
+          description: Additional certification records. Each record's `number` is omitted unless the caller has `employees.read_sensitive`.
+          items:
+            $ref: '#/components/schemas/EmployeeAdditionalCertification'
+          example:
+            - name: Site Access Badge
+              issued_date: '2026-04-01'
+              expiry_date: '2026-05-01'
+              issuer: Customer Security
         residence_permit_type:
           type: [string, 'null']
           enum: [unlimited, limited, none]
         residence_permit_number:
           type: [string, 'null']
+          description: Omitted unless the caller has `employees.read_sensitive`.
         residence_permit_expiry:
           type: [string, 'null']
           format: date
+        requires_work_permit:
+          type: boolean
+          description: Derived work-authorization requirement from the employee's nationalities.
+        has_valid_work_authorization:
+          type: boolean
+          description: Derived summary indicating whether the employee currently satisfies work-authorization requirements.
         expiring_documents:
           type: array
           items:
@@ -2957,12 +3120,48 @@ components:
           anyOf:
             - $ref: '#/components/schemas/EmployeeUserSummary'
             - type: 'null'
+          description: Omitted when the `user` relation is not loaded; when loaded, null when no user account is associated.
+        qualifications:
+          type: array
+          description: Omitted when the `employeeQualifications` relation is not loaded; present, possibly empty, when loaded.
+          items:
+            $ref: '#/components/schemas/EmployeeQualificationResource'
+        documents:
+          type: array
+          description: Omitted when the `documents` relation is not loaded; present, possibly empty, when loaded.
+          items:
+            $ref: '#/components/schemas/EmployeeDocumentResource'
         created_at:
           $ref: '#/components/schemas/ApiTimestamp'
         updated_at:
           $ref: '#/components/schemas/ApiTimestamp'
         deleted_at:
           $ref: '#/components/schemas/NullableApiTimestamp'
+
+    EmployeeAdditionalCertification:
+      type: object
+      description: |
+        Additional certification entry stored on an employee. `number` is omitted
+        from each entry unless the caller has `employees.read_sensitive`.
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        number:
+          type: [string, 'null']
+          maxLength: 255
+          description: Omitted unless the caller has `employees.read_sensitive`.
+        issued_date:
+          type: [string, 'null']
+          description: Date value accepted by the API and preserved verbatim in the stored certification entry.
+        expiry_date:
+          type: [string, 'null']
+          description: Date value accepted by the API and preserved verbatim in the stored certification entry.
+        issuer:
+          type: [string, 'null']
+          maxLength: 255
 
     # =============================================================================
     # Onboarding Runtime Surface Schemas (Issue #180)

@@ -258,7 +258,291 @@ if (
 }
 
 const employee = schemas.Employee ?? {}
+const employeeCreateRequest = schemas.EmployeeCreateRequest ?? {}
+const employeeUpdateRequest = schemas.EmployeeUpdateRequest ?? {}
+const employeeAdditionalCertification =
+  schemas.EmployeeAdditionalCertification ?? {}
+const microsecondApiTimestamp = schemas.MicrosecondApiTimestamp ?? {}
+const nullableMicrosecondApiTimestamp =
+  schemas.NullableMicrosecondApiTimestamp ?? {}
 const alertDocument = schemas.EmployeeComplianceAlertDocument ?? {}
+const employeeResourceProperties = [
+  'id',
+  'tenant_id',
+  'employee_number',
+  'first_name',
+  'last_name',
+  'full_name',
+  'date_of_birth',
+  'email',
+  'phone',
+  'photo_path',
+  'bwr_id',
+  'bwr_status',
+  'bwr_registered_at',
+  'bwr_submission_date',
+  'bwr_notes',
+  'gender',
+  'birth_name',
+  'previous_names',
+  'birth_city',
+  'birth_country',
+  'nationalities',
+  'addresses',
+  'current_address',
+  'structured_address',
+  'emergency_contacts',
+  'intended_activities',
+  'id_document_type',
+  'id_document_number',
+  'id_document_expiry',
+  'id_document_copy_path',
+  'id_document_copy_deleted_at',
+  'employment_end_date',
+  'retention_period_end',
+  'tax_id',
+  'social_security_number',
+  'status',
+  'hire_date',
+  'contract_start_date',
+  'termination_date',
+  'last_working_day',
+  'contract_type',
+  'weekly_hours',
+  'monthly_hours',
+  'hourly_rate',
+  'health_insurance_type',
+  'health_insurance_provider',
+  'health_insurance_number',
+  'sachkunde_type',
+  'sachkunde_certificate',
+  'sachkunde_ihk_number',
+  'sachkunde_exam_date',
+  'sachkunde_issued_date',
+  'work_permit_type',
+  'work_permit_number',
+  'work_permit_expiry',
+  'work_permit_copy_path',
+  'work_permit_issued_by',
+  'work_permit_copy_deleted_at',
+  'firearms_license_number',
+  'firearms_license_expiry',
+  'firearms_license_issued_by',
+  'first_aid_cert_number',
+  'first_aid_cert_date',
+  'first_aid_cert_expiry',
+  'fire_safety_cert_date',
+  'fire_safety_cert_expiry',
+  'evacuation_cert_date',
+  'evacuation_cert_expiry',
+  'additional_certifications',
+  'residence_permit_type',
+  'residence_permit_number',
+  'residence_permit_expiry',
+  'requires_work_permit',
+  'has_valid_work_authorization',
+  'expiring_documents',
+  'criminal_record_status',
+  'criminal_record_check_date',
+  'user_id',
+  'user_account_active',
+  'user_account_activated_at',
+  'user_account_deactivated_at',
+  'onboarding_completed',
+  'onboarding_steps',
+  'onboarding_started_at',
+  'onboarding_completed_at',
+  'onboarding_workflow',
+  'onboarding_invitation',
+  'legal_entity_id',
+  'establishment_id',
+  'position',
+  'management_level',
+  'user',
+  'qualifications',
+  'documents',
+  'created_at',
+  'updated_at',
+  'deleted_at',
+]
+const conditionallyOmittedEmployeeProperties =
+  'addresses current_address id_document_number tax_id social_security_number hourly_rate health_insurance_number sachkunde_ihk_number work_permit_number firearms_license_number first_aid_cert_number residence_permit_number user qualifications documents'.split(
+    ' '
+  )
+const requiredEmployeeResourceProperties = employeeResourceProperties.filter(
+  (property) => !conditionallyOmittedEmployeeProperties.includes(property)
+)
+const sensitiveEmployeeProperties =
+  'id_document_number tax_id social_security_number health_insurance_number sachkunde_ihk_number work_permit_number firearms_license_number first_aid_cert_number residence_permit_number'.split(
+    ' '
+  )
+const conditionallyLoadedEmployeeRelationships = [
+  'addresses',
+  'current_address',
+  'user',
+  'qualifications',
+  'documents',
+]
+const workPermitTypes = [
+  'none',
+  'temporary',
+  'permanent',
+  'blue_card',
+  'seasonal',
+  'student',
+]
+const expectedWorkPermitTypeShape = {
+  type: ['string', 'null'],
+  enum: workPermitTypes,
+}
+const contractShape = (value) => {
+  if (Array.isArray(value)) return value.map(contractShape)
+  if (value === null || typeof value !== 'object') return value
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !['description', 'example'].includes(key))
+      .map(([key, entry]) => [key, contractShape(entry)])
+  )
+}
+const expectedEmployeeResourcePropertyShapes = {
+  id_document_type: {
+    type: ['string', 'null'],
+    enum: ['passport', 'id_card', 'residence_permit'],
+  },
+  id_document_number: { type: ['string', 'null'] },
+  id_document_expiry: { type: ['string', 'null'], format: 'date' },
+  id_document_copy_path: { type: ['string', 'null'] },
+  id_document_copy_deleted_at: {
+    $ref: '#/components/schemas/NullableApiTimestamp',
+  },
+  employment_end_date: {
+    $ref: '#/components/schemas/NullableMicrosecondApiTimestamp',
+  },
+  retention_period_end: {
+    $ref: '#/components/schemas/NullableMicrosecondApiTimestamp',
+  },
+  work_permit_copy_path: { type: ['string', 'null'] },
+  work_permit_issued_by: { type: ['string', 'null'], maxLength: 255 },
+  work_permit_copy_deleted_at: {
+    $ref: '#/components/schemas/NullableApiTimestamp',
+  },
+  work_permit_type: expectedWorkPermitTypeShape,
+  firearms_license_number: { type: ['string', 'null'] },
+  firearms_license_expiry: { type: ['string', 'null'], format: 'date' },
+  firearms_license_issued_by: {
+    type: ['string', 'null'],
+    maxLength: 255,
+  },
+  first_aid_cert_number: { type: ['string', 'null'] },
+  first_aid_cert_date: { type: ['string', 'null'], format: 'date' },
+  first_aid_cert_expiry: { type: ['string', 'null'], format: 'date' },
+  fire_safety_cert_date: { type: ['string', 'null'], format: 'date' },
+  fire_safety_cert_expiry: { type: ['string', 'null'], format: 'date' },
+  evacuation_cert_date: { type: ['string', 'null'], format: 'date' },
+  evacuation_cert_expiry: { type: ['string', 'null'], format: 'date' },
+  additional_certifications: {
+    type: 'array',
+    items: { $ref: '#/components/schemas/EmployeeAdditionalCertification' },
+  },
+  requires_work_permit: { type: 'boolean' },
+  has_valid_work_authorization: { type: 'boolean' },
+  qualifications: {
+    type: 'array',
+    items: { $ref: '#/components/schemas/EmployeeQualificationResource' },
+  },
+  documents: {
+    type: 'array',
+    items: { $ref: '#/components/schemas/EmployeeDocumentResource' },
+  },
+}
+const actualEmployeeResourcePropertyShapes = Object.fromEntries(
+  Object.keys(expectedEmployeeResourcePropertyShapes).map((property) => [
+    property,
+    contractShape(employee.properties?.[property]),
+  ])
+)
+const expectedEmployeeAdditionalCertificationShape = {
+  type: 'object',
+  required: ['name'],
+  properties: {
+    name: { type: 'string', maxLength: 255 },
+    number: { type: ['string', 'null'], maxLength: 255 },
+    issued_date: { type: ['string', 'null'] },
+    expiry_date: { type: ['string', 'null'] },
+    issuer: { type: ['string', 'null'], maxLength: 255 },
+  },
+}
+const expectedMicrosecondApiTimestampShape = {
+  type: 'string',
+  format: 'date-time',
+  pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$',
+}
+const expectedNullableMicrosecondApiTimestampShape = {
+  oneOf: [
+    { $ref: '#/components/schemas/MicrosecondApiTimestamp' },
+    { type: 'null' },
+  ],
+}
+
+if (
+  !isDeepStrictEqual(
+    Object.keys(employee.properties ?? {}).sort(),
+    [...employeeResourceProperties].sort()
+  ) ||
+  !isDeepStrictEqual(
+    [...(employee.required ?? [])].sort(),
+    [...requiredEmployeeResourceProperties].sort()
+  ) ||
+  !isDeepStrictEqual(
+    actualEmployeeResourcePropertyShapes,
+    expectedEmployeeResourcePropertyShapes
+  ) ||
+  !isDeepStrictEqual(
+    contractShape(employeeCreateRequest.properties?.work_permit_type),
+    expectedWorkPermitTypeShape
+  ) ||
+  !isDeepStrictEqual(
+    contractShape(employeeUpdateRequest.properties?.work_permit_type),
+    expectedWorkPermitTypeShape
+  ) ||
+  !isDeepStrictEqual(
+    contractShape(employeeAdditionalCertification),
+    expectedEmployeeAdditionalCertificationShape
+  ) ||
+  !isDeepStrictEqual(
+    contractShape(microsecondApiTimestamp),
+    expectedMicrosecondApiTimestampShape
+  ) ||
+  !isDeepStrictEqual(
+    contractShape(nullableMicrosecondApiTimestamp),
+    expectedNullableMicrosecondApiTimestampShape
+  ) ||
+  sensitiveEmployeeProperties.some(
+    (property) =>
+      !/employees\.read_sensitive/.test(
+        employee.properties?.[property]?.description ?? ''
+      )
+  ) ||
+  !/employees\.read_salary/.test(
+    employee.properties?.hourly_rate?.description ?? ''
+  ) ||
+  conditionallyLoadedEmployeeRelationships.some(
+    (property) =>
+      !/omitted/i.test(employee.properties?.[property]?.description ?? '')
+  ) ||
+  !/employees\.read_sensitive/.test(
+    employee.properties?.additional_certifications?.description ?? ''
+  ) ||
+  !/employees\.read_sensitive/.test(
+    employeeAdditionalCertification.properties?.number?.description ?? ''
+  )
+) {
+  contractErrors.push(
+    'Employee must inventory every EmployeeResource field, including permission-gated identifiers and conditionally loaded relationships.'
+  )
+}
+
 const expectedAlertDocumentProperties = {
   type: {
     type: 'string',

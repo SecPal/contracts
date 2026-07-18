@@ -88,6 +88,99 @@ test('accepts the repository contract', () => {
   assert.equal(result.status, 0, result.stderr)
 })
 
+test('rejects EmployeeResource response field inventory drift', () => {
+  const mutations = [
+    (candidate) =>
+      delete candidate.components.schemas.Employee.properties
+        .additional_certifications,
+    (candidate) =>
+      (candidate.components.schemas.Employee.properties.schema_only_field = {
+        type: 'string',
+      }),
+  ]
+
+  for (const mutate of mutations) {
+    const candidate = structuredClone(parsedContract)
+    mutate(candidate)
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, result.stdout)
+    assert.match(result.stderr, /EmployeeResource field/i)
+  }
+})
+
+test('rejects EmployeeResource requiredness and relationship drift', () => {
+  const mutations = [
+    (candidate) =>
+      (candidate.components.schemas.Employee.properties.qualifications.items = {
+        $ref: '#/components/schemas/QualificationResource',
+      }),
+    (candidate) =>
+      candidate.components.schemas.Employee.required.push('documents'),
+    (candidate) =>
+      (candidate.components.schemas.Employee.required =
+        candidate.components.schemas.Employee.required.filter(
+          (property) => property !== 'requires_work_permit'
+        )),
+    (candidate) =>
+      (candidate.components.schemas.Employee.properties.firearms_license_number.description =
+        'Decrypted firearms-license number.'),
+    (candidate) =>
+      (candidate.components.schemas.Employee.properties.addresses.description =
+        'Employee address records.'),
+  ]
+
+  for (const mutate of mutations) {
+    const candidate = structuredClone(parsedContract)
+    mutate(candidate)
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, result.stdout)
+    assert.match(result.stderr, /EmployeeResource field/i)
+  }
+})
+
+test('rejects EmployeeResource response schema-shape drift', () => {
+  const mutations = [
+    (candidate) =>
+      (candidate.components.schemas.Employee.properties.employment_end_date = {
+        type: ['string', 'null'],
+        format: 'date',
+        description:
+          'Lifecycle-managed employment end date used for retention calculations.',
+      }),
+    (candidate) =>
+      (candidate.components.schemas.Employee.properties.requires_work_permit = {
+        type: 'string',
+      }),
+    (candidate) =>
+      (candidate.components.schemas.Employee.properties.work_permit_type.enum =
+        ['unlimited', 'limited', 'none']),
+    (candidate) =>
+      (candidate.components.schemas.EmployeeCreateRequest.properties.work_permit_type.enum =
+        ['unlimited', 'limited', 'none']),
+    (candidate) =>
+      candidate.components.schemas.EmployeeUpdateRequest.properties.work_permit_type.enum.pop(),
+    (candidate) =>
+      (candidate.components.schemas.EmployeeAdditionalCertification.properties.expiry_date.format =
+        'date'),
+    (candidate) =>
+      delete candidate.components.schemas.MicrosecondApiTimestamp.pattern,
+  ]
+
+  for (const mutate of mutations) {
+    const candidate = structuredClone(parsedContract)
+    mutate(candidate)
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, result.stdout)
+    assert.match(result.stderr, /EmployeeResource field/i)
+  }
+})
+
 test('rejects a missing employee compliance-alert collection operation', () => {
   const candidate = structuredClone(parsedContract)
   delete candidate.paths['/employees/compliance-alerts']
