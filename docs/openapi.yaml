@@ -8751,7 +8751,7 @@ paths:
       summary: List Employees With Compliance Alerts
       description: |
         Get a paginated collection of employees with active compliance alerts. The collection is limited to employees in `pre_contract`, `active`, or `on_leave` lifecycle status; if `status` is supplied it further narrows that set. Use `compliance_status` to filter employees by their highest active alert severity (`warning`, `critical`, or `expired`). Each returned employee still includes every document in its active 30-day alert window through `expiring_documents`.
-      operationId: listEmployeeComplianceAlerts
+      operationId: listEmployeesWithComplianceAlerts
       tags:
         - Employees
       security:
