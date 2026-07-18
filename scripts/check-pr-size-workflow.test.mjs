@@ -98,10 +98,7 @@ test('rejects malformed YAML', () => {
     })
 
     assert.notEqual(result.status, 0, result.stderr || result.stdout)
-    assert.match(
-      result.stderr,
-      new RegExp(workflowPath.replaceAll('\\', '\\\\'))
-    )
+    assert.ok(result.stderr.includes(workflowPath), result.stderr)
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }

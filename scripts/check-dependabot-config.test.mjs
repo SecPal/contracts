@@ -25,7 +25,7 @@ test('reports the custom path when Dependabot YAML is malformed', () => {
     })
 
     assert.notEqual(result.status, 0, result.stderr || result.stdout)
-    assert.match(result.stderr, new RegExp(configPath.replaceAll('\\', '\\\\')))
+    assert.ok(result.stderr.includes(configPath), result.stderr)
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
