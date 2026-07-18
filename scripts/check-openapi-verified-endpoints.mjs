@@ -13,6 +13,7 @@
 
 import fs from 'fs'
 import path from 'path'
+import { isDeepStrictEqual } from 'node:util'
 import * as yaml from 'js-yaml'
 
 /** @type {readonly [method: string, pathTemplate: string][]} */
@@ -98,6 +99,7 @@ if (missing.length) {
 }
 
 const schemas = doc?.components?.schemas ?? {}
+const componentParameters = doc?.components?.parameters ?? {}
 const responses = doc?.components?.responses ?? {}
 const customer = schemas.Customer ?? {}
 const customerCreateRequest = schemas.CustomerCreateRequest ?? {}
@@ -121,40 +123,115 @@ const organizationalUnitListParameters =
 const employeeComplianceAlerts = paths['/employees/compliance-alerts']?.get
 const contractErrors = []
 
-const employeeComplianceAlertParameters =
-  employeeComplianceAlerts?.parameters ?? []
-const expectedEmployeeComplianceAlertParameters = [
-  'page',
-  'per_page',
-  'status',
-  'compliance_status',
-  'search',
-  'legal_entity_id',
-  'establishment_id',
+const parameterRefPrefix = '#/components/parameters/'
+const resolveParameter = (parameter) => {
+  if (!parameter?.$ref?.startsWith(parameterRefPrefix)) return parameter
+  return componentParameters[parameter.$ref.slice(parameterRefPrefix.length)]
+}
+const hasExactlyParameterRefs = (actual, expected) =>
+  actual.length === expected.length &&
+  isDeepStrictEqual(
+    actual.map((parameter) => parameter?.$ref).sort(),
+    [...expected].sort()
+  )
+
+const employeeListParameterRefs = [
+  '#/components/parameters/EmployeePage',
+  '#/components/parameters/EmployeePerPage',
+  '#/components/parameters/EmployeeStatusFilter',
+  '#/components/parameters/EmployeeSearchFilter',
+  '#/components/parameters/EmployeeLegalEntityFilter',
+  '#/components/parameters/EmployeeEstablishmentFilter',
 ]
+const employeeComplianceAlertParameterRefs = [
+  ...employeeListParameterRefs.slice(0, 3),
+  '#/components/parameters/EmployeeComplianceStatusFilter',
+  ...employeeListParameterRefs.slice(3),
+]
+const employeeListParameters = paths['/employees']?.get?.parameters ?? []
+const employeeComplianceAlertParameterEntries =
+  employeeComplianceAlerts?.parameters ?? []
+
 if (
-  employeeComplianceAlertParameters.map(({ name }) => name).join(',') !==
-  expectedEmployeeComplianceAlertParameters.join(',')
+  !hasExactlyParameterRefs(employeeListParameters, employeeListParameterRefs) ||
+  !hasExactlyParameterRefs(
+    employeeComplianceAlertParameterEntries,
+    employeeComplianceAlertParameterRefs
+  )
 ) {
   contractErrors.push(
-    'GET /employees/compliance-alerts must document exactly the effective page, per_page, status, compliance_status, search, legal_entity_id, and establishment_id query parameters.'
+    'GET /employees and GET /employees/compliance-alerts must reuse exactly the effective page, per_page, status, compliance_status, search, legal_entity_id, and establishment_id query parameter components applicable to each operation.'
   )
 }
 
-const complianceStatusParameter = employeeComplianceAlertParameters.find(
-  (parameter) =>
-    parameter?.name === 'compliance_status' && parameter?.in === 'query'
-)
-if (
-  complianceStatusParameter?.schema?.$ref !==
-  '#/components/schemas/EmployeeComplianceAlertStatus'
-) {
-  contractErrors.push(
-    'GET /employees/compliance-alerts must use EmployeeComplianceAlertStatus for compliance_status.'
+const employeeComplianceAlertParameters =
+  employeeComplianceAlertParameterEntries.map(resolveParameter)
+const expectedEmployeeComplianceAlertParameters = {
+  page: {
+    in: 'query',
+    required: false,
+    schema: { type: 'integer', minimum: 1, default: 1 },
+  },
+  per_page: {
+    in: 'query',
+    required: false,
+    schema: { type: 'integer', minimum: 1, maximum: 100, default: 15 },
+  },
+  status: {
+    in: 'query',
+    required: false,
+    schema: { $ref: '#/components/schemas/EmployeeStatus' },
+  },
+  compliance_status: {
+    in: 'query',
+    required: false,
+    schema: { $ref: '#/components/schemas/EmployeeComplianceAlertStatus' },
+  },
+  search: {
+    in: 'query',
+    required: false,
+    schema: { type: 'string', maxLength: 255 },
+  },
+  legal_entity_id: {
+    in: 'query',
+    required: false,
+    schema: { type: 'string', format: 'uuid' },
+  },
+  establishment_id: {
+    in: 'query',
+    required: false,
+    schema: { type: 'string', format: 'uuid' },
+  },
+}
+
+for (const [name, expected] of Object.entries(
+  expectedEmployeeComplianceAlertParameters
+)) {
+  const matches = employeeComplianceAlertParameters.filter(
+    (parameter) => parameter?.name === name
   )
+  const actual = matches[0]
+  if (
+    matches.length !== 1 ||
+    !isDeepStrictEqual(
+      {
+        in: actual?.in,
+        required: actual?.required,
+        schema: actual?.schema,
+      },
+      expected
+    )
+  ) {
+    contractErrors.push(
+      `GET /employees/compliance-alerts ${name} must match the verified API query contract.`
+    )
+  }
 }
 
 const complianceStatusSchema = schemas.EmployeeComplianceAlertStatus ?? {}
+const complianceStatusParameter = employeeComplianceAlertParameters.find(
+  (parameter) => parameter?.name === 'compliance_status'
+)
 if (
   complianceStatusSchema.type !== 'string' ||
   complianceStatusSchema.enum?.join(',') !== 'warning,critical,expired'
@@ -165,7 +242,71 @@ if (
 }
 
 if (
-  employeeComplianceAlerts?.security?.[0]?.BearerAuth == null ||
+  !/highest active alert severity/i.test(
+    employeeComplianceAlerts?.description ?? ''
+  ) ||
+  !/highest active alert severity/i.test(
+    complianceStatusParameter?.description ?? ''
+  ) ||
+  !/highest active employee compliance-alert severity/i.test(
+    complianceStatusSchema.description ?? ''
+  )
+) {
+  contractErrors.push(
+    'GET /employees/compliance-alerts must describe compliance_status as the highest active alert severity for each employee.'
+  )
+}
+
+const employee = schemas.Employee ?? {}
+const alertDocument = schemas.EmployeeComplianceAlertDocument ?? {}
+const expectedAlertDocumentProperties = {
+  type: {
+    type: 'string',
+    enum: [
+      'work_permit',
+      'residence_permit',
+      'id_document',
+      'firearms_license',
+      'first_aid_certificate',
+      'fire_safety_certificate',
+      'evacuation_certificate',
+      'additional_certification',
+    ],
+  },
+  label: {
+    type: 'string',
+    description: 'Human-readable document or certification label.',
+  },
+  expiry: { type: 'string', format: 'date' },
+  status: { $ref: '#/components/schemas/EmployeeComplianceAlertStatus' },
+  days_until_expiry: { type: 'integer', minimum: -30, maximum: 30 },
+}
+if (
+  !employee.required?.includes('expiring_documents') ||
+  !isDeepStrictEqual(employee.properties?.expiring_documents, {
+    type: 'array',
+    items: { $ref: '#/components/schemas/EmployeeComplianceAlertDocument' },
+  }) ||
+  alertDocument.type !== 'object' ||
+  alertDocument.additionalProperties !== false ||
+  !isDeepStrictEqual(alertDocument.required, [
+    'type',
+    'label',
+    'expiry',
+    'status',
+    'days_until_expiry',
+  ]) ||
+  !isDeepStrictEqual(alertDocument.properties, expectedAlertDocumentProperties)
+) {
+  contractErrors.push(
+    'Employee.expiring_documents must expose the complete verified employee compliance-alert document contract.'
+  )
+}
+
+if (
+  !isDeepStrictEqual(employeeComplianceAlerts?.security, [
+    { BearerAuth: [] },
+  ]) ||
   employeeComplianceAlerts?.responses?.['200']?.content?.['application/json']
     ?.schema?.$ref !== '#/components/schemas/EmployeeCollectionResponse' ||
   employeeComplianceAlerts?.responses?.['401']?.$ref !==
@@ -756,7 +897,7 @@ if (
 }
 
 if (contractErrors.length) {
-  console.error('OpenAPI organizational-unit contract guard failed:')
+  console.error('OpenAPI verified-endpoint contract guard failed:')
   for (const line of contractErrors) {
     console.error(`  - ${line}`)
   }

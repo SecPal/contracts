@@ -11,6 +11,7 @@ const changelogPath = resolve(process.argv[3] ?? 'CHANGELOG.md')
 const contract = yaml.load(readFileSync(contractPath, 'utf8'))
 const changelog = readFileSync(changelogPath, 'utf8')
 const schemas = contract?.components?.schemas ?? {}
+const componentParameters = contract?.components?.parameters ?? {}
 const responses = contract?.components?.responses ?? {}
 const paths = contract?.paths ?? {}
 const errors = []
@@ -22,6 +23,11 @@ const uuidValue = (value) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value
   )
+const parameterRefPrefix = '#/components/parameters/'
+const resolveParameter = (parameter) => {
+  if (!parameter?.$ref?.startsWith(parameterRefPrefix)) return parameter
+  return componentParameters[parameter.$ref.slice(parameterRefPrefix.length)]
+}
 
 function collectMatchingObjects(value, predicate, matches = []) {
   if (value === null || typeof value !== 'object') {
@@ -185,12 +191,15 @@ function requireEmployeeSubresourceAuthorization({
 
 function requireCollectionFilterRules(rules) {
   for (const rule of rules) {
-    const parameters = rule.operation?.parameters ?? []
-    const parameterNames = parameters.map(({ name }) => name)
+    const parameters = (rule.operation?.parameters ?? []).map(resolveParameter)
+    const parameterNames = parameters.map((parameter) => parameter?.name)
     const searchDescription =
-      parameters.find(({ name }) => name === 'search')?.description ?? ''
+      parameters.find((parameter) => parameter?.name === 'search')
+        ?.description ?? ''
     const invalidUuidFilter = rule.uuidFields.some((field) => {
-      const parameter = parameters.find(({ name }) => name === field)
+      const parameter = parameters.find(
+        (candidate) => candidate?.name === field
+      )
       return !uuidProperty(parameter?.schema)
     })
 

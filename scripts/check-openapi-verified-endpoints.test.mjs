@@ -23,6 +23,27 @@ const parsedContract = yaml.load(contract)
 const organizationalUnitListParameters =
   parsedContract.paths['/organizational-units'].get.parameters
 
+function resolveParameter(candidate, parameter) {
+  const prefix = '#/components/parameters/'
+  if (parameter?.$ref?.startsWith(prefix)) {
+    return candidate.components.parameters[parameter.$ref.slice(prefix.length)]
+  }
+
+  return parameter
+}
+
+function employeeComplianceAlertParameter(candidate, name) {
+  const parameter = candidate.paths[
+    '/employees/compliance-alerts'
+  ].get.parameters
+    .map((entry) => resolveParameter(candidate, entry))
+    .find((entry) => entry?.name === name)
+
+  assert.ok(parameter, `Missing employee compliance-alert parameter ${name}`)
+
+  return parameter
+}
+
 function organizationalUnitListParameter(parameters, name) {
   const parameter = parameters.find(
     (candidate) => candidate.name === name && candidate.in === 'query'
@@ -82,12 +103,58 @@ test('rejects employee compliance-alert filters that drift from the API', () => 
   const parameters =
     candidate.paths['/employees/compliance-alerts'].get.parameters
   candidate.paths['/employees/compliance-alerts'].get.parameters =
-    parameters.filter(({ name }) => name !== 'compliance_status')
+    parameters.filter(
+      (parameter) =>
+        resolveParameter(candidate, parameter)?.name !== 'compliance_status'
+    )
 
   const result = runGuard(yaml.dump(candidate))
 
   assert.notEqual(result.status, 0, result.stdout)
   assert.match(result.stderr, /effective.*compliance_status/i)
+})
+
+test('accepts employee compliance-alert parameters in any order', () => {
+  const candidate = structuredClone(parsedContract)
+  candidate.paths['/employees/compliance-alerts'].get.parameters.reverse()
+
+  const result = runGuard(yaml.dump(candidate))
+
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('reuses employee query parameter components', () => {
+  const employeeParameters = parsedContract.paths['/employees'].get.parameters
+  const complianceAlertParameters =
+    parsedContract.paths['/employees/compliance-alerts'].get.parameters
+
+  for (const parameter of [
+    ...employeeParameters,
+    ...complianceAlertParameters,
+  ]) {
+    assert.match(parameter.$ref, /^#\/components\/parameters\//)
+  }
+})
+
+test('rejects employee compliance-alert parameter schema drift', () => {
+  const mutations = [
+    ['page', (parameter) => (parameter.schema.minimum = 0)],
+    ['per_page', (parameter) => (parameter.schema.maximum = 1000)],
+    ['status', (parameter) => (parameter.schema = { type: 'integer' })],
+    ['search', (parameter) => (parameter.schema.maxLength = 256)],
+    ['legal_entity_id', (parameter) => delete parameter.schema.format],
+    ['establishment_id', (parameter) => (parameter.in = 'header')],
+  ]
+
+  for (const [name, mutate] of mutations) {
+    const candidate = structuredClone(parsedContract)
+    mutate(employeeComplianceAlertParameter(candidate, name))
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, `${name}: ${result.stdout}`)
+    assert.match(result.stderr, new RegExp(name, 'i'))
+  }
 })
 
 test('rejects unsupported employee compliance-alert severity values', () => {
@@ -98,6 +165,109 @@ test('rejects unsupported employee compliance-alert severity values', () => {
 
   assert.notEqual(result.status, 0, result.stdout)
   assert.match(result.stderr, /warning, critical, and expired/i)
+})
+
+test('documents the highest-severity filter and typed alert payload', () => {
+  const operation = parsedContract.paths['/employees/compliance-alerts'].get
+  const complianceStatus = employeeComplianceAlertParameter(
+    parsedContract,
+    'compliance_status'
+  )
+  const employee = parsedContract.components.schemas.Employee
+  const alertDocument =
+    parsedContract.components.schemas.EmployeeComplianceAlertDocument
+
+  assert.match(operation.description, /highest active alert severity/i)
+  assert.match(complianceStatus.description, /highest active alert severity/i)
+  assert.ok(employee.required.includes('expiring_documents'))
+  assert.deepEqual(employee.properties.expiring_documents, {
+    type: 'array',
+    items: {
+      $ref: '#/components/schemas/EmployeeComplianceAlertDocument',
+    },
+  })
+  assert.deepEqual(alertDocument.required, [
+    'type',
+    'label',
+    'expiry',
+    'status',
+    'days_until_expiry',
+  ])
+})
+
+test('rejects an untyped employee compliance-alert payload', () => {
+  const candidate = structuredClone(parsedContract)
+  delete candidate.components.schemas.Employee.properties.expiring_documents
+
+  const result = runGuard(yaml.dump(candidate))
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /expiring_documents/i)
+})
+
+test('rejects employee compliance-alert payload schema drift', () => {
+  const mutations = [
+    (candidate) =>
+      candidate.components.schemas.Employee.required.splice(
+        candidate.components.schemas.Employee.required.indexOf(
+          'expiring_documents'
+        ),
+        1
+      ),
+    (candidate) =>
+      (candidate.components.schemas.EmployeeComplianceAlertDocument.properties.status =
+        { type: 'string' }),
+    (candidate) =>
+      (candidate.components.schemas.EmployeeComplianceAlertDocument.properties.days_until_expiry.maximum = 31),
+  ]
+
+  for (const mutate of mutations) {
+    const candidate = structuredClone(parsedContract)
+    mutate(candidate)
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, result.stdout)
+    assert.match(result.stderr, /expiring_documents/i)
+  }
+})
+
+test('rejects ambiguous employee compliance-alert severity semantics', () => {
+  const candidate = structuredClone(parsedContract)
+  candidate.paths['/employees/compliance-alerts'].get.description =
+    'Filter active alerts by severity.'
+
+  const result = runGuard(yaml.dump(candidate))
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /highest active alert severity/i)
+})
+
+test('rejects optional authentication and response contract drift', () => {
+  const mutations = [
+    (operation) => operation.security.push({}),
+    (operation) =>
+      (operation.responses['200'].content['application/json'].schema.$ref =
+        '#/components/schemas/EmployeeResponse'),
+    (operation) =>
+      (operation.responses['401'].$ref = '#/components/responses/BadRequest'),
+    (operation) =>
+      (operation.responses['403'].$ref = '#/components/responses/BadRequest'),
+    (operation) =>
+      (operation.responses['422'].$ref = '#/components/responses/BadRequest'),
+    (operation) =>
+      (operation.responses['500'].$ref = '#/components/responses/BadRequest'),
+  ]
+
+  for (const mutate of mutations) {
+    const candidate = structuredClone(parsedContract)
+    mutate(candidate.paths['/employees/compliance-alerts'].get)
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, result.stdout)
+    assert.match(result.stderr, /authenticated.*standard error responses/i)
+  }
 })
 
 test('rejects an OU deletion response without the direct-child conflict', () => {
