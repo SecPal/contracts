@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Documented `GET /employees/compliance-alerts`, including its active-alert
+  highest-severity filter, typed alert-document payload, reusable employee
+  query parameters, pagination, authentication, and standard error responses
+  (closes #381).
 - **Breaking:** Defined OU-free domain contracts for Legal Entities,
   establishments, customers, sites, and employees. Customer now contains only
   Legal-Entity-wide master data (including billing address, optional VAT ID,

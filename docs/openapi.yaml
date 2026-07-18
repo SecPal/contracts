@@ -2670,6 +2670,49 @@ components:
         meta:
           $ref: '#/components/schemas/PaginationMeta'
 
+    EmployeeComplianceAlertStatus:
+      type: string
+      description: Highest active employee compliance-alert severity.
+      enum:
+        - warning
+        - critical
+        - expired
+
+    EmployeeComplianceAlertDocument:
+      type: object
+      additionalProperties: false
+      description: Compliance document within the active 30-day alert window.
+      required:
+        - type
+        - label
+        - expiry
+        - status
+        - days_until_expiry
+      properties:
+        type:
+          type: string
+          enum:
+            - work_permit
+            - residence_permit
+            - id_document
+            - firearms_license
+            - first_aid_certificate
+            - fire_safety_certificate
+            - evacuation_certificate
+            - additional_certification
+        label:
+          type: string
+          description: Human-readable document or certification label.
+        expiry:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/EmployeeComplianceAlertStatus'
+        days_until_expiry:
+          type: integer
+          minimum: -30
+          maximum: 30
+
     Employee:
       type: object
       description: Employee entity with decrypted personal data
@@ -2687,6 +2730,7 @@ components:
         - onboarding_completed
         - onboarding_workflow
         - onboarding_invitation
+        - expiring_documents
         - legal_entity_id
         - establishment_id
         - created_at
@@ -2867,6 +2911,10 @@ components:
         residence_permit_expiry:
           type: [string, 'null']
           format: date
+        expiring_documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmployeeComplianceAlertDocument'
         criminal_record_status:
           type: [string, 'null']
           enum: [valid, expired, pending]
@@ -6284,6 +6332,71 @@ components:
           enum:
             - DUPLICATE_RESOURCE
 
+  parameters:
+    EmployeePage:
+      name: page
+      in: query
+      required: false
+      description: Page number for employee collection pagination.
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+
+    EmployeePerPage:
+      name: per_page
+      in: query
+      required: false
+      description: Number of employees per page (max 100).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 15
+
+    EmployeeStatusFilter:
+      name: status
+      in: query
+      required: false
+      description: Filter employees by the official lifecycle status.
+      schema:
+        $ref: '#/components/schemas/EmployeeStatus'
+
+    EmployeeComplianceStatusFilter:
+      name: compliance_status
+      in: query
+      required: false
+      description: Filter employees by their highest active alert severity.
+      schema:
+        $ref: '#/components/schemas/EmployeeComplianceAlertStatus'
+
+    EmployeeSearchFilter:
+      name: search
+      in: query
+      required: false
+      description: Search employees by email and employee_number.
+      schema:
+        type: string
+        maxLength: 255
+
+    EmployeeLegalEntityFilter:
+      name: legal_entity_id
+      in: query
+      required: false
+      description: Filter employees by Legal Entity.
+      schema:
+        type: string
+        format: uuid
+
+    EmployeeEstablishmentFilter:
+      name: establishment_id
+      in: query
+      required: false
+      description: Filter employees by establishment.
+      schema:
+        type: string
+        format: uuid
+
   responses:
     BadRequest:
       description: Bad Request - Invalid input parameters
@@ -8576,50 +8689,12 @@ paths:
       security:
         - BearerAuth: []
       parameters:
-        - name: page
-          in: query
-          required: false
-          description: Page number for pagination
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - name: per_page
-          in: query
-          required: false
-          description: Number of items per page (max 100)
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 15
-        - name: status
-          in: query
-          required: false
-          description: Filter employees by the official lifecycle status.
-          schema:
-            $ref: '#/components/schemas/EmployeeStatus'
-        - name: search
-          in: query
-          required: false
-          description: Search employees by email and employee_number.
-          schema:
-            type: string
-            maxLength: 255
-        - name: legal_entity_id
-          in: query
-          required: false
-          description: Filter employees by Legal Entity.
-          schema:
-            type: string
-            format: uuid
-        - name: establishment_id
-          in: query
-          required: false
-          description: Filter employees by establishment.
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/EmployeePage'
+        - $ref: '#/components/parameters/EmployeePerPage'
+        - $ref: '#/components/parameters/EmployeeStatusFilter'
+        - $ref: '#/components/parameters/EmployeeSearchFilter'
+        - $ref: '#/components/parameters/EmployeeLegalEntityFilter'
+        - $ref: '#/components/parameters/EmployeeEstablishmentFilter'
       responses:
         '200':
           description: List of employees
@@ -8666,6 +8741,40 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/DuplicateConflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /employees/compliance-alerts:
+    get:
+      summary: List Employees With Compliance Alerts
+      description: |
+        Get a paginated collection of employees with active compliance alerts. The collection is limited to employees in `pre_contract`, `active`, or `on_leave` lifecycle status; if `status` is supplied it further narrows that set. Use `compliance_status` to filter employees by their highest active alert severity (`warning`, `critical`, or `expired`). Each returned employee still includes every document in its active 30-day alert window through `expiring_documents`.
+      operationId: listEmployeesWithComplianceAlerts
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EmployeePage'
+        - $ref: '#/components/parameters/EmployeePerPage'
+        - $ref: '#/components/parameters/EmployeeStatusFilter'
+        - $ref: '#/components/parameters/EmployeeComplianceStatusFilter'
+        - $ref: '#/components/parameters/EmployeeSearchFilter'
+        - $ref: '#/components/parameters/EmployeeLegalEntityFilter'
+        - $ref: '#/components/parameters/EmployeeEstablishmentFilter'
+      responses:
+        '200':
+          description: Paginated employees with active compliance alerts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeCollectionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '422':
           $ref: '#/components/responses/ValidationError'
         '500':

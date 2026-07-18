@@ -24,6 +24,15 @@ const contract = yaml.load(contractSource)
 const schemas = contract.components.schemas
 const paths = contract.paths
 
+function resolveParameter(candidate, parameter) {
+  const prefix = '#/components/parameters/'
+  if (parameter?.$ref?.startsWith(prefix)) {
+    return candidate.components.parameters[parameter.$ref.slice(prefix.length)]
+  }
+
+  return parameter
+}
+
 function runGuard(candidate, candidateChangelog = changelogSource) {
   const directory = mkdtempSync(join(tmpdir(), 'domain-contracts-'))
   const candidatePath = join(directory, 'openapi.yaml')
@@ -125,7 +134,9 @@ test('aligns migrated collection filters with the domain APIs', () => {
   ]
 
   for (const { path, names, uuidNames, search } of cases) {
-    const parameters = paths[path].get.parameters
+    const parameters = paths[path].get.parameters.map((parameter) =>
+      resolveParameter(contract, parameter)
+    )
     assert.deepEqual(
       parameters.map(({ name }) => name),
       names,
@@ -1022,7 +1033,10 @@ test('guard rejects incomplete or unsupported migrated list filters', () => {
   const candidate = structuredClone(contract)
   candidate.paths['/employees'].get.parameters = candidate.paths[
     '/employees'
-  ].get.parameters.filter(({ name }) => name !== 'establishment_id')
+  ].get.parameters.filter(
+    (parameter) =>
+      resolveParameter(candidate, parameter)?.name !== 'establishment_id'
+  )
   candidate.paths['/sites'].get.parameters.push({
     name: 'currently_valid',
     in: 'query',
@@ -1034,6 +1048,17 @@ test('guard rejects incomplete or unsupported migrated list filters', () => {
   assert.notEqual(result.status, 0, result.stdout)
   assert.match(result.stderr, /GET \/employees collection filters/)
   assert.match(result.stderr, /GET \/sites collection filters/)
+})
+
+test('guard reports unresolved employee parameter components cleanly', () => {
+  const candidate = structuredClone(contract)
+  delete candidate.components.parameters.EmployeeEstablishmentFilter
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /GET \/employees collection filters/)
+  assert.doesNotMatch(result.stderr, /TypeError/)
 })
 
 test('guard rejects dropped customer or site business identifier inputs', () => {
