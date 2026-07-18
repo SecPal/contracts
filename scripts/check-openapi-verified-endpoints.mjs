@@ -259,6 +259,150 @@ if (
 
 const employee = schemas.Employee ?? {}
 const alertDocument = schemas.EmployeeComplianceAlertDocument ?? {}
+const employeeResourceProperties = [
+  'id',
+  'tenant_id',
+  'employee_number',
+  'first_name',
+  'last_name',
+  'full_name',
+  'date_of_birth',
+  'email',
+  'phone',
+  'photo_path',
+  'bwr_id',
+  'bwr_status',
+  'bwr_registered_at',
+  'bwr_submission_date',
+  'bwr_notes',
+  'gender',
+  'birth_name',
+  'previous_names',
+  'birth_city',
+  'birth_country',
+  'nationalities',
+  'addresses',
+  'current_address',
+  'structured_address',
+  'emergency_contacts',
+  'intended_activities',
+  'id_document_type',
+  'id_document_number',
+  'id_document_expiry',
+  'id_document_copy_path',
+  'id_document_copy_deleted_at',
+  'employment_end_date',
+  'retention_period_end',
+  'tax_id',
+  'social_security_number',
+  'status',
+  'hire_date',
+  'contract_start_date',
+  'termination_date',
+  'last_working_day',
+  'contract_type',
+  'weekly_hours',
+  'monthly_hours',
+  'hourly_rate',
+  'health_insurance_type',
+  'health_insurance_provider',
+  'health_insurance_number',
+  'sachkunde_type',
+  'sachkunde_certificate',
+  'sachkunde_ihk_number',
+  'sachkunde_exam_date',
+  'sachkunde_issued_date',
+  'work_permit_type',
+  'work_permit_number',
+  'work_permit_expiry',
+  'work_permit_copy_path',
+  'work_permit_issued_by',
+  'work_permit_copy_deleted_at',
+  'firearms_license_number',
+  'firearms_license_expiry',
+  'firearms_license_issued_by',
+  'first_aid_cert_number',
+  'first_aid_cert_date',
+  'first_aid_cert_expiry',
+  'fire_safety_cert_date',
+  'fire_safety_cert_expiry',
+  'evacuation_cert_date',
+  'evacuation_cert_expiry',
+  'additional_certifications',
+  'residence_permit_type',
+  'residence_permit_number',
+  'residence_permit_expiry',
+  'requires_work_permit',
+  'has_valid_work_authorization',
+  'expiring_documents',
+  'criminal_record_status',
+  'criminal_record_check_date',
+  'user_id',
+  'user_account_active',
+  'user_account_activated_at',
+  'user_account_deactivated_at',
+  'onboarding_completed',
+  'onboarding_steps',
+  'onboarding_started_at',
+  'onboarding_completed_at',
+  'onboarding_workflow',
+  'onboarding_invitation',
+  'legal_entity_id',
+  'establishment_id',
+  'position',
+  'management_level',
+  'user',
+  'qualifications',
+  'documents',
+  'created_at',
+  'updated_at',
+  'deleted_at',
+]
+const conditionallyOmittedEmployeeProperties = [
+  'id_document_number',
+  'tax_id',
+  'social_security_number',
+  'hourly_rate',
+  'health_insurance_number',
+  'sachkunde_ihk_number',
+  'work_permit_number',
+  'firearms_license_number',
+  'first_aid_cert_number',
+  'residence_permit_number',
+  'user',
+  'qualifications',
+  'documents',
+]
+
+if (
+  employeeResourceProperties.some(
+    (property) => employee.properties?.[property] === undefined
+  ) ||
+  conditionallyOmittedEmployeeProperties.some((property) =>
+    employee.required?.includes(property)
+  ) ||
+  employee.properties?.qualifications?.items?.$ref !==
+    '#/components/schemas/EmployeeQualificationResource' ||
+  employee.properties?.documents?.items?.$ref !==
+    '#/components/schemas/EmployeeDocumentResource' ||
+  !/employees\.read_sensitive/.test(
+    employee.properties?.id_document_number?.description ?? ''
+  ) ||
+  !/employees\.read_salary/.test(
+    employee.properties?.hourly_rate?.description ?? ''
+  ) ||
+  !/relation is not loaded/.test(
+    employee.properties?.qualifications?.description ?? ''
+  ) ||
+  !/relation is not loaded/.test(
+    employee.properties?.documents?.description ?? ''
+  )
+) {
+  contractErrors.push(
+    'Employee must inventory every EmployeeResource field, including permission-gated identifiers and conditionally loaded relationships.'
+  )
+}
+
 const expectedAlertDocumentProperties = {
   type: {
     type: 'string',

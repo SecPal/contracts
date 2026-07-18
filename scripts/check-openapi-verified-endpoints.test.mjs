@@ -88,6 +88,30 @@ test('accepts the repository contract', () => {
   assert.equal(result.status, 0, result.stderr)
 })
 
+test('rejects EmployeeResource response field and conditional-relationship drift', () => {
+  const mutations = [
+    (candidate) =>
+      delete candidate.components.schemas.Employee.properties
+        .additional_certifications,
+    (candidate) =>
+      (candidate.components.schemas.Employee.properties.qualifications.items = {
+        $ref: '#/components/schemas/QualificationResource',
+      }),
+    (candidate) =>
+      candidate.components.schemas.Employee.required.push('documents'),
+  ]
+
+  for (const mutate of mutations) {
+    const candidate = structuredClone(parsedContract)
+    mutate(candidate)
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, result.stdout)
+    assert.match(result.stderr, /EmployeeResource field/i)
+  }
+})
+
 test('rejects a missing employee compliance-alert collection operation', () => {
   const candidate = structuredClone(parsedContract)
   delete candidate.paths['/employees/compliance-alerts']

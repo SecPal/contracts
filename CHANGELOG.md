@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Completed the `Employee` response contract with every field emitted by
+  `EmployeeResource`, including identity-document and work-permit copy
+  metadata, retention dates, certification and work-authorization summaries,
+  permission-gated identifiers, and conditionally loaded qualification and
+  document relationships. Added regression guards for this resource/schema
+  inventory (closes #382).
 - Documented `GET /employees/compliance-alerts`, including its active-alert
   highest-severity filter, typed alert-document payload, reusable employee
   query parameters, pagination, authentication, and standard error responses
