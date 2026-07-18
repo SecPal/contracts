@@ -270,6 +270,18 @@ test('guard rejects unsupported or privacy-widened employee activity examples', 
   assert.equal(privacyResult.status, 1)
   assert.match(privacyResult.stderr, /employee activity examples/i)
 
+  const privacyWidenedSubject = structuredClone(contract)
+  privacyWidenedSubject.paths['/activity-logs'].get.responses['200'].content[
+    'application/json'
+  ].examples.paginatedResponse.value.data[2].subject = {
+    first_name: 'Jane',
+  }
+
+  const privacySubjectResult = runGuard(privacyWidenedSubject)
+
+  assert.equal(privacySubjectResult.status, 1)
+  assert.match(privacySubjectResult.stderr, /employee activity examples/i)
+
   const misplacedAutomaticDiff = structuredClone(contract)
   misplacedAutomaticDiff.paths['/activity-logs'].get.responses['200'].content[
     'application/json'
@@ -282,6 +294,16 @@ test('guard rejects unsupported or privacy-widened employee activity examples', 
 
   assert.equal(misplacedDiffResult.status, 1)
   assert.match(misplacedDiffResult.stderr, /employee activity examples/i)
+
+  const missingExample = structuredClone(contract)
+  missingExample.paths['/activity-logs'].get.responses['200'].content[
+    'application/json'
+  ].examples.paginatedResponse.value.data = []
+
+  const missingExampleResult = runGuard(missingExample)
+
+  assert.equal(missingExampleResult.status, 1)
+  assert.match(missingExampleResult.stderr, /employee activity examples/i)
 })
 
 test('moves local customer data to a unique customer establishment contract', () => {
