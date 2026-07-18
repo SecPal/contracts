@@ -64,6 +64,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Extended the canonical Prettier validation and formatting commands to cover
+  repository JavaScript and MJS policy scripts, preventing formatting drift
+  (closes #380).
 - Documented interoperable `GET /organizational-units` `is_active` and
   `is_assignable` boolean-query encodings: clients may send `1` or `true` for
   `true`, and `0` or `false` for `false`; omitted or empty values do not apply
