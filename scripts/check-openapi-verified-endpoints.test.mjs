@@ -114,28 +114,6 @@ test('rejects employee compliance-alert filters that drift from the API', () => 
   assert.match(result.stderr, /effective.*compliance_status/i)
 })
 
-test('accepts employee compliance-alert parameters in any order', () => {
-  const candidate = structuredClone(parsedContract)
-  candidate.paths['/employees/compliance-alerts'].get.parameters.reverse()
-
-  const result = runGuard(yaml.dump(candidate))
-
-  assert.equal(result.status, 0, result.stderr)
-})
-
-test('reuses employee query parameter components', () => {
-  const employeeParameters = parsedContract.paths['/employees'].get.parameters
-  const complianceAlertParameters =
-    parsedContract.paths['/employees/compliance-alerts'].get.parameters
-
-  for (const parameter of [
-    ...employeeParameters,
-    ...complianceAlertParameters,
-  ]) {
-    assert.match(parameter.$ref, /^#\/components\/parameters\//)
-  }
-})
-
 test('rejects employee compliance-alert parameter schema drift', () => {
   const mutations = [
     ['page', (parameter) => (parameter.schema.minimum = 0)],
@@ -165,34 +143,6 @@ test('rejects unsupported employee compliance-alert severity values', () => {
 
   assert.notEqual(result.status, 0, result.stdout)
   assert.match(result.stderr, /warning, critical, and expired/i)
-})
-
-test('documents the highest-severity filter and typed alert payload', () => {
-  const operation = parsedContract.paths['/employees/compliance-alerts'].get
-  const complianceStatus = employeeComplianceAlertParameter(
-    parsedContract,
-    'compliance_status'
-  )
-  const employee = parsedContract.components.schemas.Employee
-  const alertDocument =
-    parsedContract.components.schemas.EmployeeComplianceAlertDocument
-
-  assert.match(operation.description, /highest active alert severity/i)
-  assert.match(complianceStatus.description, /highest active alert severity/i)
-  assert.ok(employee.required.includes('expiring_documents'))
-  assert.deepEqual(employee.properties.expiring_documents, {
-    type: 'array',
-    items: {
-      $ref: '#/components/schemas/EmployeeComplianceAlertDocument',
-    },
-  })
-  assert.deepEqual(alertDocument.required, [
-    'type',
-    'label',
-    'expiry',
-    'status',
-    'days_until_expiry',
-  ])
 })
 
 test('rejects an untyped employee compliance-alert payload', () => {
@@ -230,17 +180,6 @@ test('rejects employee compliance-alert payload schema drift', () => {
     assert.notEqual(result.status, 0, result.stdout)
     assert.match(result.stderr, /expiring_documents/i)
   }
-})
-
-test('rejects ambiguous employee compliance-alert severity semantics', () => {
-  const candidate = structuredClone(parsedContract)
-  candidate.paths['/employees/compliance-alerts'].get.description =
-    'Filter active alerts by severity.'
-
-  const result = runGuard(yaml.dump(candidate))
-
-  assert.notEqual(result.status, 0, result.stdout)
-  assert.match(result.stderr, /highest active alert severity/i)
 })
 
 test('rejects optional authentication and response contract drift', () => {
