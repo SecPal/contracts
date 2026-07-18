@@ -230,6 +230,82 @@ test('keeps employee creation audit examples aligned with domain assignments', (
   }
 })
 
+test('guard rejects unsupported or privacy-widened employee activity examples', () => {
+  const supportedActivity =
+    contract.paths['/activity-logs'].get.responses['200'].content[
+      'application/json'
+    ].examples.paginatedResponse.value.data[2]
+
+  assert.equal(
+    supportedActivity.properties,
+    null,
+    'automatic employee update diffs are not exposed through properties'
+  )
+
+  const unsupportedEvent = structuredClone(contract)
+  const unsupportedActivity =
+    unsupportedEvent.paths['/activity-logs'].get.responses['200'].content[
+      'application/json'
+    ].examples.paginatedResponse.value.data[2]
+
+  unsupportedActivity.log_name = 'employee'
+  unsupportedActivity.description = 'Viewed Employee "Jane Smith"'
+  unsupportedActivity.event = 'accessed'
+  unsupportedActivity.properties = {}
+
+  const unsupportedResult = runGuard(unsupportedEvent)
+
+  assert.equal(unsupportedResult.status, 1)
+  assert.match(unsupportedResult.stderr, /employee activity examples/i)
+
+  const privacyWidened = structuredClone(contract)
+  privacyWidened.paths['/activity-logs'].get.responses['200'].content[
+    'application/json'
+  ].examples.paginatedResponse.value.data[2].properties = {
+    name: 'Jane Smith',
+  }
+
+  const privacyResult = runGuard(privacyWidened)
+
+  assert.equal(privacyResult.status, 1)
+  assert.match(privacyResult.stderr, /employee activity examples/i)
+
+  const privacyWidenedSubject = structuredClone(contract)
+  privacyWidenedSubject.paths['/activity-logs'].get.responses['200'].content[
+    'application/json'
+  ].examples.paginatedResponse.value.data[2].subject = {
+    first_name: 'Jane',
+  }
+
+  const privacySubjectResult = runGuard(privacyWidenedSubject)
+
+  assert.equal(privacySubjectResult.status, 1)
+  assert.match(privacySubjectResult.stderr, /employee activity examples/i)
+
+  const misplacedAutomaticDiff = structuredClone(contract)
+  misplacedAutomaticDiff.paths['/activity-logs'].get.responses['200'].content[
+    'application/json'
+  ].examples.paginatedResponse.value.data[2].properties = {
+    attributes: { status: 'active' },
+    old: { status: 'on_leave' },
+  }
+
+  const misplacedDiffResult = runGuard(misplacedAutomaticDiff)
+
+  assert.equal(misplacedDiffResult.status, 1)
+  assert.match(misplacedDiffResult.stderr, /employee activity examples/i)
+
+  const missingExample = structuredClone(contract)
+  missingExample.paths['/activity-logs'].get.responses['200'].content[
+    'application/json'
+  ].examples.paginatedResponse.value.data = []
+
+  const missingExampleResult = runGuard(missingExample)
+
+  assert.equal(missingExampleResult.status, 1)
+  assert.match(missingExampleResult.stderr, /employee activity examples/i)
+})
+
 test('moves local customer data to a unique customer establishment contract', () => {
   assert.equal(Object.hasOwn(schemas.Customer.properties, 'contact'), false)
   assert.equal(Object.hasOwn(schemas.Customer.properties, 'notes'), false)

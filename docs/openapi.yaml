@@ -8149,14 +8149,14 @@ paths:
                         updated_at: '2025-01-15T11:00:00Z'
                       - id: 550e8400-e29b-41d4-a716-446655440003
                         tenant_id: 550e8400-e29b-41d4-a716-446655440000
-                        log_name: employee
-                        description: Viewed Employee "Jane Smith"
+                        log_name: employee_changes
+                        description: updated
                         subject_type: App\Models\Employee
                         subject_id: 550e8400-e29b-41d4-a716-446655440011
                         causer_type: App\Models\User
                         causer_id: 550e8400-e29b-41d4-a716-446655440022
-                        event: accessed
-                        properties: {} # yamllint disable-line rule:braces
+                        event: updated
+                        properties: null
                         ip_address: 198.51.100.10
                         user_agent: curl/8.8.0
                         batch_uuid: 550e8400-e29b-41d4-a716-446655440101

@@ -617,6 +617,27 @@ if (
   )
 }
 
+const paginatedEmployeeUpdateActivity =
+  paths['/activity-logs']?.get?.responses?.['200']?.content?.[
+    'application/json'
+  ]?.examples?.paginatedResponse?.value?.data?.[2]
+const paginatedEmployeeUpdateSubject =
+  paginatedEmployeeUpdateActivity?.subject ?? {}
+if (
+  paginatedEmployeeUpdateActivity?.subject_type !== 'App\\Models\\Employee' ||
+  paginatedEmployeeUpdateActivity?.log_name !== 'employee_changes' ||
+  paginatedEmployeeUpdateActivity?.description !== 'updated' ||
+  paginatedEmployeeUpdateActivity?.event !== 'updated' ||
+  paginatedEmployeeUpdateActivity?.properties !== null ||
+  forbiddenEmployeeAuditFields.some((field) =>
+    Object.hasOwn(paginatedEmployeeUpdateSubject, field)
+  )
+) {
+  errors.push(
+    'Paginated employee activity examples must document the supported employee_changes update event with metadata-free properties and exclude personal-name values.'
+  )
+}
+
 requireUuid('Customer', 'legal_entity_id', true)
 requireUuid('CustomerCreateRequest', 'legal_entity_id', true)
 requireUuid('CustomerUpdateRequest', 'legal_entity_id', false)

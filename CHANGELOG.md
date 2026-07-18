@@ -89,6 +89,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Replaced the unsupported Employee access activity example with the runtime
+  `employee_changes` update event and its metadata-free API representation.
+  Contract validation rejects unsupported categories/events, automatic diffs
+  misplaced in caller-supplied properties, and personal-name values in that
+  example (closes #379).
 - Aligned the `Customer` response schema with US-003 by requiring the always-present
   `customer_establishments` array of local-contact customer-establishment assignments.
   Customer list and detail response examples now demonstrate both populated and empty
