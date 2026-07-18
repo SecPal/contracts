@@ -14,10 +14,11 @@ function fail(message) {
 const workflowPath = process.argv[2]
   ? new URL(process.argv[2], `file://${process.cwd()}/`)
   : new URL('../.github/workflows/pr-size.yml', import.meta.url)
-const workflowPathDisplay = fileURLToPath(workflowPath)
+let workflowPathDisplay = workflowPath.href
 
 let workflow
 try {
+  workflowPathDisplay = fileURLToPath(workflowPath)
   workflow = yaml.load(readFileSync(workflowPath, 'utf8'), {
     schema: yaml.JSON_SCHEMA,
   })

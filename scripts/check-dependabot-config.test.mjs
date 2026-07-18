@@ -30,3 +30,14 @@ test('reports the custom path when Dependabot YAML is malformed', () => {
     rmSync(directory, { recursive: true, force: true })
   }
 })
+
+test('reports non-file input URLs through the guard error path', () => {
+  const configPath = 'https://example.invalid/dependabot.yml'
+  const result = spawnSync(process.execPath, [guardPath, configPath], {
+    encoding: 'utf8',
+  })
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stderr, /^Error: could not parse /)
+  assert.ok(result.stderr.includes(configPath), result.stderr)
+})

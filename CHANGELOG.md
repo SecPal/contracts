@@ -105,7 +105,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Report the resolved custom input path when the Dependabot or PR-size workflow
-  policy guard cannot parse its YAML configuration (closes #388).
+  policy guard cannot parse its YAML configuration, including non-file URLs
+  that cannot be converted to filesystem paths (closes #388).
 - Keep custom-path diagnostic tests independent of temporary-directory names.
 - Completed the `Customer` and `Site` response contracts for every field
   emitted by their resources. Conditional relationships and counts now use

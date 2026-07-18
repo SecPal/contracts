@@ -14,10 +14,11 @@ function fail(message) {
 const configPath = process.argv[2]
   ? new URL(process.argv[2], `file://${process.cwd()}/`)
   : new URL('../.github/dependabot.yml', import.meta.url)
-const configPathDisplay = fileURLToPath(configPath)
+let configPathDisplay = configPath.href
 
 let config
 try {
+  configPathDisplay = fileURLToPath(configPath)
   config = yaml.load(readFileSync(configPath, 'utf8'), {
     schema: yaml.JSON_SCHEMA,
   })

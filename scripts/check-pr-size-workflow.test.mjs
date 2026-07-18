@@ -103,3 +103,14 @@ test('rejects malformed YAML', () => {
     rmSync(directory, { recursive: true, force: true })
   }
 })
+
+test('reports non-file input URLs through the guard error path', () => {
+  const workflowPath = 'https://example.invalid/pr-size.yml'
+  const result = spawnSync(process.execPath, [guardPath, workflowPath], {
+    encoding: 'utf8',
+  })
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stderr, /^Error: could not parse /)
+  assert.ok(result.stderr.includes(workflowPath), result.stderr)
+})
