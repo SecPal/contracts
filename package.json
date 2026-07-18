@@ -16,10 +16,10 @@
   "scripts": {
     "prevalidate": "bash scripts/check-redocly-cli-sync.sh && node scripts/check-markdownlint-toolchain.mjs && node scripts/check-dependabot-config.mjs",
     "lint": "node --test && redocly lint docs/openapi.yaml && node scripts/check-openapi-verified-endpoints.mjs docs/openapi.yaml && node scripts/check-domain-contracts.mjs docs/openapi.yaml",
-    "format": "prettier --write '**/*.{md,yml,yaml,json}'",
-    "format:check": "prettier --check '**/*.{md,yml,yaml,json}'",
+    "format": "prettier --write '**/*.{md,yml,yaml,json,js,mjs}'",
+    "format:check": "prettier --check '**/*.{md,yml,yaml,json,js,mjs}'",
     "test": "npm run validate",
-    "validate": "npm run lint && prettier --check '**/*.{md,yml,yaml,json}'"
+    "validate": "npm run lint && npm run format:check"
   },
   "devDependencies": {
     "@redocly/cli": "^2.39.0",
