@@ -407,6 +407,174 @@ test('models every conditional customer and site resource field', () => {
   }
 })
 
+test('models embedded and dedicated assignment resources without stale fields', () => {
+  assert.deepEqual(schemas.CustomerAssignmentsRelationship.items, {
+    $ref: '#/components/schemas/EmbeddedCustomerAssignment',
+  })
+  assert.deepEqual(schemas.SiteAssignmentsRelationship.items, {
+    $ref: '#/components/schemas/EmbeddedSiteAssignment',
+  })
+
+  const expectedProperties = {
+    EmbeddedCustomerAssignment: [
+      'id',
+      'customer_id',
+      'user_id',
+      'role',
+      'valid_from',
+      'valid_until',
+      'notes',
+      'is_active',
+      'user',
+      'created_at',
+      'updated_at',
+    ],
+    EmbeddedSiteAssignment: [
+      'id',
+      'site_id',
+      'user_id',
+      'role',
+      'valid_from',
+      'valid_until',
+      'notes',
+      'is_active',
+      'user',
+      'created_at',
+      'updated_at',
+    ],
+    CustomerAssignment: [
+      'id',
+      'role',
+      'is_active',
+      'valid_from',
+      'valid_until',
+      'notes',
+      'user',
+      'customer',
+      'created_at',
+      'updated_at',
+    ],
+    SiteAssignment: [
+      'id',
+      'role',
+      'is_active',
+      'valid_from',
+      'valid_until',
+      'notes',
+      'user',
+      'site',
+      'created_at',
+      'updated_at',
+    ],
+  }
+
+  for (const [schemaName, properties] of Object.entries(expectedProperties)) {
+    assert.equal(schemas[schemaName].additionalProperties, false)
+    assert.deepEqual(Object.keys(schemas[schemaName].properties), properties)
+    assert.equal(schemas[schemaName].required.includes('is_active'), true)
+    assert.equal(
+      Object.hasOwn(schemas[schemaName].properties, 'is_primary'),
+      false
+    )
+  }
+
+  for (const schemaName of [
+    'EmbeddedCustomerAssignment',
+    'EmbeddedSiteAssignment',
+  ]) {
+    assert.deepEqual(schemas[schemaName].properties.user_id, {
+      type: ['string', 'null'],
+      format: 'uuid',
+      description:
+        'Assigned user identifier. Null when the user was deleted but assignment history is preserved.',
+    })
+    assert.equal(schemas[schemaName].required.includes('user_id'), true)
+    assert.equal(schemas[schemaName].required.includes('user'), true)
+  }
+
+  const siteAssignmentPost =
+    paths['/sites/{site}/assignments'].post.requestBody.content[
+      'application/json'
+    ].schema
+  const siteAssignmentPatch =
+    paths['/site-assignments/{siteAssignment}'].patch.requestBody.content[
+      'application/json'
+    ].schema
+  assert.equal(
+    Object.hasOwn(siteAssignmentPost.properties, 'is_primary'),
+    false
+  )
+  assert.equal(
+    Object.hasOwn(siteAssignmentPatch.properties, 'is_primary'),
+    false
+  )
+  assert.doesNotMatch(
+    paths['/site-assignments/{siteAssignment}'].patch.description,
+    /is_primary/i
+  )
+
+  for (const pathName of [
+    '/customers/{customer}/assignments',
+    '/sites/{site}/assignments',
+  ]) {
+    const role = paths[pathName].get.parameters.find(
+      (parameter) => parameter.name === 'role'
+    )
+    assert.deepEqual(role.schema, {
+      type: 'string',
+      maxLength: 100,
+    })
+  }
+})
+
+test('documents endpoint-specific customer and site relationship presence', () => {
+  assert.match(
+    paths['/customers'].get.description,
+    /eager loads.*assignments.*customer_establishments.*does not eager load.*sites/is
+  )
+  assert.match(
+    paths['/customers'].post.description,
+    /eager loads.*customer_establishments.*sites.*assignments.*count.*omitted/is
+  )
+  assert.match(
+    paths['/customers/{customer}'].patch.description,
+    /eager loads.*customer_establishments.*sites.*assignments.*count.*omitted/is
+  )
+  assert.match(
+    paths['/customers/{customer}/sites'].get.description,
+    /eager loads.*assignments.*customer.*counts.*omitted/is
+  )
+
+  const listExamples = Object.values(
+    paths['/customers'].get.responses['200'].content['application/json']
+      .examples
+  )
+  for (const example of listExamples) {
+    for (const customer of example.value.data) {
+      assert.ok(Array.isArray(customer.assignments))
+      assert.ok(Array.isArray(customer.customer_establishments))
+      assert.equal(Object.hasOwn(customer, 'sites'), false)
+    }
+  }
+
+  const detailExamples = Object.values(
+    paths['/customers/{customer}'].get.responses['200'].content[
+      'application/json'
+    ].examples
+  )
+  for (const example of detailExamples) {
+    const customer = example.value.data
+    assert.equal(customer.sites.length, customer.sites_count)
+  }
+
+  assert.equal(
+    paths['/sites/{site}'].get.parameters.some(
+      (parameter) => parameter.name === 'include'
+    ),
+    false
+  )
+})
+
 test('limits customer-establishment uniqueness to the relationship pair', () => {
   assert.deepEqual(schemas.CustomerEstablishment['x-unique-by'], [
     'customer_id',
@@ -1468,6 +1636,78 @@ test('guard rejects weakened conditional count and relationship schemas', () => 
   assert.notEqual(result.status, 0, result.stdout)
   assert.match(result.stderr, /NonNegativeRelationshipCount/)
   assert.match(result.stderr, /CustomerEstablishmentRelationship/)
+})
+
+test('guard rejects assignment resource shapes that drift from runtime', () => {
+  const candidate = structuredClone(contract)
+  candidate.components.schemas.SiteAssignmentsRelationship.items = {
+    $ref: '#/components/schemas/SiteAssignment',
+  }
+  candidate.components.schemas.EmbeddedCustomerAssignment.properties.user_id = {
+    type: 'string',
+    format: 'uuid',
+  }
+  candidate.components.schemas.SiteAssignment.required.push('is_primary')
+  candidate.components.schemas.SiteAssignment.properties.is_primary = {
+    type: 'boolean',
+  }
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /SiteAssignmentsRelationship/)
+  assert.match(result.stderr, /EmbeddedCustomerAssignment/)
+  assert.match(result.stderr, /SiteAssignment/)
+})
+
+test('guard rejects customer endpoint presence and example drift', () => {
+  const candidate = structuredClone(contract)
+  candidate.paths['/customers'].get.description =
+    'Retrieve a paginated list of customers.'
+  const listCustomer =
+    candidate.paths['/customers'].get.responses['200'].content[
+      'application/json'
+    ].examples.withVisibleSitesCount.value.data[0]
+  delete listCustomer.assignments
+  listCustomer.customer_establishments[0].customer_id =
+    '550e8400-e29b-41d4-a716-446655440001'
+  const detailCustomer =
+    candidate.paths['/customers/{customer}'].get.responses['200'].content[
+      'application/json'
+    ].examples.withExpandedRelationships.value.data
+  detailCustomer.sites_count = detailCustomer.sites.length + 1
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /GET \/customers relationship presence/)
+  assert.match(result.stderr, /GET \/customers response examples/)
+  assert.match(result.stderr, /GET \/customers\/{customer} response examples/)
+})
+
+test('guard rejects restored unsupported site includes and assignment fields', () => {
+  const candidate = structuredClone(contract)
+  candidate.paths['/sites/{site}'].get.parameters.push({
+    name: 'include',
+    in: 'query',
+    schema: {
+      type: 'string',
+      enum: ['customer', 'assignments'],
+    },
+  })
+  candidate.paths['/sites/{site}/assignments'].post.requestBody.content[
+    'application/json'
+  ].schema.properties.is_primary = { type: 'boolean' }
+  candidate.paths['/sites/{site}/assignments'].get.parameters = candidate.paths[
+    '/sites/{site}/assignments'
+  ].get.parameters.filter((parameter) => parameter.name !== 'role')
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /GET \/sites\/{site} must not expose include/)
+  assert.match(result.stderr, /site assignment requests.*is_primary/i)
+  assert.match(result.stderr, /assignment collection filters/i)
 })
 
 test('guard rejects unapproved contact example domains', () => {

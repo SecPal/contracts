@@ -5732,7 +5732,7 @@ components:
       type: array
       description: Customer assignments emitted only when the `assignments` relationship is eager loaded; omitted otherwise.
       items:
-        $ref: '#/components/schemas/CustomerAssignment'
+        $ref: '#/components/schemas/EmbeddedCustomerAssignment'
 
     CustomerEstablishmentRelationship:
       type: array
@@ -6213,7 +6213,7 @@ components:
       type: array
       description: Site assignments emitted only when the `assignments` relationship is eager loaded; omitted otherwise.
       items:
-        $ref: '#/components/schemas/SiteAssignment'
+        $ref: '#/components/schemas/EmbeddedSiteAssignment'
 
     SiteCreateRequest:
       type: object
@@ -6379,14 +6379,42 @@ components:
               establishment_id: '780e8400-e29b-41d4-a716-446655440000'
             status: 422
 
-    CustomerAssignment:
+    AssignmentUser:
       type: object
-      description: Flexible user-to-customer role assignment
+      additionalProperties: false
+      description: Minimal user data embedded in assignment responses. Historical assignments preserve this property with a null value after user deletion.
+      required:
+        - id
+        - name
+        - email
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        created_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+        updated_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+
+    EmbeddedCustomerAssignment:
+      type: object
+      additionalProperties: false
+      description: Customer assignment embedded by CustomerResource. The user relationship is eager loaded by customer list and detail endpoints and is null for preserved history after user deletion.
       required:
         - id
         - customer_id
         - user_id
         - role
+        - valid_from
+        - valid_until
+        - notes
+        - is_active
+        - user
         - created_at
         - updated_at
       properties:
@@ -6401,49 +6429,46 @@ components:
           description: Customer being assigned
           example: '550e8400-e29b-41d4-a716-446655440000'
         user_id:
-          type: string
+          type: [string, 'null']
           format: uuid
-          description: User being assigned
-          example: '990e8400-e29b-41d4-a716-446655440000'
+          description: Assigned user identifier. Null when the user was deleted but assignment history is preserved.
         role:
           type: string
           maxLength: 100
-          description: Flexible role name (e.g., "Key Account Manager", "Billing Contact")
           example: 'Key Account Manager'
         valid_from:
           type: [string, 'null']
           format: date
-          description: Assignment start date
-          example: '2025-01-01'
         valid_until:
           type: [string, 'null']
           format: date
-          description: Assignment end date
-          example: '2025-12-31'
         notes:
           type: [string, 'null']
-          description: Optional assignment notes
-          example: 'Primary contact for escalations'
+        is_active:
+          type: boolean
+        user:
+          anyOf:
+            - $ref: '#/components/schemas/AssignmentUser'
+            - type: 'null'
         created_at:
-          allOf:
-            - $ref: '#/components/schemas/ApiTimestamp'
-          description: Creation timestamp
-          example: '2025-12-05T12:00:00Z'
+          $ref: '#/components/schemas/ApiTimestamp'
         updated_at:
-          allOf:
-            - $ref: '#/components/schemas/ApiTimestamp'
-          description: Last update timestamp
-          example: '2025-12-15T16:00:00Z'
+          $ref: '#/components/schemas/ApiTimestamp'
 
-    SiteAssignment:
+    EmbeddedSiteAssignment:
       type: object
-      description: Flexible user-to-site role assignment
+      additionalProperties: false
+      description: Site assignment embedded by SiteResource. The user relationship is eager loaded by site list and detail endpoints and is null for preserved history after user deletion.
       required:
         - id
         - site_id
         - user_id
         - role
-        - is_primary
+        - valid_from
+        - valid_until
+        - notes
+        - is_active
+        - user
         - created_at
         - updated_at
       properties:
@@ -6458,19 +6483,113 @@ components:
           description: Site being assigned
           example: '660e8400-e29b-41d4-a716-446655440000'
         user_id:
+          type: [string, 'null']
+          format: uuid
+          description: Assigned user identifier. Null when the user was deleted but assignment history is preserved.
+        role:
+          type: string
+          maxLength: 100
+          example: 'Site Manager'
+        valid_from:
+          type: [string, 'null']
+          format: date
+        valid_until:
+          type: [string, 'null']
+          format: date
+        notes:
+          type: [string, 'null']
+        is_active:
+          type: boolean
+        user:
+          anyOf:
+            - $ref: '#/components/schemas/AssignmentUser'
+            - type: 'null'
+        created_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+        updated_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+
+    CustomerAssignment:
+      type: object
+      additionalProperties: false
+      description: Customer assignment returned by the dedicated assignment endpoints. User and customer relationships are eager loaded; user is null for preserved history after user deletion.
+      required:
+        - id
+        - role
+        - is_active
+        - valid_from
+        - valid_until
+        - notes
+        - user
+        - customer
+        - created_at
+        - updated_at
+      properties:
+        id:
           type: string
           format: uuid
-          description: User being assigned
-          example: '990e8400-e29b-41d4-a716-446655440000'
+          description: Unique assignment identifier
+          example: '880e8400-e29b-41d4-a716-446655440000'
+        role:
+          type: string
+          maxLength: 100
+          description: Flexible role name (e.g., "Key Account Manager", "Billing Contact")
+          example: 'Key Account Manager'
+        is_active:
+          type: boolean
+        valid_from:
+          type: [string, 'null']
+          format: date
+          description: Assignment start date
+          example: '2025-01-01'
+        valid_until:
+          type: [string, 'null']
+          format: date
+          description: Assignment end date
+          example: '2025-12-31'
+        notes:
+          type: [string, 'null']
+          description: Optional assignment notes
+          example: 'Primary contact for escalations'
+        user:
+          anyOf:
+            - $ref: '#/components/schemas/AssignmentUser'
+            - type: 'null'
+        customer:
+          $ref: '#/components/schemas/Customer'
+        created_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+        updated_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+
+    SiteAssignment:
+      type: object
+      additionalProperties: false
+      description: Site assignment returned by the dedicated assignment endpoints. User and site relationships are eager loaded; user is null for preserved history after user deletion.
+      required:
+        - id
+        - role
+        - is_active
+        - valid_from
+        - valid_until
+        - notes
+        - user
+        - site
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique assignment identifier
+          example: 'aa0e8400-e29b-41d4-a716-446655440000'
         role:
           type: string
           maxLength: 100
           description: Flexible role name (e.g., "Site Manager", "Account Manager")
           example: 'Site Manager'
-        is_primary:
+        is_active:
           type: boolean
-          description: Whether this is the primary contact for the site
-          example: true
         valid_from:
           type: [string, 'null']
           format: date
@@ -6485,16 +6604,16 @@ components:
           type: [string, 'null']
           description: Optional assignment notes
           example: 'On-site presence required'
+        user:
+          anyOf:
+            - $ref: '#/components/schemas/AssignmentUser'
+            - type: 'null'
+        site:
+          $ref: '#/components/schemas/Site'
         created_at:
-          allOf:
-            - $ref: '#/components/schemas/ApiTimestamp'
-          description: Creation timestamp
-          example: '2025-12-05T13:00:00Z'
+          $ref: '#/components/schemas/ApiTimestamp'
         updated_at:
-          allOf:
-            - $ref: '#/components/schemas/ApiTimestamp'
-          description: Last update timestamp
-          example: '2025-12-15T17:00:00Z'
+          $ref: '#/components/schemas/ApiTimestamp'
 
     CostCenter:
       type: object
@@ -10314,7 +10433,7 @@ paths:
     get:
       summary: List Customers
       description: |
-        Retrieve a paginated list of customers with optional filtering. The list eager loads a caller-visible `sites_count`; it does not eager load relationship fields, which are omitted.
+        Retrieve a paginated list of customers with optional filtering. The list eager loads a caller-visible `sites_count`, `assignments` with their users, and caller-visible `customer_establishments`; it does not eager load `sites`, which is omitted.
         Full collection access requires `customers.read` without organizational scopes. Otherwise, records are visible only through an active customer or site assignment. An OU scope alone may authorize opening the collection but grants no customer-record access, so it yields an empty authorized collection.
       operationId: listCustomers
       tags:
@@ -10385,6 +10504,17 @@ paths:
                           country: DE
                         is_active: true
                         sites_count: 2
+                        assignments: []
+                        customer_establishments:
+                          - id: '790e8400-e29b-41d4-a716-446655440000'
+                            customer_id: '550e8400-e29b-41d4-a716-446655440000'
+                            establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+                            contact_name: Max Mustermann
+                            phone: '+49 30 12345678'
+                            email: 'max.mustermann@secpal.dev'
+                            comments: Use the service entrance after 18:00.
+                            created_at: '2025-12-05T10:00:00Z'
+                            updated_at: '2025-12-15T14:30:00Z'
                         created_at: '2025-12-05T10:00:00Z'
                         updated_at: '2025-12-15T14:30:00Z'
                     meta:
@@ -10406,6 +10536,8 @@ paths:
                           country: DE
                         is_active: true
                         sites_count: 0
+                        assignments: []
+                        customer_establishments: []
                         created_at: '2025-12-05T10:00:00Z'
                         updated_at: '2025-12-15T14:30:00Z'
                     meta:
@@ -10422,7 +10554,7 @@ paths:
     post:
       summary: Create Customer
       description: |
-        Create a new customer. The optional `customer_number` is accepted as supplied; when omitted or null, the API generates a KD-YYYY-#### value.
+        Create a new customer. The optional `customer_number` is accepted as supplied; when omitted or null, the API generates a KD-YYYY-#### value. The response eager loads caller-visible `customer_establishments`; `sites`, `assignments`, and relationship count fields are omitted.
         Requires `customers.create` and a same-tenant, active, non-deleted Legal Entity. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `customers.create`.
         Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing which identifying field matched.
       operationId: createCustomer
@@ -10795,7 +10927,7 @@ paths:
                         postal_code: '10115'
                         country: DE
                       is_active: true
-                      sites_count: 2
+                      sites_count: 0
                       sites: []
                       assignments: []
                       customer_establishments:
@@ -10842,7 +10974,7 @@ paths:
     patch:
       summary: Update Customer
       description: |
-        Update customer fields (PATCH semantics - all fields optional).
+        Update customer fields (PATCH semantics - all fields optional). The response eager loads caller-visible `customer_establishments`; `sites`, `assignments`, and relationship count fields are omitted.
         Requires `customers.update` and view access to the customer. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `customers.update` and view access. If `legal_entity_id` differs from the customer's current value, it must identify a same-tenant, active, non-deleted Legal Entity. Reassignment is allowed only when the customer has no customer-establishment links or sites; clients must migrate or delete dependent records first.
       operationId: updateCustomer
       tags:
@@ -10926,7 +11058,7 @@ paths:
     get:
       summary: List Customer Sites
       description: |
-        Retrieve all sites belonging to a specific customer.
+        Retrieve all sites belonging to a specific customer. Each item eager loads `assignments` with their users; `customer` and relationship counts are omitted. `access_instructions` and `notes` are included only for callers authorized to update the individual site.
         Paginated with same filters as /sites endpoint.
       operationId: listCustomerSites
       tags:
@@ -11279,6 +11411,13 @@ paths:
             type: boolean
             default: false
           description: Filter to currently active assignments only
+        - name: role
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+          description: Filter by the exact flexible role name
       responses:
         '200':
           description: Assignments retrieved successfully
@@ -11339,15 +11478,15 @@ paths:
                   maxLength: 100
                   example: 'Key Account Manager'
                 valid_from:
-                  type: string
+                  type: [string, 'null']
                   format: date
                   example: '2025-01-01'
                 valid_until:
-                  type: string
+                  type: [string, 'null']
                   format: date
                   example: '2025-12-31'
                 notes:
-                  type: string
+                  type: [string, 'null']
                   example: 'Primary escalation contact'
       responses:
         '201':
@@ -11402,13 +11541,13 @@ paths:
                   type: string
                   maxLength: 100
                 valid_from:
-                  type: string
+                  type: [string, 'null']
                   format: date
                 valid_until:
-                  type: string
+                  type: [string, 'null']
                   format: date
                 notes:
-                  type: string
+                  type: [string, 'null']
       responses:
         '200':
           description: Assignment updated successfully
@@ -11490,6 +11629,13 @@ paths:
             type: boolean
             default: false
           description: Filter to currently active assignments only
+        - name: role
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+          description: Filter by the exact flexible role name
       responses:
         '200':
           description: Assignments retrieved successfully
@@ -11549,20 +11695,16 @@ paths:
                   type: string
                   maxLength: 100
                   example: 'Site Manager'
-                is_primary:
-                  type: boolean
-                  default: false
-                  example: true
                 valid_from:
-                  type: string
+                  type: [string, 'null']
                   format: date
                   example: '2025-01-01'
                 valid_until:
-                  type: string
+                  type: [string, 'null']
                   format: date
                   example: '2025-12-31'
                 notes:
-                  type: string
+                  type: [string, 'null']
                   example: 'On-site presence required'
       responses:
         '201':
@@ -11592,7 +11734,7 @@ paths:
   /site-assignments/{siteAssignment}:
     patch:
       summary: Update Site Assignment
-      description: Update site assignment fields (role, is_primary, validity dates, notes).
+      description: Update site assignment fields (role, validity dates, notes).
       operationId: updateSiteAssignment
       tags:
         - Assignments
@@ -11616,16 +11758,14 @@ paths:
                 role:
                   type: string
                   maxLength: 100
-                is_primary:
-                  type: boolean
                 valid_from:
-                  type: string
+                  type: [string, 'null']
                   format: date
                 valid_until:
-                  type: string
+                  type: [string, 'null']
                   format: date
                 notes:
-                  type: string
+                  type: [string, 'null']
       responses:
         '200':
           description: Assignment updated successfully

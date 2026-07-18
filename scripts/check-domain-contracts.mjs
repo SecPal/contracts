@@ -563,6 +563,109 @@ for (const schemaName of relationshipSchemas) {
   }
 }
 
+for (const [schemaName, itemSchemaName] of [
+  ['CustomerAssignmentsRelationship', 'EmbeddedCustomerAssignment'],
+  ['SiteAssignmentsRelationship', 'EmbeddedSiteAssignment'],
+]) {
+  if (
+    schemas[schemaName]?.items?.$ref !==
+    `#/components/schemas/${itemSchemaName}`
+  ) {
+    errors.push(`${schemaName} must use ${itemSchemaName} items.`)
+  }
+}
+
+const assignmentSchemaProperties = {
+  EmbeddedCustomerAssignment: [
+    'id',
+    'customer_id',
+    'user_id',
+    'role',
+    'valid_from',
+    'valid_until',
+    'notes',
+    'is_active',
+    'user',
+    'created_at',
+    'updated_at',
+  ],
+  EmbeddedSiteAssignment: [
+    'id',
+    'site_id',
+    'user_id',
+    'role',
+    'valid_from',
+    'valid_until',
+    'notes',
+    'is_active',
+    'user',
+    'created_at',
+    'updated_at',
+  ],
+  CustomerAssignment: [
+    'id',
+    'role',
+    'is_active',
+    'valid_from',
+    'valid_until',
+    'notes',
+    'user',
+    'customer',
+    'created_at',
+    'updated_at',
+  ],
+  SiteAssignment: [
+    'id',
+    'role',
+    'is_active',
+    'valid_from',
+    'valid_until',
+    'notes',
+    'user',
+    'site',
+    'created_at',
+    'updated_at',
+  ],
+}
+for (const [schemaName, expectedProperties] of Object.entries(
+  assignmentSchemaProperties
+)) {
+  const schema = schemas[schemaName]
+  if (
+    schema?.type !== 'object' ||
+    schema.additionalProperties !== false ||
+    JSON.stringify(Object.keys(schema.properties ?? {})) !==
+      JSON.stringify(expectedProperties) ||
+    JSON.stringify(schema.required) !== JSON.stringify(expectedProperties) ||
+    Object.hasOwn(schema.properties ?? {}, 'is_primary')
+  ) {
+    errors.push(`${schemaName} must match its runtime assignment resource.`)
+  }
+}
+for (const schemaName of [
+  'EmbeddedCustomerAssignment',
+  'EmbeddedSiteAssignment',
+]) {
+  const userId = schemas[schemaName]?.properties?.user_id
+  if (
+    JSON.stringify(userId?.type) !== JSON.stringify(['string', 'null']) ||
+    userId?.format !== 'uuid' ||
+    !/user was deleted.*history is preserved/i.test(userId?.description ?? '')
+  ) {
+    errors.push(
+      `${schemaName}.user_id must preserve nullable deleted-user history.`
+    )
+  }
+}
+if (
+  schemas.AssignmentUser?.type !== 'object' ||
+  schemas.AssignmentUser.additionalProperties !== false ||
+  JSON.stringify(schemas.AssignmentUser.required) !==
+    JSON.stringify(['id', 'name', 'email'])
+) {
+  errors.push('AssignmentUser must remain a closed minimal user response.')
+}
+
 const relationshipCount = schemas.NonNegativeRelationshipCount
 if (
   relationshipCount?.type !== 'integer' ||
@@ -587,6 +690,100 @@ if (
 ) {
   errors.push(
     'CustomerEstablishmentRelationship must preserve caller-visible assignment filtering.'
+  )
+}
+
+const customerList = paths['/customers']?.get
+const customerCreate = paths['/customers']?.post
+const customerDetail = paths['/customers/{customer}']?.get
+const customerUpdateOperation = paths['/customers/{customer}']?.patch
+const customerSites = paths['/customers/{customer}/sites']?.get
+if (
+  !/eager loads.*assignments.*customer_establishments.*does not eager load.*sites/is.test(
+    customerList?.description ?? ''
+  )
+) {
+  errors.push(
+    'GET /customers relationship presence must match its eager-loaded assignments and customer establishments.'
+  )
+}
+for (const [label, operation] of [
+  ['POST /customers', customerCreate],
+  ['PATCH /customers/{customer}', customerUpdateOperation],
+]) {
+  if (
+    !/eager loads.*customer_establishments.*sites.*assignments.*count.*omitted/is.test(
+      operation?.description ?? ''
+    )
+  ) {
+    errors.push(
+      `${label} relationship presence must document its customer-establishment-only expansion.`
+    )
+  }
+}
+if (
+  !/eager loads.*assignments.*customer.*counts.*omitted/is.test(
+    customerSites?.description ?? ''
+  )
+) {
+  errors.push(
+    'GET /customers/{customer}/sites relationship presence must match its eager-loaded assignments.'
+  )
+}
+
+function hasValidCustomerEstablishments(customer) {
+  return (
+    Array.isArray(customer?.customer_establishments) &&
+    customer.customer_establishments.every(
+      (assignment) =>
+        uuidValue(assignment?.id) &&
+        uuidValue(assignment?.customer_id) &&
+        uuidValue(assignment?.establishment_id) &&
+        assignment.customer_id === customer.id &&
+        !Object.hasOwn(assignment, 'organizational_unit_id') &&
+        !Object.hasOwn(assignment, 'organizational_unit')
+    )
+  )
+}
+
+const listCustomerExamples = Object.values(
+  customerList?.responses?.['200']?.content?.['application/json']?.examples ??
+    {}
+).flatMap((example) => example?.value?.data ?? [])
+if (
+  listCustomerExamples.length === 0 ||
+  listCustomerExamples.some(
+    (customer) =>
+      !Number.isInteger(customer?.sites_count) ||
+      customer.sites_count < 0 ||
+      !Array.isArray(customer?.assignments) ||
+      Object.hasOwn(customer, 'sites') ||
+      !hasValidCustomerEstablishments(customer)
+  )
+) {
+  errors.push(
+    'GET /customers response examples must include valid counts and eager-loaded assignments/customer establishments while omitting sites.'
+  )
+}
+
+const detailCustomerExamples = Object.values(
+  customerDetail?.responses?.['200']?.content?.['application/json']?.examples ??
+    {}
+).map((example) => example?.value?.data)
+if (
+  detailCustomerExamples.length === 0 ||
+  detailCustomerExamples.some(
+    (customer) =>
+      !Number.isInteger(customer?.sites_count) ||
+      customer.sites_count < 0 ||
+      !Array.isArray(customer?.sites) ||
+      customer.sites.length !== customer.sites_count ||
+      !Array.isArray(customer?.assignments) ||
+      !hasValidCustomerEstablishments(customer)
+  )
+) {
+  errors.push(
+    'GET /customers/{customer} response examples must keep expanded relationships and sites_count coherent.'
   )
 }
 
@@ -1437,13 +1634,47 @@ if (/role-downgraded or deleted.*conflict/is.test(changelog)) {
     'CHANGELOG must not couple tenant-local domain lifecycle to organizational-unit roles.'
   )
 }
-const siteIncludes = paths['/sites/{site}']?.get?.parameters?.find(
-  (parameter) => parameter?.name === 'include'
-)?.schema?.enum
-if (siteIncludes?.some((value) => /organizational/i.test(value))) {
-  errors.push(
-    'GET /sites/{site} must not expose an organizational-unit include.'
+const siteInclude = paths['/sites/{site}']?.get?.parameters?.find(
+  (parameter) => resolveParameter(parameter)?.name === 'include'
+)
+if (siteInclude) {
+  errors.push('GET /sites/{site} must not expose include.')
+}
+const siteAssignmentRequestSchemas = [
+  paths['/sites/{site}/assignments']?.post?.requestBody?.content?.[
+    'application/json'
+  ]?.schema,
+  paths['/site-assignments/{siteAssignment}']?.patch?.requestBody?.content?.[
+    'application/json'
+  ]?.schema,
+]
+if (
+  siteAssignmentRequestSchemas.some((schema) =>
+    Object.hasOwn(schema?.properties ?? {}, 'is_primary')
+  ) ||
+  /is_primary/i.test(
+    paths['/site-assignments/{siteAssignment}']?.patch?.description ?? ''
   )
+) {
+  errors.push('Site assignment requests must not advertise stale is_primary.')
+}
+for (const pathName of [
+  '/customers/{customer}/assignments',
+  '/sites/{site}/assignments',
+]) {
+  const role = paths[pathName]?.get?.parameters
+    ?.map(resolveParameter)
+    .find((parameter) => parameter?.name === 'role')
+  if (
+    role?.in !== 'query' ||
+    role.required !== false ||
+    role.schema?.type !== 'string' ||
+    role.schema.maxLength !== 100
+  ) {
+    errors.push(
+      'Customer and site assignment collection filters must expose the runtime role filter.'
+    )
+  }
 }
 
 const expectedCustomerEstablishmentRequired = [
