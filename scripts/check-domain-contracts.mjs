@@ -621,26 +621,16 @@ const paginatedEmployeeUpdateActivity =
   paths['/activity-logs']?.get?.responses?.['200']?.content[
     'application/json'
   ]?.examples?.paginatedResponse?.value?.data?.[2]
-const employeeUpdateAttributes =
-  paginatedEmployeeUpdateActivity?.properties?.attributes ?? {}
-const employeeUpdateOldValues =
-  paginatedEmployeeUpdateActivity?.properties?.old ?? {}
 if (
   paginatedEmployeeUpdateActivity?.subject_type !== 'App\\Models\\Employee' ||
   paginatedEmployeeUpdateActivity.log_name !== 'employee_changes' ||
   paginatedEmployeeUpdateActivity.description !== 'updated' ||
   paginatedEmployeeUpdateActivity.event !== 'updated' ||
-  employeeUpdateAttributes.status !== 'active' ||
-  employeeUpdateOldValues.status !== 'inactive' ||
-  paginatedEmployeeUpdateActivity.subject?.name != null ||
-  forbiddenEmployeeAuditFields.some(
-    (field) =>
-      Object.hasOwn(employeeUpdateAttributes, field) ||
-      Object.hasOwn(employeeUpdateOldValues, field)
-  )
+  paginatedEmployeeUpdateActivity.properties !== null ||
+  paginatedEmployeeUpdateActivity.subject?.name != null
 ) {
   errors.push(
-    'Paginated employee activity examples must document the supported employee_changes update event and exclude personal-name values.'
+    'Paginated employee activity examples must document the supported employee_changes update event with metadata-free properties and exclude personal-name values.'
   )
 }
 

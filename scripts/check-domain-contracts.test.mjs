@@ -231,6 +231,17 @@ test('keeps employee creation audit examples aligned with domain assignments', (
 })
 
 test('guard rejects unsupported or privacy-widened employee activity examples', () => {
+  const supportedActivity =
+    contract.paths['/activity-logs'].get.responses['200'].content[
+      'application/json'
+    ].examples.paginatedResponse.value.data[2]
+
+  assert.equal(
+    supportedActivity.properties,
+    null,
+    'automatic employee update diffs are not exposed through properties'
+  )
+
   const unsupportedEvent = structuredClone(contract)
   const unsupportedActivity =
     unsupportedEvent.paths['/activity-logs'].get.responses['200'].content[
@@ -250,13 +261,27 @@ test('guard rejects unsupported or privacy-widened employee activity examples', 
   const privacyWidened = structuredClone(contract)
   privacyWidened.paths['/activity-logs'].get.responses['200'].content[
     'application/json'
-  ].examples.paginatedResponse.value.data[2].properties.attributes.name =
-    'Jane Smith'
+  ].examples.paginatedResponse.value.data[2].properties = {
+    name: 'Jane Smith',
+  }
 
   const privacyResult = runGuard(privacyWidened)
 
   assert.equal(privacyResult.status, 1)
   assert.match(privacyResult.stderr, /employee activity examples/i)
+
+  const misplacedAutomaticDiff = structuredClone(contract)
+  misplacedAutomaticDiff.paths['/activity-logs'].get.responses['200'].content[
+    'application/json'
+  ].examples.paginatedResponse.value.data[2].properties = {
+    attributes: { status: 'active' },
+    old: { status: 'on_leave' },
+  }
+
+  const misplacedDiffResult = runGuard(misplacedAutomaticDiff)
+
+  assert.equal(misplacedDiffResult.status, 1)
+  assert.match(misplacedDiffResult.stderr, /employee activity examples/i)
 })
 
 test('moves local customer data to a unique customer establishment contract', () => {

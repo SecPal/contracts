@@ -8156,11 +8156,7 @@ paths:
                         causer_type: App\Models\User
                         causer_id: 550e8400-e29b-41d4-a716-446655440022
                         event: updated
-                        properties:
-                          attributes:
-                            status: active
-                          old:
-                            status: inactive
+                        properties: null
                         ip_address: 198.51.100.10
                         user_agent: curl/8.8.0
                         batch_uuid: 550e8400-e29b-41d4-a716-446655440101
