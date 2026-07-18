@@ -478,6 +478,17 @@ test('models embedded and dedicated assignment resources without stale fields', 
     )
   }
 
+  assert.deepEqual(Object.keys(schemas.AssignmentUser.properties), [
+    'id',
+    'name',
+    'email',
+  ])
+  assert.deepEqual(schemas.AssignmentUser.required, ['id', 'name', 'email'])
+  assert.match(
+    schemas.CustomerEstablishmentRelationship.description,
+    /`customer_establishments` relationship/
+  )
+
   for (const schemaName of [
     'EmbeddedCustomerAssignment',
     'EmbeddedSiteAssignment',
@@ -1651,6 +1662,9 @@ test('guard rejects assignment resource shapes that drift from runtime', () => {
   candidate.components.schemas.SiteAssignment.properties.is_primary = {
     type: 'boolean',
   }
+  candidate.components.schemas.AssignmentUser.properties.created_at = {
+    $ref: '#/components/schemas/ApiTimestamp',
+  }
 
   const result = runGuard(candidate)
 
@@ -1658,6 +1672,7 @@ test('guard rejects assignment resource shapes that drift from runtime', () => {
   assert.match(result.stderr, /SiteAssignmentsRelationship/)
   assert.match(result.stderr, /EmbeddedCustomerAssignment/)
   assert.match(result.stderr, /SiteAssignment/)
+  assert.match(result.stderr, /AssignmentUser/)
 })
 
 test('guard rejects customer endpoint presence and example drift', () => {

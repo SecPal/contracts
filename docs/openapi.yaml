@@ -5736,7 +5736,7 @@ components:
 
     CustomerEstablishmentRelationship:
       type: array
-      description: Customer-to-establishment assignments with local contact data that are visible to the current caller, emitted only when the `customerEstablishments` relationship is eager loaded; omitted otherwise. Unrestricted customer readers and callers with an active customer assignment may see all links for that customer; site-only access returns only links matching the caller's active site assignments. No organizational-unit relationships are exposed.
+      description: Customer-to-establishment assignments with local contact data that are visible to the current caller, emitted only when the `customer_establishments` relationship is eager loaded; omitted otherwise. Unrestricted customer readers and callers with an active customer assignment may see all links for that customer; site-only access returns only links matching the caller's active site assignments. No organizational-unit relationships are exposed.
       items:
         $ref: '#/components/schemas/CustomerEstablishment'
 
@@ -6396,10 +6396,6 @@ components:
         email:
           type: string
           format: email
-        created_at:
-          $ref: '#/components/schemas/ApiTimestamp'
-        updated_at:
-          $ref: '#/components/schemas/ApiTimestamp'
 
     EmbeddedCustomerAssignment:
       type: object

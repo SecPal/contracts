@@ -660,6 +660,8 @@ for (const schemaName of [
 if (
   schemas.AssignmentUser?.type !== 'object' ||
   schemas.AssignmentUser.additionalProperties !== false ||
+  JSON.stringify(Object.keys(schemas.AssignmentUser.properties ?? {})) !==
+    JSON.stringify(['id', 'name', 'email']) ||
   JSON.stringify(schemas.AssignmentUser.required) !==
     JSON.stringify(['id', 'name', 'email'])
 ) {
