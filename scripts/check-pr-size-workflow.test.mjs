@@ -88,7 +88,21 @@ jobs:
 })
 
 test('rejects malformed YAML', () => {
-  const result = runGuard('permissions: [\n')
+  const directory = mkdtempSync(join(tmpdir(), 'check-pr-size-workflow-'))
+  const workflowPath = join(directory, 'invalid-pr-size.yml')
+  writeFileSync(workflowPath, 'permissions: [\n')
 
-  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  try {
+    const result = spawnSync(process.execPath, [guardPath, workflowPath], {
+      encoding: 'utf8',
+    })
+
+    assert.notEqual(result.status, 0, result.stderr || result.stdout)
+    assert.match(
+      result.stderr,
+      new RegExp(workflowPath.replaceAll('\\', '\\\\'))
+    )
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
 })

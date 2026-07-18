@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: CC0-1.0
 
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import * as yaml from 'js-yaml'
 
 function fail(message) {
@@ -13,6 +14,7 @@ function fail(message) {
 const workflowPath = process.argv[2]
   ? new URL(process.argv[2], `file://${process.cwd()}/`)
   : new URL('../.github/workflows/pr-size.yml', import.meta.url)
+const workflowPathDisplay = fileURLToPath(workflowPath)
 
 let workflow
 try {
@@ -20,7 +22,7 @@ try {
     schema: yaml.JSON_SCHEMA,
   })
 } catch (error) {
-  fail(`could not parse .github/workflows/pr-size.yml: ${error}`)
+  fail(`could not parse ${workflowPathDisplay}: ${error}`)
 }
 
 const expectedPermissions = {
