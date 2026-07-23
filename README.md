@@ -23,7 +23,7 @@ SecPal is the operations software for German private security services. This rep
 
 ### Available Endpoints
 
-The contract file `docs/openapi.yaml` is the source of truth. It documents a large portion of the live `/v1` surface, including authentication and session flows, self-service (`/me`), employees (including nested qualifications and documents), the qualification catalog, customers, sites, assignments, onboarding, activity logs, Android enrollment/release metadata, and more.
+The contract file `docs/openapi.yaml` is the source of truth. It documents a large portion of the live `/v1` surface, including authentication and session flows, self-service (`/me`), employees (including nested qualifications and documents), the qualification catalog, customers, sites, assignments, onboarding, activity logs, Android release metadata, and more.
 
 - **Monitoring:** Health-related paths (for example `GET /health`) appear in the spec as deployed.
 - **Coverage:** Some backend-only or admin-heavy routes are described in the API repository ([`SecPal/api` docs](https://github.com/SecPal/api)) and may not yet appear in OpenAPI; compare with `routes/api.php` when auditing coverage. Notable examples:

@@ -88,6 +88,150 @@ test('accepts the repository contract', () => {
   assert.equal(result.status, 0, result.stderr)
 })
 
+test('omits retired Android enrollment and provisioning contracts', () => {
+  const serialized = JSON.stringify(parsedContract)
+  const retiredPaths = [
+    '/android-enrollment-sessions',
+    '/android-enrollment-sessions/{session}',
+    '/android-enrollment-sessions/{session}/revoke',
+    '/android/bootstrap/exchange',
+  ]
+  const retiredSchemas = [
+    'AndroidEnrollmentMode',
+    'AndroidEnrollmentSessionStatus',
+    'AndroidProvisioningProfile',
+    'AndroidEnrollmentSession',
+    'AndroidProvisioningOperatorExtras',
+    'AndroidProvisioningQrPayload',
+    'AndroidEnrollmentSessionCreateRequest',
+    'AndroidEnrollmentSessionResponse',
+    'AndroidEnrollmentSessionCreateResponse',
+    'AndroidEnrollmentSessionCollectionResponse',
+    'AndroidEnrollmentSessionRevokeRequest',
+    'AndroidBootstrapExchangeRequest',
+    'AndroidBootstrapExchangeResponse',
+  ]
+
+  for (const path of retiredPaths) {
+    assert.equal(
+      parsedContract.paths[path],
+      undefined,
+      `${path} must be absent`
+    )
+  }
+
+  for (const schema of retiredSchemas) {
+    assert.equal(
+      parsedContract.components.schemas[schema],
+      undefined,
+      `${schema} must be absent`
+    )
+  }
+
+  assert.doesNotMatch(serialized, /managed_android_enrollment/)
+})
+
+test('advances the bootstrap schema revision for the retired feature flag', () => {
+  const schemaVersions = []
+
+  function collectSchemaVersions(candidate) {
+    if (Array.isArray(candidate)) {
+      for (const item of candidate) {
+        collectSchemaVersions(item)
+      }
+
+      return
+    }
+
+    if (candidate === null || typeof candidate !== 'object') {
+      return
+    }
+
+    for (const [key, value] of Object.entries(candidate)) {
+      if (key === 'schema_version' && Number.isInteger(value)) {
+        schemaVersions.push(value)
+      }
+
+      collectSchemaVersions(value)
+    }
+  }
+
+  collectSchemaVersions(parsedContract)
+
+  assert.ok(schemaVersions.length > 0, 'expected schema_version examples')
+  assert.deepEqual([...new Set(schemaVersions)], [4])
+  assert.equal(
+    parsedContract.components.schemas.BootstrapCompatibility.properties
+      .schema_version.example,
+    4
+  )
+  assert.equal(
+    parsedContract.components.schemas.NotificationRuntimeState.properties
+      .schema_version.example,
+    4
+  )
+  assert.equal(
+    parsedContract.components.schemas.NotificationRuntimeStateConflictDetails
+      .properties.schema_version.example,
+    4
+  )
+})
+
+test('preserves the public Android release metadata contracts', () => {
+  const schemas = parsedContract.components.schemas
+  const latestPath =
+    parsedContract.paths['/android/channels/{channel}/latest.json']
+  const versionedPath =
+    parsedContract.paths['/android/releases/{version}/metadata.json']
+
+  assert.deepEqual(schemas.AndroidReleaseChannel.enum, [
+    'managed_device',
+    'direct_apk',
+    'github_release',
+    'obtainium',
+  ])
+
+  assert.equal(latestPath.get.operationId, 'getLatestAndroidReleaseMetadata')
+  assert.deepEqual(latestPath.get.tags, ['Android Distribution'])
+  assert.deepEqual(latestPath.get.security, [])
+  assert.equal(
+    latestPath.get.responses['200'].content['application/json'].schema.$ref,
+    '#/components/schemas/AndroidLatestReleaseMetadataResponse'
+  )
+  assert.deepEqual(Object.keys(latestPath.get.responses), [
+    '200',
+    '404',
+    '429',
+    '500',
+  ])
+
+  assert.equal(
+    versionedPath.get.operationId,
+    'getVersionedAndroidReleaseMetadata'
+  )
+  assert.deepEqual(versionedPath.get.tags, ['Android Distribution'])
+  assert.deepEqual(versionedPath.get.security, [])
+  assert.equal(
+    versionedPath.get.responses['200'].content['application/json'].schema.$ref,
+    '#/components/schemas/AndroidVersionedReleaseMetadataResponse'
+  )
+  assert.deepEqual(Object.keys(versionedPath.get.responses), [
+    '200',
+    '404',
+    '429',
+    '500',
+  ])
+
+  assert.equal(
+    schemas.AndroidLatestReleaseMetadataResponse.properties.data.$ref,
+    '#/components/schemas/AndroidLatestReleaseMetadata'
+  )
+  assert.equal(
+    schemas.AndroidVersionedReleaseMetadataResponse.properties.data.$ref,
+    '#/components/schemas/AndroidVersionedReleaseMetadata'
+  )
+})
+
 test('rejects EmployeeResource response field inventory drift', () => {
   const mutations = [
     (candidate) =>
