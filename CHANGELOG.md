@@ -79,9 +79,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** Removed the obsolete Android enrollment-session, provisioning
   QR/profile, and bootstrap-token exchange contracts from `docs/openapi.yaml`,
   including their enrollment-only `update_channel` fields and the public
-  `managed_android_enrollment` bootstrap feature flag. Existing Android
-  distribution metadata remains available through the release paths on
-  `apk.secpal.app` (closes #398; rollout: SecPal/api#1353, SecPal/android#426).
+  `managed_android_enrollment` bootstrap feature flag. Advanced the canonical
+  bootstrap `schema_version` from `3` to `4` so clients can reject the retired
+  response shape deterministically. Existing Android distribution metadata
+  remains available through the release paths on `apk.secpal.app` (closes #398;
+  rollout: SecPal/.github#586 requires consumers to adopt schema revision 4
+  before SecPal/api#1353, followed by SecPal/android#426).
 - Extended the canonical Prettier validation and formatting commands to cover
   repository JavaScript and MJS policy scripts, preventing formatting drift
   (closes #380).

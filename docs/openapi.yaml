@@ -4161,7 +4161,7 @@ components:
         schema_version:
           type: integer
           minimum: 1
-          example: 3
+          example: 4
         metadata_revision:
           type: integer
           minimum: 1
@@ -4489,7 +4489,7 @@ components:
         schema_version:
           type: integer
           minimum: 1
-          example: 3
+          example: 4
         channel:
           $ref: '#/components/schemas/NotificationChannel'
         provided_metadata_revision:
@@ -4580,7 +4580,7 @@ components:
           type: integer
           minimum: 1
           description: Monotonic schema revision within the canonical `bootstrap_version` surface.
-          example: 3
+          example: 4
         minimum_supported_app_version:
           type: string
           maxLength: 50
@@ -6656,7 +6656,7 @@ components:
                 code: NOTIFICATION_RUNTIME_STATE_INVALID
                 details:
                   bootstrap_version: v1
-                  schema_version: 3
+                  schema_version: 4
                   channel: android_fcm
                   provided_metadata_revision: 2
                   expected_metadata_revision: 3
@@ -6667,7 +6667,7 @@ components:
                 code: NOTIFICATION_RUNTIME_STATE_INVALID
                 details:
                   bootstrap_version: v1
-                  schema_version: 3
+                  schema_version: 4
                   channel: web_push
                   provided_metadata_revision: 4
                   expected_metadata_revision: 5
@@ -7448,7 +7448,7 @@ paths:
                   lifecycle_event: registered
                   runtime:
                     bootstrap_version: v1
-                    schema_version: 3
+                    schema_version: 4
                     metadata_revision: 3
                   registration:
                     push_token: 'e6pGmJq4Yk12:APA91bH8mP7rQ6sT5uV4wX3yZ2aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890abcdef'
@@ -7469,7 +7469,7 @@ paths:
                   lifecycle_event: registered
                   runtime:
                     bootstrap_version: v1
-                    schema_version: 3
+                    schema_version: 4
                     metadata_revision: 5
                   registration:
                     browser:
@@ -7511,7 +7511,7 @@ paths:
                           sdk_int: 36
                       runtime:
                         bootstrap_version: v1
-                        schema_version: 3
+                        schema_version: 4
                         metadata_revision: 3
                       created_at: '2026-05-23T11:30:00Z'
                       updated_at: '2026-05-23T11:45:00Z'
@@ -7533,7 +7533,7 @@ paths:
                         subscription_expires_at: '2026-06-23T11:30:00Z'
                       runtime:
                         bootstrap_version: v1
-                        schema_version: 3
+                        schema_version: 4
                         metadata_revision: 5
                       created_at: '2026-05-23T14:15:00Z'
                       updated_at: '2026-05-23T14:25:00Z'
@@ -7565,7 +7565,7 @@ paths:
                           sdk_int: 36
                       runtime:
                         bootstrap_version: v1
-                        schema_version: 3
+                        schema_version: 4
                         metadata_revision: 3
                       created_at: '2026-05-23T11:30:00Z'
                       updated_at: '2026-05-23T11:30:00Z'
@@ -7587,7 +7587,7 @@ paths:
                         subscription_expires_at: '2026-06-23T11:30:00Z'
                       runtime:
                         bootstrap_version: v1
-                        schema_version: 3
+                        schema_version: 4
                         metadata_revision: 5
                       created_at: '2026-05-23T14:15:00Z'
                       updated_at: '2026-05-23T14:15:00Z'
@@ -12501,7 +12501,7 @@ paths:
                         display_name: SecPal Demo
                       compatibility:
                         bootstrap_version: v1
-                        schema_version: 3
+                        schema_version: 4
                         minimum_supported_app_version: 1.4.0
                         minimum_supported_app_build: 10400
                       features:
@@ -12534,7 +12534,7 @@ paths:
                         display_name: SecPal Demo
                       compatibility:
                         bootstrap_version: v1
-                        schema_version: 3
+                        schema_version: 4
                         minimum_supported_app_version: 1.4.0
                         minimum_supported_app_build: 10400
                       features:
