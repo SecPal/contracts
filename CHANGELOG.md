@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Pinned the transitive `brace-expansion` v5 dependency to 5.0.7 to remediate
+  its exponential-time expansion denial-of-service vulnerability (closes #50).
+
 ### Added
 
 - Completed the `Employee` response contract with every field emitted by
