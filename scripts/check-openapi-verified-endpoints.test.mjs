@@ -88,6 +88,52 @@ test('accepts the repository contract', () => {
   assert.equal(result.status, 0, result.stderr)
 })
 
+test('omits retired Android enrollment and provisioning contracts', () => {
+  const serialized = JSON.stringify(parsedContract)
+  const retiredPaths = [
+    '/android-enrollment-sessions',
+    '/android-enrollment-sessions/{session}',
+    '/android-enrollment-sessions/{session}/revoke',
+    '/android/bootstrap/exchange',
+  ]
+  const retiredSchemas = [
+    'AndroidEnrollmentMode',
+    'AndroidEnrollmentSessionStatus',
+    'AndroidProvisioningProfile',
+    'AndroidEnrollmentSession',
+    'AndroidProvisioningOperatorExtras',
+    'AndroidProvisioningQrPayload',
+    'AndroidEnrollmentSessionCreateRequest',
+    'AndroidEnrollmentSessionResponse',
+    'AndroidEnrollmentSessionCreateResponse',
+    'AndroidEnrollmentSessionCollectionResponse',
+    'AndroidEnrollmentSessionRevokeRequest',
+    'AndroidBootstrapExchangeRequest',
+    'AndroidBootstrapExchangeResponse',
+  ]
+
+  for (const path of retiredPaths) {
+    assert.equal(
+      parsedContract.paths[path],
+      undefined,
+      `${path} must be absent`
+    )
+  }
+
+  for (const schema of retiredSchemas) {
+    assert.equal(
+      parsedContract.components.schemas[schema],
+      undefined,
+      `${schema} must be absent`
+    )
+  }
+
+  assert.doesNotMatch(serialized, /managed_android_enrollment/)
+  assert.ok(parsedContract.paths['/android/channels/{channel}/latest.json'])
+  assert.ok(parsedContract.paths['/android/releases/{version}/metadata.json'])
+  assert.ok(parsedContract.components.schemas.AndroidReleaseChannel)
+})
+
 test('rejects EmployeeResource response field inventory drift', () => {
   const mutations = [
     (candidate) =>
