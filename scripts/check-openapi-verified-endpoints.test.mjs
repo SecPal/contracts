@@ -168,8 +168,55 @@ const invalidSchemaVersionValues = [
   { value: 4 },
 ]
 
-test('permits exactly integer schema 4 for every runtime schema version', () => {
+function collectSchemaVersions(candidate) {
   const schemaVersions = []
+  const notificationInstallation =
+    candidate.paths['/me/notification-installations/{installationId}']?.put
+  const canonicalExampleCollections = [
+    candidate.components.responses.NotificationInstallationConflict?.content[
+      'application/json'
+    ]?.examples,
+    notificationInstallation?.requestBody?.content?.['application/json']
+      ?.examples,
+    notificationInstallation?.responses?.['200']?.content?.['application/json']
+      ?.examples,
+    notificationInstallation?.responses?.['201']?.content?.['application/json']
+      ?.examples,
+    candidate.paths['/bootstrap']?.get?.responses?.['200']?.content?.[
+      'application/json'
+    ]?.examples,
+  ]
+
+  function visit(value) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        visit(item)
+      }
+
+      return
+    }
+
+    if (value === null || typeof value !== 'object') {
+      return
+    }
+
+    for (const [key, nestedValue] of Object.entries(value)) {
+      if (key === 'schema_version' && Number.isInteger(nestedValue)) {
+        schemaVersions.push(nestedValue)
+      }
+
+      visit(nestedValue)
+    }
+  }
+
+  for (const examples of canonicalExampleCollections) {
+    visit(examples)
+  }
+
+  return schemaVersions
+}
+
+test('permits exactly integer schema 4 for every runtime schema version', () => {
   const schemaVersionProperties = [
     parsedContract.components.schemas.NotificationRuntimeState.properties
       .schema_version,
@@ -178,29 +225,7 @@ test('permits exactly integer schema 4 for every runtime schema version', () => 
     parsedContract.components.schemas.BootstrapCompatibility.properties
       .schema_version,
   ]
-  function collectSchemaVersions(candidate) {
-    if (Array.isArray(candidate)) {
-      for (const item of candidate) {
-        collectSchemaVersions(item)
-      }
-
-      return
-    }
-
-    if (candidate === null || typeof candidate !== 'object') {
-      return
-    }
-
-    for (const [key, value] of Object.entries(candidate)) {
-      if (key === 'schema_version' && Number.isInteger(value)) {
-        schemaVersions.push(value)
-      }
-
-      collectSchemaVersions(value)
-    }
-  }
-
-  collectSchemaVersions(parsedContract)
+  const schemaVersions = collectSchemaVersions(parsedContract)
 
   assert.ok(schemaVersions.length > 0, 'expected schema_version examples')
   assert.deepEqual([...new Set(schemaVersions)], [4])
@@ -219,6 +244,13 @@ test('permits exactly integer schema 4 for every runtime schema version', () => 
       )
     }
   }
+})
+
+test('limits the schema-version inventory to canonical runtime examples', () => {
+  const candidate = structuredClone(parsedContract)
+  candidate.info['x-unrelated-contract'] = { schema_version: 3 }
+
+  assert.deepEqual([...new Set(collectSchemaVersions(candidate))], [4])
 })
 
 test('rejects every noncanonical schema-version value in endpoint examples', () => {
