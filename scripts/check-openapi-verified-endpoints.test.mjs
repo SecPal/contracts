@@ -131,50 +131,233 @@ test('omits retired Android enrollment and provisioning contracts', () => {
   assert.doesNotMatch(serialized, /managed_android_enrollment/)
 })
 
-test('advances the bootstrap schema revision for the retired feature flag', () => {
+function schemaVersionValueIsValid(schema, value) {
+  if (schema?.type === 'integer' && !Number.isInteger(value)) {
+    return false
+  }
+
+  if (Object.hasOwn(schema ?? {}, 'const') && schema.const !== value) {
+    return false
+  }
+
+  if (schema?.enum && !schema.enum.includes(value)) {
+    return false
+  }
+
+  if (schema?.minimum !== undefined && value < schema.minimum) {
+    return false
+  }
+
+  if (schema?.maximum !== undefined && value > schema.maximum) {
+    return false
+  }
+
+  return true
+}
+
+const invalidSchemaVersionValues = [
+  3,
+  1,
+  5,
+  -1,
+  4.5,
+  '4',
+  null,
+  true,
+  [4],
+  { value: 4 },
+]
+
+function collectSchemaVersions(candidate) {
   const schemaVersions = []
+  const notificationInstallation =
+    candidate.paths['/me/notification-installations/{installationId}']?.put
+  const canonicalExampleCollections = [
+    candidate.components.responses.NotificationInstallationConflict?.content[
+      'application/json'
+    ]?.examples,
+    notificationInstallation?.requestBody?.content?.['application/json']
+      ?.examples,
+    notificationInstallation?.responses?.['200']?.content?.['application/json']
+      ?.examples,
+    notificationInstallation?.responses?.['201']?.content?.['application/json']
+      ?.examples,
+    candidate.paths['/bootstrap']?.get?.responses?.['200']?.content?.[
+      'application/json'
+    ]?.examples,
+  ]
 
-  function collectSchemaVersions(candidate) {
-    if (Array.isArray(candidate)) {
-      for (const item of candidate) {
-        collectSchemaVersions(item)
+  function visit(value) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        visit(item)
       }
 
       return
     }
 
-    if (candidate === null || typeof candidate !== 'object') {
+    if (value === null || typeof value !== 'object') {
       return
     }
 
-    for (const [key, value] of Object.entries(candidate)) {
-      if (key === 'schema_version' && Number.isInteger(value)) {
-        schemaVersions.push(value)
+    for (const [key, nestedValue] of Object.entries(value)) {
+      if (key === 'schema_version' && Number.isInteger(nestedValue)) {
+        schemaVersions.push(nestedValue)
       }
 
-      collectSchemaVersions(value)
+      visit(nestedValue)
     }
   }
 
-  collectSchemaVersions(parsedContract)
+  for (const examples of canonicalExampleCollections) {
+    visit(examples)
+  }
+
+  return schemaVersions
+}
+
+test('permits exactly integer schema 4 for every runtime schema version', () => {
+  const schemaVersionProperties = [
+    parsedContract.components.schemas.NotificationRuntimeState.properties
+      .schema_version,
+    parsedContract.components.schemas.NotificationRuntimeStateConflictDetails
+      .properties.schema_version,
+    parsedContract.components.schemas.BootstrapCompatibility.properties
+      .schema_version,
+  ]
+  const schemaVersions = collectSchemaVersions(parsedContract)
 
   assert.ok(schemaVersions.length > 0, 'expected schema_version examples')
   assert.deepEqual([...new Set(schemaVersions)], [4])
-  assert.equal(
-    parsedContract.components.schemas.BootstrapCompatibility.properties
-      .schema_version.example,
-    4
-  )
-  assert.equal(
-    parsedContract.components.schemas.NotificationRuntimeState.properties
-      .schema_version.example,
-    4
-  )
-  assert.equal(
-    parsedContract.components.schemas.NotificationRuntimeStateConflictDetails
-      .properties.schema_version.example,
-    4
-  )
+
+  for (const schema of schemaVersionProperties) {
+    assert.equal(schema.type, 'integer')
+    assert.equal(schema.const, 4)
+    assert.equal(schema.example, 4)
+    assert.equal(schemaVersionValueIsValid(schema, 4), true)
+
+    for (const invalidValue of invalidSchemaVersionValues) {
+      assert.equal(
+        schemaVersionValueIsValid(schema, invalidValue),
+        false,
+        `schema_version must reject ${JSON.stringify(invalidValue)}`
+      )
+    }
+  }
+})
+
+test('limits the schema-version inventory to canonical runtime examples', () => {
+  const candidate = structuredClone(parsedContract)
+  candidate.info['x-unrelated-contract'] = { schema_version: 3 }
+
+  assert.deepEqual([...new Set(collectSchemaVersions(candidate))], [4])
+})
+
+test('rejects every noncanonical schema-version value in endpoint examples', () => {
+  for (const invalidValue of invalidSchemaVersionValues) {
+    const candidate = structuredClone(parsedContract)
+    candidate.paths[
+      '/me/notification-installations/{installationId}'
+    ].put.requestBody.content[
+      'application/json'
+    ].examples.androidFcmRegistered.value.runtime.schema_version = invalidValue
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(
+      result.status,
+      0,
+      `schema_version ${JSON.stringify(invalidValue)}: ${result.stdout}`
+    )
+    assert.match(result.stderr, /schema version/i)
+  }
+})
+
+test('rejects schema 3 in every canonical example surface', () => {
+  const mutations = [
+    (candidate) => {
+      candidate.components.responses.NotificationInstallationConflict.content[
+        'application/json'
+      ].examples.staleAndroidFcmRuntime.value.details.schema_version = 3
+    },
+    (candidate) => {
+      candidate.paths[
+        '/me/notification-installations/{installationId}'
+      ].put.requestBody.content[
+        'application/json'
+      ].examples.androidFcmRegistered.value.runtime.schema_version = 3
+    },
+    (candidate) => {
+      candidate.paths[
+        '/me/notification-installations/{installationId}'
+      ].put.responses['200'].content[
+        'application/json'
+      ].examples.androidFcmCredentialRotated.value.data.runtime.schema_version =
+        3
+    },
+    (candidate) => {
+      candidate.paths[
+        '/me/notification-installations/{installationId}'
+      ].put.responses['201'].content[
+        'application/json'
+      ].examples.androidFcmRegistered.value.data.runtime.schema_version = 3
+    },
+    (candidate) => {
+      candidate.paths['/bootstrap'].get.responses['200'].content[
+        'application/json'
+      ].examples.supportedAndroidClient.value.data.compatibility.schema_version =
+        3
+    },
+  ]
+
+  for (const mutate of mutations) {
+    const candidate = structuredClone(parsedContract)
+    mutate(candidate)
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, result.stdout)
+    assert.match(result.stderr, /schema version/i)
+  }
+})
+
+test('ignores schema-version values outside the canonical runtime surfaces', () => {
+  const candidate = structuredClone(parsedContract)
+  candidate.info['x-unrelated-contract'] = {
+    schema_version: 3,
+  }
+
+  const result = runGuard(yaml.dump(candidate))
+
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('rejects noncanonical runtime schema-version constraints', () => {
+  const schemaNames = [
+    'NotificationRuntimeState',
+    'NotificationRuntimeStateConflictDetails',
+    'BootstrapCompatibility',
+  ]
+  const mutations = [
+    (schema) => (schema.const = 3),
+    (schema) => delete schema.const,
+    (schema) => (schema.type = 'number'),
+    (schema) => (schema.example = 3),
+    (schema) => (schema.maximum = 3),
+    (schema) => (schema.not = { const: 4 }),
+  ]
+
+  for (const schemaName of schemaNames) {
+    for (const mutate of mutations) {
+      const candidate = structuredClone(parsedContract)
+      mutate(candidate.components.schemas[schemaName].properties.schema_version)
+
+      const result = runGuard(yaml.dump(candidate))
+
+      assert.notEqual(result.status, 0, `${schemaName}: ${result.stdout}`)
+      assert.match(result.stderr, /schema version/i)
+    }
+  }
 })
 
 test('preserves the public Android release metadata contracts', () => {
