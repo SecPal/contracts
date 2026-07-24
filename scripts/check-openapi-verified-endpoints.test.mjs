@@ -241,6 +241,65 @@ test('rejects every noncanonical schema-version value in endpoint examples', () 
   }
 })
 
+test('rejects schema 3 in every canonical example surface', () => {
+  const mutations = [
+    (candidate) => {
+      candidate.components.responses.NotificationInstallationConflict.content[
+        'application/json'
+      ].examples.staleAndroidFcmRuntime.value.details.schema_version = 3
+    },
+    (candidate) => {
+      candidate.paths[
+        '/me/notification-installations/{installationId}'
+      ].put.requestBody.content[
+        'application/json'
+      ].examples.androidFcmRegistered.value.runtime.schema_version = 3
+    },
+    (candidate) => {
+      candidate.paths[
+        '/me/notification-installations/{installationId}'
+      ].put.responses['200'].content[
+        'application/json'
+      ].examples.androidFcmCredentialRotated.value.data.runtime.schema_version =
+        3
+    },
+    (candidate) => {
+      candidate.paths[
+        '/me/notification-installations/{installationId}'
+      ].put.responses['201'].content[
+        'application/json'
+      ].examples.androidFcmRegistered.value.data.runtime.schema_version = 3
+    },
+    (candidate) => {
+      candidate.paths['/bootstrap'].get.responses['200'].content[
+        'application/json'
+      ].examples.supportedAndroidClient.value.data.compatibility.schema_version =
+        3
+    },
+  ]
+
+  for (const mutate of mutations) {
+    const candidate = structuredClone(parsedContract)
+    mutate(candidate)
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, result.stdout)
+    assert.match(result.stderr, /schema version/i)
+  }
+})
+
+test('ignores schema-version values outside the canonical runtime surfaces', () => {
+  const candidate = structuredClone(parsedContract)
+  candidate.info['x-unrelated-contract'] = {
+    schema_version: 3,
+  }
+
+  const result = runGuard(yaml.dump(candidate))
+
+  assert.equal(result.status, 0, result.stderr)
+})
+
 test('rejects noncanonical runtime schema-version constraints', () => {
   const schemaNames = [
     'NotificationRuntimeState',
@@ -252,6 +311,8 @@ test('rejects noncanonical runtime schema-version constraints', () => {
     (schema) => delete schema.const,
     (schema) => (schema.type = 'number'),
     (schema) => (schema.example = 3),
+    (schema) => (schema.maximum = 3),
+    (schema) => (schema.not = { const: 4 }),
   ]
 
   for (const schemaName of schemaNames) {

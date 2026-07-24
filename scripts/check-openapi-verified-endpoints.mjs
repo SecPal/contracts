@@ -129,31 +129,35 @@ const canonicalSchemaVersionComponents = [
   'NotificationRuntimeStateConflictDetails',
   'BootstrapCompatibility',
 ]
+const canonicalSchemaVersionSchemaKeywords = new Set([
+  'type',
+  'const',
+  'description',
+  'example',
+])
 
 for (const schemaName of canonicalSchemaVersionComponents) {
   const schemaVersion = schemas[schemaName]?.properties?.schema_version
+  const unexpectedKeywords = Object.keys(schemaVersion ?? {}).filter(
+    (keyword) => !canonicalSchemaVersionSchemaKeywords.has(keyword)
+  )
 
   if (
     schemaVersion?.type !== 'integer' ||
     schemaVersion?.const !== 4 ||
-    schemaVersion?.example !== 4
+    schemaVersion?.example !== 4 ||
+    unexpectedKeywords.length > 0
   ) {
     contractErrors.push(
-      `${schemaName}.schema_version must define canonical schema version integer 4 as its only valid value and example.`
+      `${schemaName}.schema_version must define canonical schema version integer 4 as its only valid value and example, without additional validation constraints.`
     )
   }
 }
 
-const canonicalSchemaVersionDefinitions = new Set(
-  canonicalSchemaVersionComponents.map(
-    (schemaName) => schemas[schemaName]?.properties?.schema_version
-  )
-)
-
-function verifyCanonicalSchemaVersionValues(candidate) {
+function verifyCanonicalSchemaVersionExampleValues(candidate) {
   if (Array.isArray(candidate)) {
     for (const item of candidate) {
-      verifyCanonicalSchemaVersionValues(item)
+      verifyCanonicalSchemaVersionExampleValues(item)
     }
 
     return
@@ -164,21 +168,34 @@ function verifyCanonicalSchemaVersionValues(candidate) {
   }
 
   for (const [key, value] of Object.entries(candidate)) {
-    if (
-      key === 'schema_version' &&
-      !canonicalSchemaVersionDefinitions.has(value) &&
-      value !== 4
-    ) {
+    if (key === 'schema_version' && value !== 4) {
       contractErrors.push(
         'Every concrete runtime and bootstrap schema version value must be integer 4.'
       )
     }
 
-    verifyCanonicalSchemaVersionValues(value)
+    verifyCanonicalSchemaVersionExampleValues(value)
   }
 }
 
-verifyCanonicalSchemaVersionValues(doc)
+const notificationInstallation =
+  paths['/me/notification-installations/{installationId}']?.put
+const canonicalSchemaVersionExampleCollections = [
+  responses.NotificationInstallationConflict?.content?.['application/json']
+    ?.examples,
+  notificationInstallation?.requestBody?.content?.['application/json']
+    ?.examples,
+  notificationInstallation?.responses?.['200']?.content?.['application/json']
+    ?.examples,
+  notificationInstallation?.responses?.['201']?.content?.['application/json']
+    ?.examples,
+  paths['/bootstrap']?.get?.responses?.['200']?.content?.['application/json']
+    ?.examples,
+]
+
+for (const examples of canonicalSchemaVersionExampleCollections) {
+  verifyCanonicalSchemaVersionExampleValues(examples)
+}
 
 const parameterRefPrefix = '#/components/parameters/'
 const resolveParameter = (parameter) => {
