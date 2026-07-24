@@ -6,7 +6,8 @@
  * Regression guard: fail if docs/openapi.yaml omits verified API operations
  * or regresses their critical contract invariants (email verification resend +
  * German address reference data + employee documents + qualification catalog +
- * employee qualifications + organizational units + employee compliance alerts).
+ * employee qualifications + organizational units + employee compliance alerts +
+ * canonical schema-4 bootstrap and notification runtime metadata).
  *
  * Usage: node scripts/check-openapi-verified-endpoints.mjs <path-to-openapi.yaml>
  */
@@ -122,6 +123,62 @@ const organizationalUnitListParameters =
   paths['/organizational-units']?.get?.parameters ?? []
 const employeeComplianceAlerts = paths['/employees/compliance-alerts']?.get
 const contractErrors = []
+
+const canonicalSchemaVersionComponents = [
+  'NotificationRuntimeState',
+  'NotificationRuntimeStateConflictDetails',
+  'BootstrapCompatibility',
+]
+
+for (const schemaName of canonicalSchemaVersionComponents) {
+  const schemaVersion = schemas[schemaName]?.properties?.schema_version
+
+  if (
+    schemaVersion?.type !== 'integer' ||
+    schemaVersion?.const !== 4 ||
+    schemaVersion?.example !== 4
+  ) {
+    contractErrors.push(
+      `${schemaName}.schema_version must define canonical schema version integer 4 as its only valid value and example.`
+    )
+  }
+}
+
+const canonicalSchemaVersionDefinitions = new Set(
+  canonicalSchemaVersionComponents.map(
+    (schemaName) => schemas[schemaName]?.properties?.schema_version
+  )
+)
+
+function verifyCanonicalSchemaVersionValues(candidate) {
+  if (Array.isArray(candidate)) {
+    for (const item of candidate) {
+      verifyCanonicalSchemaVersionValues(item)
+    }
+
+    return
+  }
+
+  if (candidate === null || typeof candidate !== 'object') {
+    return
+  }
+
+  for (const [key, value] of Object.entries(candidate)) {
+    if (
+      key === 'schema_version' &&
+      !canonicalSchemaVersionDefinitions.has(value) &&
+      value !== 4
+    ) {
+      contractErrors.push(
+        'Every concrete runtime and bootstrap schema version value must be integer 4.'
+      )
+    }
+
+    verifyCanonicalSchemaVersionValues(value)
+  }
+}
+
+verifyCanonicalSchemaVersionValues(doc)
 
 const parameterRefPrefix = '#/components/parameters/'
 const resolveParameter = (parameter) => {

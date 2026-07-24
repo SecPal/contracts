@@ -131,9 +131,53 @@ test('omits retired Android enrollment and provisioning contracts', () => {
   assert.doesNotMatch(serialized, /managed_android_enrollment/)
 })
 
-test('advances the bootstrap schema revision for the retired feature flag', () => {
-  const schemaVersions = []
+function schemaVersionValueIsValid(schema, value) {
+  if (schema?.type === 'integer' && !Number.isInteger(value)) {
+    return false
+  }
 
+  if (Object.hasOwn(schema ?? {}, 'const') && schema.const !== value) {
+    return false
+  }
+
+  if (schema?.enum && !schema.enum.includes(value)) {
+    return false
+  }
+
+  if (schema?.minimum !== undefined && value < schema.minimum) {
+    return false
+  }
+
+  if (schema?.maximum !== undefined && value > schema.maximum) {
+    return false
+  }
+
+  return true
+}
+
+const invalidSchemaVersionValues = [
+  3,
+  1,
+  5,
+  -1,
+  4.5,
+  '4',
+  null,
+  true,
+  [4],
+  { value: 4 },
+]
+
+test('permits exactly integer schema 4 for every runtime schema version', () => {
+  const schemaVersions = []
+  const schemaVersionProperties = [
+    parsedContract.components.schemas.NotificationRuntimeState.properties
+      .schema_version,
+    parsedContract.components.schemas.NotificationRuntimeStateConflictDetails
+      .properties.schema_version,
+    parsedContract.components.schemas.BootstrapCompatibility.properties
+      .schema_version,
+  ]
   function collectSchemaVersions(candidate) {
     if (Array.isArray(candidate)) {
       for (const item of candidate) {
@@ -160,21 +204,67 @@ test('advances the bootstrap schema revision for the retired feature flag', () =
 
   assert.ok(schemaVersions.length > 0, 'expected schema_version examples')
   assert.deepEqual([...new Set(schemaVersions)], [4])
-  assert.equal(
-    parsedContract.components.schemas.BootstrapCompatibility.properties
-      .schema_version.example,
-    4
-  )
-  assert.equal(
-    parsedContract.components.schemas.NotificationRuntimeState.properties
-      .schema_version.example,
-    4
-  )
-  assert.equal(
-    parsedContract.components.schemas.NotificationRuntimeStateConflictDetails
-      .properties.schema_version.example,
-    4
-  )
+
+  for (const schema of schemaVersionProperties) {
+    assert.equal(schema.type, 'integer')
+    assert.equal(schema.const, 4)
+    assert.equal(schema.example, 4)
+    assert.equal(schemaVersionValueIsValid(schema, 4), true)
+
+    for (const invalidValue of invalidSchemaVersionValues) {
+      assert.equal(
+        schemaVersionValueIsValid(schema, invalidValue),
+        false,
+        `schema_version must reject ${JSON.stringify(invalidValue)}`
+      )
+    }
+  }
+})
+
+test('rejects every noncanonical schema-version value in endpoint examples', () => {
+  for (const invalidValue of invalidSchemaVersionValues) {
+    const candidate = structuredClone(parsedContract)
+    candidate.paths[
+      '/me/notification-installations/{installationId}'
+    ].put.requestBody.content[
+      'application/json'
+    ].examples.androidFcmRegistered.value.runtime.schema_version = invalidValue
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(
+      result.status,
+      0,
+      `schema_version ${JSON.stringify(invalidValue)}: ${result.stdout}`
+    )
+    assert.match(result.stderr, /schema version/i)
+  }
+})
+
+test('rejects noncanonical runtime schema-version constraints', () => {
+  const schemaNames = [
+    'NotificationRuntimeState',
+    'NotificationRuntimeStateConflictDetails',
+    'BootstrapCompatibility',
+  ]
+  const mutations = [
+    (schema) => (schema.const = 3),
+    (schema) => delete schema.const,
+    (schema) => (schema.type = 'number'),
+    (schema) => (schema.example = 3),
+  ]
+
+  for (const schemaName of schemaNames) {
+    for (const mutate of mutations) {
+      const candidate = structuredClone(parsedContract)
+      mutate(candidate.components.schemas[schemaName].properties.schema_version)
+
+      const result = runGuard(yaml.dump(candidate))
+
+      assert.notEqual(result.status, 0, `${schemaName}: ${result.stdout}`)
+      assert.match(result.stderr, /schema version/i)
+    }
+  }
 })
 
 test('preserves the public Android release metadata contracts', () => {

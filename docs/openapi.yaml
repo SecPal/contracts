@@ -4160,7 +4160,8 @@ components:
           $ref: '#/components/schemas/BootstrapVersion'
         schema_version:
           type: integer
-          minimum: 1
+          const: 4
+          description: Canonical notification runtime schema revision. No other schema revision is supported.
           example: 4
         metadata_revision:
           type: integer
@@ -4488,7 +4489,8 @@ components:
           $ref: '#/components/schemas/BootstrapVersion'
         schema_version:
           type: integer
-          minimum: 1
+          const: 4
+          description: Canonical notification runtime schema revision. No other schema revision is supported.
           example: 4
         channel:
           $ref: '#/components/schemas/NotificationChannel'
@@ -4578,8 +4580,8 @@ components:
           $ref: '#/components/schemas/BootstrapVersion'
         schema_version:
           type: integer
-          minimum: 1
-          description: Monotonic schema revision within the canonical `bootstrap_version` surface.
+          const: 4
+          description: Canonical schema revision for the `bootstrap_version` surface. No other schema revision is supported.
           example: 4
         minimum_supported_app_version:
           type: string
