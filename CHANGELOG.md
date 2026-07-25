@@ -14,8 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- Pinned the transitive `brace-expansion` v5 dependency to 5.0.7 to remediate
-  its exponential-time expansion denial-of-service vulnerability.
+- Pinned the transitive `brace-expansion` v5 dependency to 5.0.8 to remediate
+  its unbounded-expansion memory denial-of-service vulnerability.
 
 ### Added
 

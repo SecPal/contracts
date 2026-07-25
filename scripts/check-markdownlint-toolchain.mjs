@@ -170,6 +170,21 @@ export function validateMarkdownlintVersion({ packageJson, packageLock }) {
   )
 }
 
+export function validateBraceExpansionOverride({ packageJson, packageLock }) {
+  const override = packageJson.overrides?.['brace-expansion@^5'] ?? ''
+  requireInvariant(
+    EXACT_VERSION_PATTERN.test(override),
+    `package.json must pin brace-expansion@^5 to an exact version, found ${override || 'missing'}.`
+  )
+
+  const lockedVersion =
+    packageLock.packages?.['node_modules/brace-expansion']?.version ?? ''
+  requireInvariant(
+    lockedVersion === override,
+    `package-lock.json must resolve brace-expansion to ${override}, found ${lockedVersion || 'missing'}.`
+  )
+}
+
 export function validateSetupScript(setupScript) {
   const rootDirChangeIndex = setupScript.search(/^cd "\$ROOT_DIR"$/m)
   requireInvariant(
@@ -211,6 +226,7 @@ const setupScript = readFileSync(
 
 try {
   validatePrettierToolchain({ packageJson, packageLock, preCommitConfig })
+  validateBraceExpansionOverride({ packageJson, packageLock })
   validateMarkdownlintVersion({ packageJson, packageLock })
   validateMarkdownlintToolchain(preCommitConfig)
   validateSetupScript(setupScript)
