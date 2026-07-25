@@ -81,6 +81,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Cleaned up verified-endpoint guard temporary directories when candidate-file
+  creation fails (closes #406).
 - **Breaking:** Removed the obsolete Android enrollment-session, provisioning
   QR/profile, and bootstrap-token exchange contracts from `docs/openapi.yaml`,
   including their enrollment-only `update_channel` fields and the public
