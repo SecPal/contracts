@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 import {
+  validateBraceExpansionOverride,
   validateMarkdownlintToolchain,
   validateMarkdownlintVersion,
   validatePrettierToolchain,
@@ -19,6 +20,7 @@ const packageLock = JSON.parse(
   readFileSync(new URL('../package-lock.json', import.meta.url), 'utf8')
 )
 const markdownlintVersion = packageJson.devDependencies['markdownlint-cli']
+const braceExpansionVersion = packageJson.overrides['brace-expansion@^5']
 const prettierRange = packageJson.devDependencies.prettier
 const lockedPrettierVersion =
   packageLock.packages['node_modules/prettier'].version
@@ -188,6 +190,55 @@ test('rejects a markdownlint lockfile version that differs from package.json', (
         packageLock: lockfile,
       }),
     /must match the package.json pin/
+  )
+})
+
+test('keeps the exact brace-expansion override aligned with the lockfile', () => {
+  assert.doesNotThrow(() =>
+    validateBraceExpansionOverride({
+      packageJson,
+      packageLock,
+    })
+  )
+
+  const mismatchedLockfile = structuredClone(packageLock)
+  mismatchedLockfile.packages['node_modules/brace-expansion'].version =
+    incrementPatch(braceExpansionVersion)
+
+  assert.throws(
+    () =>
+      validateBraceExpansionOverride({
+        packageJson,
+        packageLock: mismatchedLockfile,
+      }),
+    /must resolve brace-expansion/
+  )
+})
+
+test('rejects a missing or non-exact brace-expansion override', () => {
+  const missingOverrideManifest = structuredClone(packageJson)
+  delete missingOverrideManifest.overrides['brace-expansion@^5']
+
+  assert.throws(
+    () =>
+      validateBraceExpansionOverride({
+        packageJson: missingOverrideManifest,
+        packageLock,
+      }),
+    /must pin brace-expansion@\^5 to an exact version/
+  )
+
+  const rangedOverrideManifest = structuredClone(packageJson)
+  rangedOverrideManifest.overrides['brace-expansion@^5'] =
+    `^${braceExpansionVersion}`
+
+  assert.throws(
+    () =>
+      validateBraceExpansionOverride({
+        packageJson: rangedOverrideManifest,
+        packageLock,
+      }),
+    /must pin brace-expansion@\^5 to an exact version/
   )
 })
 
