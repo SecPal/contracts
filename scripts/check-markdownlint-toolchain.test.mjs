@@ -215,6 +215,33 @@ test('keeps the exact brace-expansion override aligned with the lockfile', () =>
   )
 })
 
+test('rejects a missing or non-exact brace-expansion override', () => {
+  const missingOverrideManifest = structuredClone(packageJson)
+  delete missingOverrideManifest.overrides['brace-expansion@^5']
+
+  assert.throws(
+    () =>
+      validateBraceExpansionOverride({
+        packageJson: missingOverrideManifest,
+        packageLock,
+      }),
+    /must pin brace-expansion@\^5 to an exact version/
+  )
+
+  const rangedOverrideManifest = structuredClone(packageJson)
+  rangedOverrideManifest.overrides['brace-expansion@^5'] =
+    `^${braceExpansionVersion}`
+
+  assert.throws(
+    () =>
+      validateBraceExpansionOverride({
+        packageJson: rangedOverrideManifest,
+        packageLock,
+      }),
+    /must pin brace-expansion@\^5 to an exact version/
+  )
+})
+
 test('rejects a commented-out repository-root change', () => {
   const setupScript = `#!/usr/bin/env bash
 ROOT_DIR="$(git rev-parse --show-toplevel)"
