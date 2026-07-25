@@ -103,6 +103,7 @@ test('removes the temporary directory when candidate creation fails', () => {
     /simulated candidate write failure/
   )
 
+  assert.ok(candidatePath, 'expected runGuard to attempt candidate creation')
   assert.equal(existsSync(dirname(candidatePath)), false)
 })
 
