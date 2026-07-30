@@ -30,7 +30,6 @@ credentials/
 .vscode
 
 # Preflight overrides (local only)
-.preflight-allow-large-pr
 
 # Polyscope agent collaboration (local)
 .context/

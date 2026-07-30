@@ -28,7 +28,6 @@ try {
 
 const expectedPermissions = {
   contents: 'read',
-  'pull-requests': 'read',
 }
 
 if (!workflow?.permissions || typeof workflow.permissions !== 'object') {

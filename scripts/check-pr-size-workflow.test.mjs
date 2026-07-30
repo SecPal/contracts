@@ -34,23 +34,17 @@ function runGuard(workflow) {
   }
 }
 
-test('accepts exactly the required read permissions', () => {
-  const result = runGuard(
-    `permissions:\n  contents: read\n  pull-requests: read\n`
-  )
+test('accepts exactly the required read permission', () => {
+  const result = runGuard(`permissions:\n  contents: read\n`)
 
   assert.equal(result.status, 0, result.stderr)
 })
 
 for (const [name, permissions] of [
   ['missing contents', 'pull-requests: read'],
-  ['writable contents', 'contents: write\n  pull-requests: read'],
-  ['missing pull requests', 'contents: read'],
-  ['writable pull requests', 'contents: read\n  pull-requests: write'],
-  [
-    'an unexpected scope',
-    'contents: read\n  pull-requests: read\n  issues: write',
-  ],
+  ['writable contents', 'contents: write'],
+  ['unused pull-request access', 'contents: read\n  pull-requests: read'],
+  ['an unexpected scope', 'contents: read\n  issues: write'],
 ]) {
   test(`rejects ${name}`, () => {
     const workflow = `permissions:\n  ${permissions.replaceAll('\n', '\n  ')}\n`
@@ -63,7 +57,6 @@ for (const [name, permissions] of [
 test('rejects a PR-size job-level permission override', () => {
   const result = runGuard(`permissions:
   contents: read
-  pull-requests: read
 jobs:
   pr-size:
     permissions:
@@ -76,7 +69,6 @@ jobs:
 test('rejects a permission override in another job', () => {
   const result = runGuard(`permissions:
   contents: read
-  pull-requests: read
 jobs:
   pr-size: {}
   unexpected-job:

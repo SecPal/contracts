@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Changed local and hosted pull-request size reporting to treat 600 changed
+  lines as an advisory reviewability threshold, with no override file, approval
+  label, or size-triggered push failure.
+
 ### Security
 
 - Pinned the transitive `brace-expansion` v5 dependency to 5.0.8 to remediate
@@ -292,6 +298,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Enhanced Activity Logs API Documentation** (#462): Comprehensive improvements to OpenAPI specification
+
   - **Realistic Examples**: Added detailed request/response examples for all 3 endpoints
     - `GET /activity-logs`: Paginated list with 3 activities showing hash chains, Merkle proofs, and OTS data
     - `GET /activity-logs/{activity}`: Single activity with full relationships (causer, subject)
@@ -308,6 +315,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Related: Closes #462 (Activity Logging OpenAPI Documentation)
 
 - **Preflight Script Performance**: Optimized `scripts/preflight.sh` for significantly faster local development
+
   - Prettier/markdownlint: Check only changed files in branch instead of all files (up to 10-100x faster for small changes)
   - composer/npm/pnpm: Skip dependency installation if lockfile unchanged and vendor/node_modules exists (saves minutes per push)
   - npm audit: Only run after fresh install, skip when dependencies unchanged (saves 5-10s network call)
@@ -316,6 +324,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - All quality gates remain enforced: Pint, PHPStan, Prettier, Markdownlint, OpenAPI validation, REUSE
 
 - **Customer & Site Management API Specification** (#71, Phase 5 of Epic SecPal/.github#210): Complete OpenAPI 3.1 spec for Customer, Site, Assignment, and CostCenter management
+
   - **6 Customer endpoints**: `GET /customers` (list with filters), `POST /customers` (create with auto-generated KD-YYYY-####), `GET /customers/{customer}` (show with relationships), `PATCH /customers/{customer}` (update), `DELETE /customers/{customer}` (soft delete), `GET /customers/{customer}/sites` (list customer's sites)
   - **6 Site endpoints**: `GET /sites` (list with comprehensive filtering: customer_id, organizational_unit_id, type, is_active, currently_valid, search), `POST /sites` (create with auto-generated OBJ-YYYY-####), `GET /sites/{site}` (show with relationships), `PATCH /sites/{site}` (update), `DELETE /sites/{site}` (soft delete), nested cost centers route
   - **10 Assignment endpoints**:
@@ -352,6 +361,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity log contract responses now match the backend resource and verification payload shapes
 - OpenAPI 3.1 now models nullable `Customer.contact` and `Site.contact` references correctly
 - **Employee OpenAPI contract now matches backend request/response behavior** (#116)
+
   - corrected employee contract type enums to `full_time`, `part_time`, `minijob`, and `freelance`
   - documented the `data` response envelope used by employee create/show/update endpoints
   - added missing employee request and response fields such as `position`, `management_level`, embedded `organizational_unit`, and BWR-related fields
