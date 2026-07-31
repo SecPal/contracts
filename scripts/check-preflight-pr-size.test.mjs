@@ -8,6 +8,7 @@ import {
   copyFileSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
@@ -19,6 +20,7 @@ import { fileURLToPath } from 'node:url'
 
 const repositoryRoot = fileURLToPath(new URL('../', import.meta.url))
 const preflightPath = join(repositoryRoot, 'scripts/preflight.sh')
+const preflightExcludePath = join(repositoryRoot, '.preflight-exclude')
 
 function run(directory, command, args, options = {}) {
   return spawnSync(command, args, {
@@ -36,6 +38,41 @@ function runPreflight(directory) {
     },
   })
 }
+
+test('keeps repository exclusions compatible with local and hosted filtering', () => {
+  const exclusionRegex = readFileSync(preflightExcludePath, 'utf8')
+    .split('\n')
+    .filter((line) => !/^\s*(?:#|$)/.test(line))
+    .join('|')
+
+  for (const excludedInput of [
+    'LICENSES/license.txt\n',
+    '601\t0\tLICENSES/license.txt\n',
+    '-\t-\tLICENSES/license.txt\n',
+  ]) {
+    const result = run(repositoryRoot, 'grep', ['-vE', '--', exclusionRegex], {
+      input: excludedInput,
+    })
+
+    assert.equal(result.status, 1, result.stderr)
+    assert.equal(result.stdout, '')
+  }
+
+  for (const includedInput of [
+    '601\t0\tdocs/LICENSES/license.txt\n',
+    '601\t0\tdocs LICENSES/license.txt\n',
+  ]) {
+    const included = run(
+      repositoryRoot,
+      'grep',
+      ['-vE', '--', exclusionRegex],
+      { input: includedInput }
+    )
+
+    assert.equal(included.status, 0, included.stderr)
+    assert.equal(included.stdout, includedInput)
+  }
+})
 
 test('reports advisory PR size after filtering valid exclusions by path', () => {
   const directory = mkdtempSync(join(tmpdir(), 'contracts-pr-size-advisory-'))

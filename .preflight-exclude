@@ -33,4 +33,5 @@ pnpm-lock.yaml
 
 # License files (boilerplate)
 
-^LICENSES/.*\.txt$
+# Match bare paths locally and full numstat rows in the pinned hosted workflow.
+^(LICENSES/.*\.txt|([0-9]+|-)[[:blank:]]+([0-9]+|-)[[:blank:]]+LICENSES/.*\.txt)$
