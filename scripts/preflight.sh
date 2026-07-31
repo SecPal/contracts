@@ -282,7 +282,13 @@ else
             echo "This will exclude all files from PR size calculation!" >&2
           fi
 
-          DIFF_OUTPUT=$(echo "$DIFF_OUTPUT" | grep -vE -- "$EXCLUDE_REGEX" 2>/dev/null || true)
+          if [ -n "$DIFF_OUTPUT" ]; then
+            DIFF_OUTPUT=$(while IFS=$'\t' read -r insertions deletions path; do
+              if ! printf '%s\n' "$path" | grep -qE -- "$EXCLUDE_REGEX"; then
+                printf '%s\t%s\t%s\n' "$insertions" "$deletions" "$path"
+              fi
+            done <<< "$DIFF_OUTPUT")
+          fi
         else
           # Invalid regex - grep failed even on empty input
           echo "⚠️  WARNING: .preflight-exclude contains invalid regex pattern(s)" >&2

@@ -34,20 +34,25 @@ function runGuard(workflow) {
   }
 }
 
-test('accepts exactly the required read permission', () => {
-  const result = runGuard(`permissions:\n  contents: read\n`)
+const pinnedCaller = `jobs:
+  pr-size:
+    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@190904b9870fb4cb8e6034938337debd454fb2c6
+`
+
+test('accepts exactly the required read permission and pinned caller', () => {
+  const result = runGuard(`permissions:\n  contents: read\n${pinnedCaller}`)
 
   assert.equal(result.status, 0, result.stderr)
 })
 
 for (const [name, permissions] of [
-  ['missing contents', 'pull-requests: read'],
+  ['missing contents', ''],
   ['writable contents', 'contents: write'],
   ['unused pull-request access', 'contents: read\n  pull-requests: read'],
   ['an unexpected scope', 'contents: read\n  issues: write'],
 ]) {
   test(`rejects ${name}`, () => {
-    const workflow = `permissions:\n  ${permissions.replaceAll('\n', '\n  ')}\n`
+    const workflow = `permissions:${permissions ? `\n  ${permissions.replaceAll('\n', '\n  ')}` : ' {}'}\n${pinnedCaller}`
     const result = runGuard(workflow)
 
     assert.notEqual(result.status, 0, result.stderr || result.stdout)
@@ -59,6 +64,7 @@ test('rejects a PR-size job-level permission override', () => {
   contents: read
 jobs:
   pr-size:
+    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@190904b9870fb4cb8e6034938337debd454fb2c6
     permissions:
       contents: write
 `)
@@ -70,10 +76,22 @@ test('rejects a permission override in another job', () => {
   const result = runGuard(`permissions:
   contents: read
 jobs:
-  pr-size: {}
+  pr-size:
+    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@190904b9870fb4cb8e6034938337debd454fb2c6
   unexpected-job:
     permissions:
       issues: write
+`)
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+})
+
+test('rejects a mutable reusable-workflow reference', () => {
+  const result = runGuard(`permissions:
+  contents: read
+jobs:
+  pr-size:
+    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@main
 `)
 
   assert.notEqual(result.status, 0, result.stderr || result.stdout)
