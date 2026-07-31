@@ -1,12 +1,12 @@
-# SPDX-FileCopyrightText: 2025 SecPal Contributors
+# SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 
 # SPDX-License-Identifier: CC0-1.0
 
-# Preflight PR Size Check - Excluded Files
+# Advisory PR-Size Reporting - Excluded Files
 
 # ==========================================
 
-# Files matching these patterns are excluded from the 600-line PR size check.
+# Files matching these patterns are excluded from advisory PR-size reporting.
 
 # Each line is a grep-compatible regex pattern.
 
@@ -33,4 +33,5 @@ pnpm-lock.yaml
 
 # License files (boilerplate)
 
-^LICENSES/.*\.txt$
+# Match bare paths locally and full numstat rows in the pinned hosted workflow.
+^(LICENSES/.*\.txt|([0-9]+|-)[[:blank:]]+([0-9]+|-)[[:blank:]]+LICENSES/.*\.txt)$

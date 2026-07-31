@@ -28,8 +28,9 @@ try {
 
 const expectedPermissions = {
   contents: 'read',
-  'pull-requests': 'read',
 }
+const expectedCaller =
+  'SecPal/.github/.github/workflows/reusable-pr-size.yml@190904b9870fb4cb8e6034938337debd454fb2c6'
 
 if (!workflow?.permissions || typeof workflow.permissions !== 'object') {
   fail('.github/workflows/pr-size.yml must define top-level permissions.')
@@ -58,6 +59,12 @@ for (const [jobName, job] of Object.entries(workflow?.jobs ?? {})) {
       `.github/workflows/pr-size.yml jobs.${jobName} must not override permissions.`
     )
   }
+}
+
+if (workflow?.jobs?.['pr-size']?.uses !== expectedCaller) {
+  fail(
+    `.github/workflows/pr-size.yml jobs.pr-size.uses must be ${expectedCaller}.`
+  )
 }
 
 console.log('PR-size workflow permission guard OK.')
