@@ -40,7 +40,7 @@ matches=$(grep -r -n -E "secpal\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-
     --exclude-dir="node_modules" \
     --exclude-dir="vendor" \
     . 2>/dev/null | \
-    grep -v -- "check-domains.sh" | \
+    grep -v -- '^./scripts/check-domains\.sh:' | \
     grep -v -- "Forbidden:" | \
     grep -v -- "FORBIDDEN:" | \
     grep -v -- '- "secpal\.' | \
