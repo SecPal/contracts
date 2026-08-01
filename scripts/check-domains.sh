@@ -46,19 +46,18 @@ matches=$(grep -r -n -E "secpal\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-
     grep -v -- '- "secpal\.' | \
     grep -v -- '^[[:space:]]*- \[' || true)
 
+# Extract every matched domain before allowlisting so an approved host on the
+# same line cannot hide a forbidden one.
+domains=$(printf '%s\n' "$matches" | \
+    grep -o -E '([A-Za-z0-9-]+\.)*secpal\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)*' || true)
+
 # Allowlist approach: flag any secpal.* domain not matching an approved pattern.
 # Approved or temporarily tolerated here: secpal.app, apk.secpal.app,
 # secpal.dev (including api/app subdomains), and deprecated-but-allowed
 # api.secpal.app (reported separately below).
 # This catches unknown domains (e.g. secpal.xyz) that a denylist-only check would miss.
-violations=$(printf '%s\n' "$matches" | \
-    {
-        grep -Ev '(^|[^A-Za-z0-9.-])secpal\.app($|[^A-Za-z0-9._-]|\.[^A-Za-z0-9_-]|\.$)' | \
-        grep -Ev '(^|[^A-Za-z0-9.-])apk\.secpal\.app($|[^A-Za-z0-9._-]|\.[^A-Za-z0-9_-]|\.$)' | \
-        grep -Ev '(^|[^A-Za-z0-9.-])(\*\.|\.)?([A-Za-z0-9-]+\.)*secpal\.dev(\.[A-Za-z0-9_-]+)*($|[^A-Za-z0-9._-]|\.[^A-Za-z0-9_-]|\.$)' | \
-        grep -Ev '(^|[^A-Za-z0-9.-])api\.secpal\.app($|[^A-Za-z0-9._-]|\.[^A-Za-z0-9_-]|\.$)'
-    } | \
-    grep -E 'secpal\.' || true)
+violations=$(printf '%s\n' "$domains" | \
+    grep -Ev '^(secpal\.app|apk\.secpal\.app|([A-Za-z0-9-]+\.)*secpal\.dev|api\.secpal\.app)$' || true)
 
 deprecated_exclude_regex='appId|applicationId|package name|package/application ID|application ID|Android application identifier|Android identifier|Android package ID|identifier-only|active web hosts|Deprecated Web Hosts|deprecated_web_hosts|android_application_identifier|validation_rule|package_name|custom_url_scheme|\./\.github/.*(copilot|instructions)|namespace "app\.secpal\.app"|package app\.secpal\.app;|getPackageName\(\)|adb shell monkey -p app\.secpal\.app|must not appear as active web hosts|not treated as a deployable web domain'
 deprecated_web_hosts=$(printf '%s\n' "$matches" | \

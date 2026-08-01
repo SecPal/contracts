@@ -38,3 +38,12 @@ test('rejects the retired changelog host even when documentation cites the check
   assert.equal(result.status, 1, result.stderr)
   assert.match(result.stdout, /changelog\.secpal\.app/)
 })
+
+test('rejects the retired changelog host when an allowed host shares the line', () => {
+  const result = runDomainCheck({
+    'migration.md': 'Migrate from changelog.secpal.app to secpal.app.\n',
+  })
+
+  assert.equal(result.status, 1, result.stderr)
+  assert.match(result.stdout, /changelog\.secpal\.app/)
+})
