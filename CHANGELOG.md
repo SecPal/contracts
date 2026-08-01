@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed the retired standalone changelog host from contract-repository domain
+  policy and guidance.
 - Changed local and hosted pull-request size reporting to treat 600 changed
   lines as an advisory reviewability threshold, with no override file, approval
   label, or size-triggered push failure.
