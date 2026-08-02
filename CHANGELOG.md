@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** Corrected the passkey enrollment request contracts to require
+  the runtime-enforced current-password step-up when starting and verifying an
+  enrollment challenge. Consumers regenerating clients from earlier contracts
+  must provide the required JSON bodies and `current_password` property
+  (closes #418).
 - Removed the retired standalone changelog host from contract-repository domain
   policy and guidance.
 - Changed local and hosted pull-request size reporting to treat 600 changed
@@ -27,9 +32,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Documented the required current-password step-up request bodies for starting
-  and verifying passkey enrollment, including the challenge-start `422`
-  validation response and generated-client examples (closes #418).
 - Completed the `Employee` response contract with every field emitted by
   `EmployeeResource`, including identity-document and work-permit copy
   metadata, retention timestamps, certification and work-authorization summaries,

@@ -1716,6 +1716,7 @@ components:
       properties:
         current_password:
           type: string
+          format: password
           writeOnly: true
           description: Current account password used for the enrollment step-up check.
           example: CorrectHorseBatteryStaple!
@@ -1728,6 +1729,7 @@ components:
       properties:
         current_password:
           type: string
+          format: password
           writeOnly: true
           description: Current account password used for the enrollment step-up check.
           example: CorrectHorseBatteryStaple!

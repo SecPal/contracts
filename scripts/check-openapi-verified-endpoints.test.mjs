@@ -127,6 +127,9 @@ test('documents the current-password step-up for passkey enrollment', () => {
 
   assert.deepEqual(passkeyStepUp.required, ['current_password'])
   assert.equal(passkeyStepUp.properties.current_password.type, 'string')
+  assert.equal(passkeyStepUp.properties.current_password.format, 'password')
+  assert.equal(passkeyStepUp.properties.current_password.writeOnly, true)
+  assert.equal(registrationStart.requestBody.required, true)
   assert.equal(
     registrationStart.requestBody.content['application/json'].schema.$ref,
     '#/components/schemas/PasskeyCurrentPasswordStepUpRequest'
@@ -138,6 +141,7 @@ test('documents the current-password step-up for passkey enrollment', () => {
       .schema.$ref,
     '#/components/schemas/PasskeyRegistrationVerificationRequest'
   )
+  assert.equal(registrationVerificationOperation.requestBody.required, true)
   assert.ok(
     registrationVerificationOperation.requestBody.content['application/json']
       .examples
@@ -149,6 +153,14 @@ test('documents the current-password step-up for passkey enrollment', () => {
   assert.equal(
     registrationVerification.properties.current_password.type,
     'string'
+  )
+  assert.equal(
+    registrationVerification.properties.current_password.format,
+    'password'
+  )
+  assert.equal(
+    registrationVerification.properties.current_password.writeOnly,
+    true
   )
 })
 
