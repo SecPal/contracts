@@ -145,9 +145,15 @@ const passkeyRegistrationVerificationStepUp =
       schema?.$ref ===
       '#/components/schemas/PasskeyCurrentPasswordStepUpRequest'
   )
+const passkeyRegistrationVerificationCredential =
+  passkeyRegistrationVerificationRequest.allOf?.find(
+    (schema) => schema?.properties?.credential
+  )
 
 if (
-  !passkeyCurrentPasswordStepUp.required?.includes('current_password') ||
+  !isDeepStrictEqual(passkeyCurrentPasswordStepUp.required, [
+    'current_password',
+  ]) ||
   passkeyCurrentPasswordStepUp.properties?.current_password?.type !==
     'string' ||
   passkeyCurrentPasswordStepUp.properties?.current_password?.format !==
@@ -163,10 +169,21 @@ if (
   passkeyRegistrationVerificationRequestBody.content?.['application/json']
     ?.schema?.$ref !==
     '#/components/schemas/PasskeyRegistrationVerificationRequest' ||
-  !passkeyRegistrationVerificationStepUp
+  !passkeyRegistrationVerificationStepUp ||
+  passkeyRegistrationVerificationCredential?.type !== 'object' ||
+  !isDeepStrictEqual(passkeyRegistrationVerificationCredential.required, [
+    'credential',
+  ]) ||
+  passkeyRegistrationVerificationCredential.properties?.credential?.$ref !==
+    '#/components/schemas/PasskeyRegistrationCredential' ||
+  !isDeepStrictEqual(
+    passkeyRegistrationVerificationCredential.properties?.label?.type,
+    ['string', 'null']
+  ) ||
+  passkeyRegistrationVerificationCredential.properties?.label?.maxLength !== 100
 ) {
   contractErrors.push(
-    'Passkey enrollment must require the reusable current-password step-up schema for challenge creation and verification.'
+    'Passkey enrollment must preserve the required bodies, validation response, password step-up, credential, and optional label contracts.'
   )
 }
 
