@@ -1708,18 +1708,33 @@ components:
             response:
               $ref: '#/components/schemas/PasskeyAssertionResponse'
 
-    PasskeyRegistrationVerificationRequest:
+    PasskeyCurrentPasswordStepUpRequest:
       type: object
+      description: Fresh current-password proof required before a sensitive passkey enrollment action.
       required:
-        - credential
+        - current_password
       properties:
-        credential:
-          $ref: '#/components/schemas/PasskeyRegistrationCredential'
-        label:
-          type: [string, 'null']
-          maxLength: 100
-          description: Optional caller-supplied label for the enrolled passkey.
-          example: Work MacBook Touch ID
+        current_password:
+          type: string
+          format: password
+          writeOnly: true
+          description: Current account password used for the enrollment step-up check.
+          example: CorrectHorseBatteryStaple!
+
+    PasskeyRegistrationVerificationRequest:
+      allOf:
+        - $ref: '#/components/schemas/PasskeyCurrentPasswordStepUpRequest'
+        - type: object
+          required:
+            - credential
+          properties:
+            credential:
+              $ref: '#/components/schemas/PasskeyRegistrationCredential'
+            label:
+              type: [string, 'null']
+              maxLength: 100
+              description: Optional caller-supplied label for the enrolled passkey.
+              example: Work MacBook Touch ID
 
     PasskeyRegistrationVerificationResponse:
       type: object
@@ -7716,6 +7731,17 @@ paths:
         - BearerAuth: []
         - SessionAuth: []
           CsrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyCurrentPasswordStepUpRequest'
+            examples:
+              current_password_step_up:
+                summary: Confirm the current password before creating an enrollment challenge.
+                value:
+                  current_password: CorrectHorseBatteryStaple!
       responses:
         '201':
           description: Pending passkey registration challenge created successfully
@@ -7727,6 +7753,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '409':
           $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
@@ -7760,6 +7788,20 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PasskeyRegistrationVerificationRequest'
+            examples:
+              verify_registration:
+                summary: Verify WebAuthn attestation with a current-password step-up.
+                value:
+                  current_password: CorrectHorseBatteryStaple!
+                  label: Work MacBook Touch ID
+                  credential:
+                    id: Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE
+                    raw_id: Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE
+                    type: public-key
+                    response:
+                      client_data_json: eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiVzhrM3gweEx4dzBXbDByTTl2NFoxUW1aMko3TjRSOHMiLCJvcmlnaW4iOiJodHRwczovL2FwcC5zZWNwYWwuZGV2In0
+                      attestation_object: o2NmbXRkbm9uZWhhdXRoRGF0YVhYQk1vY2tBdHRlc3RhdGlvbk9iamVjdA
+                      transports: [internal]
       responses:
         '201':
           description: Passkey registration verified successfully

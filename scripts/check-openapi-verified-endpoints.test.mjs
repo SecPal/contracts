@@ -113,6 +113,250 @@ test('accepts the repository contract', () => {
   assert.equal(result.status, 0, result.stderr)
 })
 
+test('documents the current-password step-up for passkey enrollment', () => {
+  const passkeyStepUp =
+    parsedContract.components.schemas.PasskeyCurrentPasswordStepUpRequest
+  const registrationStart =
+    parsedContract.paths['/me/passkeys/challenges/registration'].post
+  const registrationVerificationOperation =
+    parsedContract.paths[
+      '/me/passkeys/challenges/registration/{challengeId}/verify'
+    ].post
+  const registrationVerification =
+    parsedContract.components.schemas.PasskeyRegistrationVerificationRequest
+  const registrationVerificationStepUp = registrationVerification.allOf?.find(
+    (schema) =>
+      schema.$ref === '#/components/schemas/PasskeyCurrentPasswordStepUpRequest'
+  )
+  const registrationVerificationCredential =
+    registrationVerification.allOf?.find(
+      (schema) => schema.properties?.credential
+    )
+
+  assert.deepEqual(passkeyStepUp.required, ['current_password'])
+  assert.equal(passkeyStepUp.properties.current_password.type, 'string')
+  assert.equal(passkeyStepUp.properties.current_password.format, 'password')
+  assert.equal(passkeyStepUp.properties.current_password.writeOnly, true)
+  assert.equal(registrationStart.requestBody.required, true)
+  assert.equal(
+    registrationStart.requestBody.content['application/json'].schema.$ref,
+    '#/components/schemas/PasskeyCurrentPasswordStepUpRequest'
+  )
+  assert.equal(
+    registrationStart.responses['422'].$ref,
+    '#/components/responses/ValidationError'
+  )
+  assert.ok(registrationStart.requestBody.content['application/json'].examples)
+  assert.equal(
+    registrationVerificationOperation.requestBody.content['application/json']
+      .schema.$ref,
+    '#/components/schemas/PasskeyRegistrationVerificationRequest'
+  )
+  assert.equal(registrationVerificationOperation.requestBody.required, true)
+  assert.ok(
+    registrationVerificationOperation.requestBody.content['application/json']
+      .examples
+  )
+  assert.ok(
+    registrationVerificationStepUp,
+    'Passkey enrollment verification must reuse the current-password step-up schema'
+  )
+  assert.equal(registrationVerificationCredential.type, 'object')
+  assert.deepEqual(registrationVerificationCredential.required, ['credential'])
+  assert.equal(
+    registrationVerificationCredential.properties.credential.$ref,
+    '#/components/schemas/PasskeyRegistrationCredential'
+  )
+  assert.deepEqual(registrationVerificationCredential.properties.label.type, [
+    'string',
+    'null',
+  ])
+  assert.equal(
+    registrationVerificationCredential.properties.label.maxLength,
+    100
+  )
+})
+
+test('rejects passkey enrollment contract invariant regressions', () => {
+  const mutations = [
+    {
+      invariant: 'current_password remains required',
+      apply(candidate) {
+        candidate.components.schemas.PasskeyCurrentPasswordStepUpRequest.required =
+          []
+      },
+    },
+    {
+      invariant: 'only current_password is required by the step-up schema',
+      apply(candidate) {
+        candidate.components.schemas.PasskeyCurrentPasswordStepUpRequest.required.push(
+          'unexpected'
+        )
+      },
+    },
+    {
+      invariant: 'current_password remains a string',
+      apply(candidate) {
+        candidate.components.schemas.PasskeyCurrentPasswordStepUpRequest.properties.current_password.type =
+          'integer'
+      },
+    },
+    {
+      invariant: 'current_password retains the password format',
+      apply(candidate) {
+        delete candidate.components.schemas.PasskeyCurrentPasswordStepUpRequest
+          .properties.current_password.format
+      },
+    },
+    {
+      invariant: 'current_password remains write-only',
+      apply(candidate) {
+        candidate.components.schemas.PasskeyCurrentPasswordStepUpRequest.properties.current_password.writeOnly = false
+      },
+    },
+    {
+      invariant: 'challenge creation request body remains required',
+      apply(candidate) {
+        candidate.paths[
+          '/me/passkeys/challenges/registration'
+        ].post.requestBody.required = false
+      },
+    },
+    {
+      invariant: 'challenge creation reuses the password step-up schema',
+      apply(candidate) {
+        candidate.paths[
+          '/me/passkeys/challenges/registration'
+        ].post.requestBody.content['application/json'].schema = {
+          type: 'object',
+        }
+      },
+    },
+    {
+      invariant: 'challenge creation documents validation errors',
+      apply(candidate) {
+        candidate.paths['/me/passkeys/challenges/registration'].post.responses[
+          '422'
+        ].$ref = '#/components/responses/Conflict'
+      },
+    },
+    {
+      invariant: 'verification request body remains required',
+      apply(candidate) {
+        candidate.paths[
+          '/me/passkeys/challenges/registration/{challengeId}/verify'
+        ].post.requestBody.required = false
+      },
+    },
+    {
+      invariant: 'verification reuses its canonical request schema',
+      apply(candidate) {
+        candidate.paths[
+          '/me/passkeys/challenges/registration/{challengeId}/verify'
+        ].post.requestBody.content['application/json'].schema.$ref =
+          '#/components/schemas/PasskeyCurrentPasswordStepUpRequest'
+      },
+    },
+    {
+      invariant: 'verification reuses the password step-up schema',
+      apply(candidate) {
+        candidate.components.schemas.PasskeyRegistrationVerificationRequest.allOf =
+          candidate.components.schemas.PasskeyRegistrationVerificationRequest.allOf.slice(
+            1
+          )
+      },
+    },
+    {
+      invariant: 'verification retains the credential object branch',
+      apply(candidate) {
+        candidate.components.schemas.PasskeyRegistrationVerificationRequest.allOf =
+          candidate.components.schemas.PasskeyRegistrationVerificationRequest.allOf.slice(
+            0,
+            1
+          )
+      },
+    },
+    {
+      invariant: 'verification credential branch remains an object',
+      apply(candidate) {
+        candidate.components.schemas.PasskeyRegistrationVerificationRequest.allOf[1].type =
+          'array'
+      },
+    },
+    {
+      invariant: 'verification keeps credential required',
+      apply(candidate) {
+        candidate.components.schemas.PasskeyRegistrationVerificationRequest.allOf[1].required =
+          []
+      },
+    },
+    {
+      invariant: 'verification keeps label optional',
+      apply(candidate) {
+        candidate.components.schemas.PasskeyRegistrationVerificationRequest.allOf[1].required.push(
+          'label'
+        )
+      },
+    },
+    {
+      invariant: 'verification label remains nullable',
+      apply(candidate) {
+        candidate.components.schemas.PasskeyRegistrationVerificationRequest.allOf[1].properties.label.type =
+          'string'
+      },
+    },
+    {
+      invariant: 'verification label retains its maximum length',
+      apply(candidate) {
+        candidate.components.schemas.PasskeyRegistrationVerificationRequest.allOf[1].properties.label.maxLength = 255
+      },
+    },
+    {
+      invariant: 'verification reuses the registration credential schema',
+      apply(candidate) {
+        candidate.components.schemas.PasskeyRegistrationVerificationRequest.allOf[1].properties.credential.$ref =
+          '#/components/schemas/PasskeyAuthenticationCredential'
+      },
+    },
+    {
+      invariant: 'challenge creation example includes current_password',
+      apply(candidate) {
+        delete candidate.paths['/me/passkeys/challenges/registration'].post
+          .requestBody.content['application/json'].examples
+          .current_password_step_up.value.current_password
+      },
+    },
+    {
+      invariant: 'verification example includes current_password',
+      apply(candidate) {
+        delete candidate.paths[
+          '/me/passkeys/challenges/registration/{challengeId}/verify'
+        ].post.requestBody.content['application/json'].examples
+          .verify_registration.value.current_password
+      },
+    },
+    {
+      invariant: 'verification example includes credential',
+      apply(candidate) {
+        delete candidate.paths[
+          '/me/passkeys/challenges/registration/{challengeId}/verify'
+        ].post.requestBody.content['application/json'].examples
+          .verify_registration.value.credential
+      },
+    },
+  ]
+
+  for (const mutation of mutations) {
+    const candidate = structuredClone(parsedContract)
+    mutation.apply(candidate)
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, `${mutation.invariant}: ${result.stdout}`)
+    assert.match(result.stderr, /passkey enrollment/i)
+  }
+})
+
 test('omits retired Android enrollment and provisioning contracts', () => {
   const serialized = JSON.stringify(parsedContract)
   const retiredPaths = [
