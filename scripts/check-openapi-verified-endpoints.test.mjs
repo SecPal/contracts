@@ -113,6 +113,45 @@ test('accepts the repository contract', () => {
   assert.equal(result.status, 0, result.stderr)
 })
 
+test('documents the current-password step-up for passkey enrollment', () => {
+  const passkeyStepUp =
+    parsedContract.components.schemas.PasskeyCurrentPasswordStepUpRequest
+  const registrationStart =
+    parsedContract.paths['/me/passkeys/challenges/registration'].post
+  const registrationVerificationOperation =
+    parsedContract.paths[
+      '/me/passkeys/challenges/registration/{challengeId}/verify'
+    ].post
+  const registrationVerification =
+    parsedContract.components.schemas.PasskeyRegistrationVerificationRequest
+
+  assert.deepEqual(passkeyStepUp.required, ['current_password'])
+  assert.equal(passkeyStepUp.properties.current_password.type, 'string')
+  assert.equal(
+    registrationStart.requestBody.content['application/json'].schema.$ref,
+    '#/components/schemas/PasskeyCurrentPasswordStepUpRequest'
+  )
+  assert.ok(registrationStart.responses['422'])
+  assert.ok(registrationStart.requestBody.content['application/json'].examples)
+  assert.equal(
+    registrationVerificationOperation.requestBody.content['application/json']
+      .schema.$ref,
+    '#/components/schemas/PasskeyRegistrationVerificationRequest'
+  )
+  assert.ok(
+    registrationVerificationOperation.requestBody.content['application/json']
+      .examples
+  )
+  assert.ok(
+    registrationVerification.required.includes('current_password'),
+    'Passkey enrollment verification must require current_password'
+  )
+  assert.equal(
+    registrationVerification.properties.current_password.type,
+    'string'
+  )
+})
+
 test('omits retired Android enrollment and provisioning contracts', () => {
   const serialized = JSON.stringify(parsedContract)
   const retiredPaths = [
