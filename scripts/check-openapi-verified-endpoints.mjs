@@ -7,7 +7,8 @@
  * or regresses their critical contract invariants (email verification resend +
  * German address reference data + employee documents + qualification catalog +
  * employee qualifications + organizational units + employee compliance alerts +
- * canonical schema-4 bootstrap and notification runtime metadata).
+ * passkey enrollment password step-up + canonical schema-4 bootstrap and
+ * notification runtime metadata).
  *
  * Usage: node scripts/check-openapi-verified-endpoints.mjs <path-to-openapi.yaml>
  */
@@ -49,6 +50,8 @@ const REQUIRED_OPERATIONS = [
   ['post', '/organizational-units/{organizational_unit}/parent'],
   ['delete', '/organizational-units/{organizational_unit}/parent/{parent}'],
   ['get', '/lookups/legal-entities'],
+  ['post', '/me/passkeys/challenges/registration'],
+  ['post', '/me/passkeys/challenges/registration/{challengeId}/verify'],
 ]
 
 const target = process.argv[2]
@@ -122,7 +125,50 @@ const parentIdParameter = paths['/organizational-units']?.get?.parameters?.find(
 const organizationalUnitListParameters =
   paths['/organizational-units']?.get?.parameters ?? []
 const employeeComplianceAlerts = paths['/employees/compliance-alerts']?.get
+const passkeyRegistrationStart =
+  paths['/me/passkeys/challenges/registration']?.post
+const passkeyRegistrationVerification =
+  paths['/me/passkeys/challenges/registration/{challengeId}/verify']?.post
+const passkeyCurrentPasswordStepUp =
+  schemas.PasskeyCurrentPasswordStepUpRequest ?? {}
+const passkeyRegistrationVerificationRequest =
+  schemas.PasskeyRegistrationVerificationRequest ?? {}
 const contractErrors = []
+
+const passkeyRegistrationStartRequestBody =
+  passkeyRegistrationStart?.requestBody ?? {}
+const passkeyRegistrationVerificationRequestBody =
+  passkeyRegistrationVerification?.requestBody ?? {}
+const passkeyRegistrationVerificationStepUp =
+  passkeyRegistrationVerificationRequest.allOf?.find(
+    (schema) =>
+      schema?.$ref ===
+      '#/components/schemas/PasskeyCurrentPasswordStepUpRequest'
+  )
+
+if (
+  !passkeyCurrentPasswordStepUp.required?.includes('current_password') ||
+  passkeyCurrentPasswordStepUp.properties?.current_password?.type !==
+    'string' ||
+  passkeyCurrentPasswordStepUp.properties?.current_password?.format !==
+    'password' ||
+  passkeyCurrentPasswordStepUp.properties?.current_password?.writeOnly !==
+    true ||
+  passkeyRegistrationStartRequestBody.required !== true ||
+  passkeyRegistrationStartRequestBody.content?.['application/json']?.schema
+    ?.$ref !== '#/components/schemas/PasskeyCurrentPasswordStepUpRequest' ||
+  passkeyRegistrationStart.responses?.['422']?.$ref !==
+    '#/components/responses/ValidationError' ||
+  passkeyRegistrationVerificationRequestBody.required !== true ||
+  passkeyRegistrationVerificationRequestBody.content?.['application/json']
+    ?.schema?.$ref !==
+    '#/components/schemas/PasskeyRegistrationVerificationRequest' ||
+  !passkeyRegistrationVerificationStepUp
+) {
+  contractErrors.push(
+    'Passkey enrollment must require the reusable current-password step-up schema for challenge creation and verification.'
+  )
+}
 
 const canonicalSchemaVersionComponents = [
   'NotificationRuntimeState',
@@ -787,6 +833,29 @@ function matchesSchema(schema, value) {
   }
 
   return true
+}
+
+const passkeyRegistrationStartExample =
+  passkeyRegistrationStartRequestBody.content?.['application/json']?.examples
+    ?.current_password_step_up?.value
+const passkeyRegistrationVerificationExample =
+  passkeyRegistrationVerificationRequestBody.content?.['application/json']
+    ?.examples?.verify_registration?.value
+
+if (
+  !matchesSchema(
+    passkeyRegistrationStartRequestBody.content?.['application/json']?.schema,
+    passkeyRegistrationStartExample
+  ) ||
+  !matchesSchema(
+    passkeyRegistrationVerificationRequestBody.content?.['application/json']
+      ?.schema,
+    passkeyRegistrationVerificationExample
+  )
+) {
+  contractErrors.push(
+    'Passkey enrollment request examples must include a valid current-password step-up.'
+  )
 }
 
 if (

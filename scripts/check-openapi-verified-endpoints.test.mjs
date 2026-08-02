@@ -159,6 +159,57 @@ test('documents the current-password step-up for passkey enrollment', () => {
   )
 })
 
+test('rejects passkey enrollment contracts and examples that omit current_password', () => {
+  const mutations = [
+    {
+      endpoint: 'challenge creation',
+      apply(candidate) {
+        candidate.paths[
+          '/me/passkeys/challenges/registration'
+        ].post.requestBody.content['application/json'].schema = {
+          type: 'object',
+        }
+      },
+    },
+    {
+      endpoint: 'verification',
+      apply(candidate) {
+        candidate.components.schemas.PasskeyRegistrationVerificationRequest.allOf =
+          candidate.components.schemas.PasskeyRegistrationVerificationRequest.allOf.slice(
+            1
+          )
+      },
+    },
+    {
+      endpoint: 'challenge creation example',
+      apply(candidate) {
+        delete candidate.paths['/me/passkeys/challenges/registration'].post
+          .requestBody.content['application/json'].examples
+          .current_password_step_up.value.current_password
+      },
+    },
+    {
+      endpoint: 'verification example',
+      apply(candidate) {
+        delete candidate.paths[
+          '/me/passkeys/challenges/registration/{challengeId}/verify'
+        ].post.requestBody.content['application/json'].examples
+          .verify_registration.value.current_password
+      },
+    },
+  ]
+
+  for (const mutation of mutations) {
+    const candidate = structuredClone(parsedContract)
+    mutation.apply(candidate)
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, `${mutation.endpoint}: ${result.stdout}`)
+    assert.match(result.stderr, /passkey enrollment/i)
+  }
+})
+
 test('omits retired Android enrollment and provisioning contracts', () => {
   const serialized = JSON.stringify(parsedContract)
   const retiredPaths = [
