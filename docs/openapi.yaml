@@ -1722,24 +1722,19 @@ components:
           example: CorrectHorseBatteryStaple!
 
     PasskeyRegistrationVerificationRequest:
-      type: object
-      required:
-        - current_password
-        - credential
-      properties:
-        current_password:
-          type: string
-          format: password
-          writeOnly: true
-          description: Current account password used for the enrollment step-up check.
-          example: CorrectHorseBatteryStaple!
-        credential:
-          $ref: '#/components/schemas/PasskeyRegistrationCredential'
-        label:
-          type: [string, 'null']
-          maxLength: 100
-          description: Optional caller-supplied label for the enrolled passkey.
-          example: Work MacBook Touch ID
+      allOf:
+        - $ref: '#/components/schemas/PasskeyCurrentPasswordStepUpRequest'
+        - type: object
+          required:
+            - credential
+          properties:
+            credential:
+              $ref: '#/components/schemas/PasskeyRegistrationCredential'
+            label:
+              type: [string, 'null']
+              maxLength: 100
+              description: Optional caller-supplied label for the enrolled passkey.
+              example: Work MacBook Touch ID
 
     PasskeyRegistrationVerificationResponse:
       type: object

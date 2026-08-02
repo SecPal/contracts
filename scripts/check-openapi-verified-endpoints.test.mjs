@@ -124,6 +124,10 @@ test('documents the current-password step-up for passkey enrollment', () => {
     ].post
   const registrationVerification =
     parsedContract.components.schemas.PasskeyRegistrationVerificationRequest
+  const registrationVerificationStepUp = registrationVerification.allOf?.find(
+    (schema) =>
+      schema.$ref === '#/components/schemas/PasskeyCurrentPasswordStepUpRequest'
+  )
 
   assert.deepEqual(passkeyStepUp.required, ['current_password'])
   assert.equal(passkeyStepUp.properties.current_password.type, 'string')
@@ -134,7 +138,10 @@ test('documents the current-password step-up for passkey enrollment', () => {
     registrationStart.requestBody.content['application/json'].schema.$ref,
     '#/components/schemas/PasskeyCurrentPasswordStepUpRequest'
   )
-  assert.ok(registrationStart.responses['422'])
+  assert.equal(
+    registrationStart.responses['422'].$ref,
+    '#/components/responses/ValidationError'
+  )
   assert.ok(registrationStart.requestBody.content['application/json'].examples)
   assert.equal(
     registrationVerificationOperation.requestBody.content['application/json']
@@ -147,20 +154,8 @@ test('documents the current-password step-up for passkey enrollment', () => {
       .examples
   )
   assert.ok(
-    registrationVerification.required.includes('current_password'),
-    'Passkey enrollment verification must require current_password'
-  )
-  assert.equal(
-    registrationVerification.properties.current_password.type,
-    'string'
-  )
-  assert.equal(
-    registrationVerification.properties.current_password.format,
-    'password'
-  )
-  assert.equal(
-    registrationVerification.properties.current_password.writeOnly,
-    true
+    registrationVerificationStepUp,
+    'Passkey enrollment verification must reuse the current-password step-up schema'
   )
 })
 
