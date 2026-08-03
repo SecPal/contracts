@@ -30,7 +30,7 @@ const expectedPermissions = {
   contents: 'read',
 }
 const expectedCaller =
-  'SecPal/.github/.github/workflows/reusable-pr-size.yml@190904b9870fb4cb8e6034938337debd454fb2c6'
+  'SecPal/.github/.github/workflows/reusable-pr-size.yml@5c352f2bf69740bead4228211a5d3dd12a5fc2b1'
 
 if (!workflow?.permissions || typeof workflow.permissions !== 'object') {
   fail('.github/workflows/pr-size.yml must define top-level permissions.')

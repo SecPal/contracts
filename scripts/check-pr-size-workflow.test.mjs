@@ -36,7 +36,7 @@ function runGuard(workflow) {
 
 const pinnedCaller = `jobs:
   pr-size:
-    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@190904b9870fb4cb8e6034938337debd454fb2c6
+    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@5c352f2bf69740bead4228211a5d3dd12a5fc2b1
 `
 
 test('accepts exactly the required read permission and pinned caller', () => {
@@ -64,7 +64,7 @@ test('rejects a PR-size job-level permission override', () => {
   contents: read
 jobs:
   pr-size:
-    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@190904b9870fb4cb8e6034938337debd454fb2c6
+    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@5c352f2bf69740bead4228211a5d3dd12a5fc2b1
     permissions:
       contents: write
 `)
@@ -77,7 +77,7 @@ test('rejects a permission override in another job', () => {
   contents: read
 jobs:
   pr-size:
-    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@190904b9870fb4cb8e6034938337debd454fb2c6
+    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@5c352f2bf69740bead4228211a5d3dd12a5fc2b1
   unexpected-job:
     permissions:
       issues: write

@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Kept the PR-size workflow guard and its test fixtures synchronized with the
+  pinned reusable workflow revision.
+
 ### Changed
 
 - **Breaking:** Corrected the passkey enrollment request contracts to require
