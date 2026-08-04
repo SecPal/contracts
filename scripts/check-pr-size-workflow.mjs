@@ -29,8 +29,8 @@ try {
 const expectedPermissions = {
   contents: 'read',
 }
-const expectedCaller =
-  'SecPal/.github/.github/workflows/reusable-pr-size.yml@5c352f2bf69740bead4228211a5d3dd12a5fc2b1'
+const expectedCallerPrefix =
+  'SecPal/.github/.github/workflows/reusable-pr-size.yml@'
 
 if (!workflow?.permissions || typeof workflow.permissions !== 'object') {
   fail('.github/workflows/pr-size.yml must define top-level permissions.')
@@ -61,9 +61,15 @@ for (const [jobName, job] of Object.entries(workflow?.jobs ?? {})) {
   }
 }
 
-if (workflow?.jobs?.['pr-size']?.uses !== expectedCaller) {
+const caller = workflow?.jobs?.['pr-size']?.uses
+const callerRef =
+  typeof caller === 'string' && caller.startsWith(expectedCallerPrefix)
+    ? caller.slice(expectedCallerPrefix.length)
+    : ''
+
+if (!/^[0-9a-f]{40}$/.test(callerRef)) {
   fail(
-    `.github/workflows/pr-size.yml jobs.pr-size.uses must be ${expectedCaller}.`
+    `.github/workflows/pr-size.yml jobs.pr-size.uses must reference ${expectedCallerPrefix}<full-commit-sha>.`
   )
 }
 
