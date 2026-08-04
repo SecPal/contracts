@@ -13,6 +13,8 @@ import { fileURLToPath } from 'node:url'
 const guardPath = fileURLToPath(
   new URL('./check-pr-size-workflow.mjs', import.meta.url)
 )
+const validCaller =
+  'SecPal/.github/.github/workflows/reusable-pr-size.yml@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 
 test('accepts the repository workflow', () => {
   const result = spawnSync(process.execPath, [guardPath], { encoding: 'utf8' })
@@ -36,11 +38,22 @@ function runGuard(workflow) {
 
 const pinnedCaller = `jobs:
   pr-size:
-    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@5c352f2bf69740bead4228211a5d3dd12a5fc2b1
+    uses: ${validCaller}
 `
 
 test('accepts exactly the required read permission and pinned caller', () => {
   const result = runGuard(`permissions:\n  contents: read\n${pinnedCaller}`)
+
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('accepts caller updates pinned to a full commit SHA', () => {
+  const result = runGuard(`permissions:
+  contents: read
+jobs:
+  pr-size:
+    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+`)
 
   assert.equal(result.status, 0, result.stderr)
 })
@@ -64,7 +77,7 @@ test('rejects a PR-size job-level permission override', () => {
   contents: read
 jobs:
   pr-size:
-    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@5c352f2bf69740bead4228211a5d3dd12a5fc2b1
+    uses: ${validCaller}
     permissions:
       contents: write
 `)
@@ -77,10 +90,32 @@ test('rejects a permission override in another job', () => {
   contents: read
 jobs:
   pr-size:
-    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@5c352f2bf69740bead4228211a5d3dd12a5fc2b1
+    uses: ${validCaller}
   unexpected-job:
     permissions:
       issues: write
+`)
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+})
+
+test('rejects an abbreviated reusable-workflow commit SHA', () => {
+  const result = runGuard(`permissions:
+  contents: read
+jobs:
+  pr-size:
+    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@bc27f01
+`)
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+})
+
+test('rejects another reusable workflow pinned to a full commit SHA', () => {
+  const result = runGuard(`permissions:
+  contents: read
+jobs:
+  pr-size:
+    uses: SecPal/.github/.github/workflows/reusable-reuse.yml@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 `)
 
   assert.notEqual(result.status, 0, result.stderr || result.stdout)
