@@ -242,6 +242,22 @@ test('rejects a missing or non-exact brace-expansion override', () => {
   )
 })
 
+test('rejects a brace-expansion override below the security floor', () => {
+  const vulnerableOverrideManifest = structuredClone(packageJson)
+  const vulnerableLockfile = structuredClone(packageLock)
+  vulnerableOverrideManifest.overrides['brace-expansion@^5'] = '5.0.8'
+  vulnerableLockfile.packages['node_modules/brace-expansion'].version = '5.0.8'
+
+  assert.throws(
+    () =>
+      validateBraceExpansionOverride({
+        packageJson: vulnerableOverrideManifest,
+        packageLock: vulnerableLockfile,
+      }),
+    /must pin brace-expansion@\^5 to 5\.0\.9 or later/
+  )
+})
+
 test('rejects a commented-out repository-root change', () => {
   const setupScript = `#!/usr/bin/env bash
 ROOT_DIR="$(git rev-parse --show-toplevel)"

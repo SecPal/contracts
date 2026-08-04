@@ -8,6 +8,9 @@ import { load as loadYaml } from 'js-yaml'
 
 const EXACT_VERSION_PATTERN =
   /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
+const BRACE_EXPANSION_SECURITY_FLOOR = [5, 0, 9]
+const VERSION_COMPONENTS_PATTERN =
+  /^(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
 function fail(message) {
   console.error(`Error: ${message}`)
@@ -18,6 +21,22 @@ function requireInvariant(condition, message) {
   if (!condition) {
     throw new Error(message)
   }
+}
+
+function isVersionAtLeast(version, minimum) {
+  const match = VERSION_COMPONENTS_PATTERN.exec(version)
+  if (!match) {
+    return false
+  }
+
+  const components = match.slice(1, 4).map(Number)
+  for (let index = 0; index < components.length; index += 1) {
+    if (components[index] !== minimum[index]) {
+      return components[index] > minimum[index]
+    }
+  }
+
+  return match[4] === undefined
 }
 
 function parsePreCommitConfig(preCommitConfig) {
@@ -175,6 +194,10 @@ export function validateBraceExpansionOverride({ packageJson, packageLock }) {
   requireInvariant(
     EXACT_VERSION_PATTERN.test(override),
     `package.json must pin brace-expansion@^5 to an exact version, found ${override || 'missing'}.`
+  )
+  requireInvariant(
+    isVersionAtLeast(override, BRACE_EXPANSION_SECURITY_FLOOR),
+    `package.json must pin brace-expansion@^5 to 5.0.9 or later, found ${override}.`
   )
 
   const lockedVersion =
