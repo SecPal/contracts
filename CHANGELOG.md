@@ -14,8 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Kept the PR-size workflow guard and its test fixtures synchronized with the
-  pinned reusable workflow revision.
+- Made the PR-size workflow guard accept routine Dependabot updates while still
+  requiring the approved reusable workflow to use a full immutable commit SHA.
 
 ### Changed
 
