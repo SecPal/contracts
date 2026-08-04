@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Updated `@redocly/cli` from `2.43.2` to `2.43.3` so local contract
+  validation uses the current Redocly CLI release without its update notice
+  (closes #422).
 - **Breaking:** Corrected the passkey enrollment request contracts to require
   the runtime-enforced current-password step-up when starting and verifying an
   enrollment challenge. Consumers regenerating clients from earlier contracts
