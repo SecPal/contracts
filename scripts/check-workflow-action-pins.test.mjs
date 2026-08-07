@@ -4,7 +4,7 @@
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -14,6 +14,10 @@ const guardPath = fileURLToPath(
   new URL('./check-workflow-action-pins.mjs', import.meta.url)
 )
 const fullSha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+const dependabotAutoMergeWorkflow = readFileSync(
+  new URL('../.github/workflows/dependabot-auto-merge.yml', import.meta.url),
+  'utf8'
+)
 
 function runGuard(workflows) {
   const directory = mkdtempSync(join(tmpdir(), 'check-workflow-action-pins-'))
@@ -48,10 +52,37 @@ test('accepts external actions and reusable workflows pinned to full SHAs', () =
     uses: octo-org/workflows/.github/workflows/check.yml@${fullSha} # main
   local:
     uses: ./.github/workflows/local.yml
+  quoted:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: 'actions/checkout@${fullSha}' # v7
+      - uses: "actions/setup-node@${fullSha}" # v7
 `,
   })
 
   assert.equal(result.status, 0, result.stderr)
+})
+
+test('accepts unrelated uses keys outside jobs and steps', () => {
+  const result = runGuard({
+    'workflow.yml': `env:
+  uses: ordinary-environment-value
+jobs:
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok
+`,
+  })
+
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('keeps the Dependabot auto-merge workflow on the v1 release channel', () => {
+  assert.match(
+    dependabotAutoMergeWorkflow,
+    /reusable-dependabot-auto-merge\.yml@[0-9a-f]{40} # v1$/m
+  )
 })
 
 for (const [name, reference] of [
@@ -84,4 +115,62 @@ test('rejects malformed YAML', () => {
 
   assert.notEqual(result.status, 0, result.stderr || result.stdout)
   assert.match(result.stderr, /^Error: could not parse /)
+})
+
+test('rejects an uncommented duplicate of a documented reference', () => {
+  const result = runGuard({
+    'workflow.yml': `jobs:
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@${fullSha} # v7
+      - uses: actions/checkout@${fullSha}
+`,
+  })
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stderr, /must retain its source tag or branch/)
+})
+
+test('rejects a source comment spoofed inside a block scalar', () => {
+  const result = runGuard({
+    'workflow.yml': `jobs:
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@${fullSha}
+      - run: |
+          uses: actions/checkout@${fullSha} # v7
+`,
+  })
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stderr, /must retain its source tag or branch/)
+})
+
+test('rejects an aliased uses value that bypasses literal pin inspection', () => {
+  const result = runGuard({
+    'workflow.yml': `env:
+  ACTION: &checkout actions/checkout@v7
+jobs:
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: *checkout
+`,
+  })
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stderr, /uses reference must be an explicit string/)
+})
+
+test('rejects one trailing comment shared by flow-style references', () => {
+  const result = runGuard({
+    'workflow.yml': `on: push
+jobs: { one: { uses: octo-org/workflows/.github/workflows/check.yml@${fullSha} }, two: { uses: octo-org/workflows/.github/workflows/check.yml@${fullSha} } } # main
+`,
+  })
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stderr, /must retain its source tag or branch/)
 })

@@ -23,6 +23,126 @@ function workflowPaths(directory) {
   })
 }
 
+function parseNode(events, eventIndex, source) {
+  const event = events[eventIndex]
+
+  if (event.type === yaml.EVENT_SCALAR) {
+    return [
+      {
+        event,
+        kind: 'scalar',
+        value: yaml.getScalarValue(source, event),
+      },
+      eventIndex + 1,
+    ]
+  }
+
+  if (event.type === yaml.EVENT_ALIAS) {
+    return [{ kind: 'alias' }, eventIndex + 1]
+  }
+
+  if (event.type === yaml.EVENT_MAPPING) {
+    const items = []
+    let nextIndex = eventIndex + 1
+
+    while (events[nextIndex].type !== yaml.EVENT_POP) {
+      const [key, valueIndex] = parseNode(events, nextIndex, source)
+      const [value, followingIndex] = parseNode(events, valueIndex, source)
+      items.push({ key, value })
+      nextIndex = followingIndex
+    }
+
+    return [{ items, kind: 'mapping' }, nextIndex + 1]
+  }
+
+  if (event.type === yaml.EVENT_SEQUENCE) {
+    const items = []
+    let nextIndex = eventIndex + 1
+
+    while (events[nextIndex].type !== yaml.EVENT_POP) {
+      const [item, followingIndex] = parseNode(events, nextIndex, source)
+      items.push(item)
+      nextIndex = followingIndex
+    }
+
+    return [{ items, kind: 'sequence' }, nextIndex + 1]
+  }
+
+  throw new Error(`unsupported YAML event type ${event.type}`)
+}
+
+function parseDocument(source) {
+  const events = yaml.parseEvents(source)
+  const documentIndex = events.findIndex(
+    (event) => event.type === yaml.EVENT_DOCUMENT
+  )
+
+  if (
+    documentIndex === -1 ||
+    events[documentIndex + 1].type === yaml.EVENT_POP
+  ) {
+    return null
+  }
+
+  return parseNode(events, documentIndex + 1, source)[0]
+}
+
+function mappingValue(node, key) {
+  if (node?.kind !== 'mapping') {
+    return null
+  }
+
+  return (
+    node.items.find(
+      (item) => item.key.kind === 'scalar' && item.key.value === key
+    )?.value ?? null
+  )
+}
+
+function workflowReferences(document) {
+  const jobs = mappingValue(document, 'jobs')
+
+  if (jobs?.kind !== 'mapping') {
+    return []
+  }
+
+  return jobs.items.flatMap(({ value: job }) => {
+    if (job.kind !== 'mapping') {
+      return []
+    }
+
+    const references = []
+    const reusableWorkflow = mappingValue(job, 'uses')
+    if (reusableWorkflow) {
+      references.push(reusableWorkflow)
+    }
+
+    const steps = mappingValue(job, 'steps')
+    if (steps?.kind === 'sequence') {
+      for (const step of steps.items) {
+        const action = mappingValue(step, 'uses')
+        if (action) {
+          references.push(action)
+        }
+      }
+    }
+
+    return references
+  })
+}
+
+function sourceComment(source, scalarEvent) {
+  const quoted =
+    scalarEvent.style === yaml.SCALAR_STYLE_SINGLE_QUOTED ||
+    scalarEvent.style === yaml.SCALAR_STYLE_DOUBLE_QUOTED
+  const valueEnd = scalarEvent.valueEnd + (quoted ? 1 : 0)
+  const newline = source.indexOf('\n', valueEnd)
+  const lineEnd = newline === -1 ? source.length : newline
+  const suffix = source.slice(valueEnd, lineEnd)
+
+  return /^\s+#\s*([A-Za-z0-9][A-Za-z0-9._/-]*)\s*$/.exec(suffix)?.[1]
+}
+
 const workflowDirectory = process.argv[2]
   ? new URL(process.argv[2], `file://${process.cwd()}/`)
   : new URL('../.github/workflows/', import.meta.url)
@@ -40,43 +160,27 @@ try {
 }
 
 for (const workflowPath of paths) {
-  let workflow
+  let document
   let workflowText
   try {
     workflowText = readFileSync(workflowPath, 'utf8')
-    workflow = yaml.load(workflowText, { schema: yaml.JSON_SCHEMA })
+    yaml.load(workflowText, { schema: yaml.JSON_SCHEMA })
+    document = parseDocument(workflowText)
   } catch (error) {
     fail(`could not parse ${workflowPath}: ${error}`)
   }
 
-  const references = []
-  function collectUses(value) {
-    if (Array.isArray(value)) {
-      value.forEach(collectUses)
-      return
+  for (const referenceNode of workflowReferences(document)) {
+    if (referenceNode.kind !== 'scalar') {
+      fail(
+        `${workflowPath} uses reference must be an explicit string so its immutable pin and source comment can be verified.`
+      )
     }
 
-    if (!value || typeof value !== 'object') {
-      return
+    const { event, value: reference } = referenceNode
+    if (reference.startsWith('./')) {
+      continue
     }
-
-    for (const [key, nestedValue] of Object.entries(value)) {
-      if (key === 'uses' && typeof nestedValue === 'string') {
-        references.push(nestedValue)
-      }
-      collectUses(nestedValue)
-    }
-  }
-  collectUses(workflow)
-
-  for (const reference of references.filter(
-    (value) => !value.startsWith('./')
-  )) {
-    const escapedReference = reference.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const referenceLine = new RegExp(
-      `^\\s*(?:-\\s+)?uses:\\s*(?:"${escapedReference}"|'${escapedReference}'|${escapedReference})\\s+#\\s*([A-Za-z0-9][A-Za-z0-9._/-]*)\\s*$`,
-      'm'
-    )
 
     if (!/@[0-9a-f]{40}$/.test(reference)) {
       fail(
@@ -84,7 +188,7 @@ for (const workflowPath of paths) {
       )
     }
 
-    if (!referenceLine.test(workflowText)) {
+    if (!sourceComment(workflowText, event)) {
       fail(
         `${workflowPath} external uses reference must retain its source tag or branch in a same-line comment: ${reference}.`
       )
