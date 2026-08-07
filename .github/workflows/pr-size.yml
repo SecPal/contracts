@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   pr-size:
-    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@177beb19b9f20978480bf96f1ada74e8bbbaccee
+    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@eb4001ca178929496be476e2639c4acf28111f8f
     with:
       max-lines: 600
       exclude-patterns: ''
