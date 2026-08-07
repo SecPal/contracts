@@ -142,6 +142,9 @@ const passkeyRegistrationStartRequestBody =
 const passkeyRegistrationVerificationRequestBody =
   passkeyRegistrationVerification?.requestBody ?? {}
 const passkeyDeletionRequestBody = passkeyDeletion?.requestBody ?? {}
+const passkeyDeletionExample =
+  passkeyDeletionRequestBody.content?.['application/json']?.examples
+    ?.current_password_step_up?.value
 const passkeyRegistrationVerificationStepUp =
   passkeyRegistrationVerificationRequest.allOf?.find(
     (schema) =>
@@ -194,15 +197,21 @@ if (
   passkeyDeletionRequestBody.required !== true ||
   passkeyDeletionRequestBody.content?.['application/json']?.schema?.$ref !==
     '#/components/schemas/PasskeyCurrentPasswordStepUpRequest' ||
-  !passkeyDeletionRequestBody.content?.['application/json']?.examples
-    ?.current_password_step_up?.value?.current_password ||
+  !matchesSchema(
+    passkeyDeletionRequestBody.content?.['application/json']?.schema,
+    passkeyDeletionExample
+  ) ||
+  !/drop bodies on `DELETE` requests/i.test(
+    passkeyDeletion?.description ?? ''
+  ) ||
+  !/Content-Type: application\/json/.test(passkeyDeletion?.description ?? '') ||
   passkeyDeletion.responses?.['422']?.$ref !==
     '#/components/responses/ValidationError' ||
   passkeyDeletion.responses?.['429']?.$ref !==
     '#/components/responses/SimpleTooManyRequests'
 ) {
   contractErrors.push(
-    'Passkey deletion must preserve its required current-password step-up body, example, validation response, and message-only throttling response.'
+    'Passkey deletion must preserve its required current-password step-up body, schema-valid example, DELETE-body transport guidance, validation response, and message-only throttling response.'
   )
 }
 

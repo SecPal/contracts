@@ -338,6 +338,8 @@ test('documents the current-password step-up for passkey deletion', () => {
     passkeyDeletion.responses['429'].$ref,
     '#/components/responses/SimpleTooManyRequests'
   )
+  assert.match(passkeyDeletion.description, /drop bodies on `DELETE` requests/i)
+  assert.match(passkeyDeletion.description, /Content-Type: application\/json/)
 })
 
 test('rejects passkey enrollment contract invariant regressions', () => {
@@ -546,6 +548,23 @@ test('rejects passkey deletion contract invariant regressions', () => {
         delete candidate.paths['/me/passkeys/{credentialId}'].delete.requestBody
           .content['application/json'].examples.current_password_step_up.value
           .current_password
+      },
+    },
+    {
+      invariant: 'deletion example matches the required schema',
+      apply(candidate) {
+        candidate.paths[
+          '/me/passkeys/{credentialId}'
+        ].delete.requestBody.content[
+          'application/json'
+        ].examples.current_password_step_up.value.current_password = 123
+      },
+    },
+    {
+      invariant: 'deletion warns clients to transport the required JSON body',
+      apply(candidate) {
+        candidate.paths['/me/passkeys/{credentialId}'].delete.description =
+          'Remove one enrolled passkey from the authenticated user account.'
       },
     },
     {

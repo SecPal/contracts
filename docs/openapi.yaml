@@ -7829,6 +7829,8 @@ paths:
         Remove one enrolled passkey from the authenticated user's account.
 
         This endpoint affects only the selected passkey credential. It does not disable the existing phase-1 TOTP factor or invalidate recovery codes.
+
+        **Note on request body:** This `DELETE` operation requires a JSON body carrying the current-password step-up proof. Some HTTP clients and middleware drop bodies on `DELETE` requests. Integrators must ensure the `Content-Type: application/json` header is set and the body is transmitted; verify behaviour with your HTTP client before deploying.
       operationId: deleteMyPasskey
       tags:
         - Me
