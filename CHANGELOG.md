@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Added a bounded 50/100/200 ms retry backoff for transient
+  `ERR_MODULE_NOT_FOUND` failures resolving `js-yaml` in the verified-endpoint
+  guard test harness, without masking other guard failures (closes #436).
 - Made the PR-size workflow guard accept routine Dependabot updates while still
   requiring the approved reusable workflow to use a full immutable commit SHA.
 
