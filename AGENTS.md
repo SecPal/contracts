@@ -143,6 +143,9 @@ At minimum verify:
 - Reuse schemas with `$ref`, keep security schemes and error responses consistent,
   and treat breaking changes as versioned API changes.
 - For policy scripts, keep discovery patterns narrow and verify both allowed and rejected examples after grep or regex changes.
+- Pin every external GitHub Action and reusable workflow to an immutable full
+  40-character commit SHA, preserve the existing release tag or branch, and
+  retain that source ref in a same-line comment for Dependabot.
 - Run the relevant validation for every change and keep examples, naming, and reusable components coherent.
 
 ## Scope Notes
