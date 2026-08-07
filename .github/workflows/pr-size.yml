@@ -11,7 +11,7 @@ permissions:
 jobs:
   pr-size:
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@480e66d1c9f287f9fbaa25a219c2cab8cadb6a83 # main
+    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@ffdfe1be8bbd8164d649f1c1d296e57ff4c6cc4a # main
     with:
       max-lines: 600
       exclude-patterns: ''
