@@ -7871,7 +7871,7 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
         '429':
-          $ref: '#/components/responses/TooManyRequests'
+          $ref: '#/components/responses/SimpleTooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
 

@@ -336,7 +336,7 @@ test('documents the current-password step-up for passkey deletion', () => {
   )
   assert.equal(
     passkeyDeletion.responses['429'].$ref,
-    '#/components/responses/TooManyRequests'
+    '#/components/responses/SimpleTooManyRequests'
   )
 })
 
@@ -557,11 +557,11 @@ test('rejects passkey deletion contract invariant regressions', () => {
       },
     },
     {
-      invariant: 'deletion documents throttling',
+      invariant: 'deletion documents message-only throttling',
       apply(candidate) {
         candidate.paths['/me/passkeys/{credentialId}'].delete.responses[
           '429'
-        ].$ref = '#/components/responses/Conflict'
+        ].$ref = '#/components/responses/TooManyRequests'
       },
     },
   ]

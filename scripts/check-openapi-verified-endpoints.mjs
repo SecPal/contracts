@@ -199,10 +199,10 @@ if (
   passkeyDeletion.responses?.['422']?.$ref !==
     '#/components/responses/ValidationError' ||
   passkeyDeletion.responses?.['429']?.$ref !==
-    '#/components/responses/TooManyRequests'
+    '#/components/responses/SimpleTooManyRequests'
 ) {
   contractErrors.push(
-    'Passkey deletion must preserve its required current-password step-up body, example, validation response, and throttling response.'
+    'Passkey deletion must preserve its required current-password step-up body, example, validation response, and message-only throttling response.'
   )
 }
 
