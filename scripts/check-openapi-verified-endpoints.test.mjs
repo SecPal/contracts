@@ -6,6 +6,7 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -24,6 +25,8 @@ const contractPath = fileURLToPath(
   new URL('../docs/openapi.yaml', import.meta.url)
 )
 const contract = readFileSync(contractPath, 'utf8')
+const YAML_RESOLUTION_RETRY_DELAYS = [50, 100, 200]
+const retrySignal = new Int32Array(new SharedArrayBuffer(4))
 
 const parsedContract = yaml.load(contract)
 const organizationalUnitListParameters =
@@ -74,16 +77,48 @@ function organizationalUnitWireExamples(parameter, name) {
   return wireExamples
 }
 
-function runGuard(source, { writeCandidate = writeFileSync } = {}) {
+function isTransientYamlResolutionFailure(result) {
+  return (
+    result.status !== 0 &&
+    /ERR_MODULE_NOT_FOUND/.test(result.stderr) &&
+    /js-yaml/.test(result.stderr)
+  )
+}
+
+function waitForYamlResolutionRetry(delay) {
+  Atomics.wait(retrySignal, 0, 0, delay)
+}
+
+function runGuard(
+  source,
+  {
+    guard = guardPath,
+    spawn = spawnSync,
+    waitForRetry = waitForYamlResolutionRetry,
+    writeCandidate = writeFileSync,
+  } = {}
+) {
   const directory = mkdtempSync(join(tmpdir(), 'verified-endpoints-'))
   const candidatePath = join(directory, 'openapi.yaml')
 
   try {
     writeCandidate(candidatePath, source)
 
-    return spawnSync(process.execPath, [guardPath, candidatePath], {
+    const options = {
       encoding: 'utf8',
-    })
+    }
+    let result = spawn(process.execPath, [guard, candidatePath], options)
+
+    for (const delay of YAML_RESOLUTION_RETRY_DELAYS) {
+      if (!isTransientYamlResolutionFailure(result)) {
+        break
+      }
+
+      waitForRetry(delay)
+      result = spawn(process.execPath, [guard, candidatePath], options)
+    }
+
+    return result
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
@@ -105,6 +140,107 @@ test('removes the temporary directory when candidate creation fails', () => {
 
   assert.ok(candidatePath, 'expected runGuard to attempt candidate creation')
   assert.equal(existsSync(dirname(candidatePath)), false)
+})
+
+test('retries a transient js-yaml module resolution failure', () => {
+  let calls = 0
+  const retryDelays = []
+  const result = runGuard(contract, {
+    spawn() {
+      calls += 1
+
+      if (calls < 3) {
+        return {
+          status: 1,
+          stderr:
+            "Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'js-yaml' imported from guard.mjs",
+        }
+      }
+
+      return { status: 0, stderr: '', stdout: '' }
+    },
+    waitForRetry(delay) {
+      retryDelays.push(delay)
+    },
+  })
+
+  assert.equal(result.status, 0)
+  assert.equal(calls, 3)
+  assert.deepEqual(retryDelays, [50, 100])
+})
+
+test('stops retrying after the bounded js-yaml backoff', () => {
+  let calls = 0
+  const retryDelays = []
+  const result = runGuard(contract, {
+    spawn() {
+      calls += 1
+      return {
+        status: 1,
+        stderr:
+          "Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'js-yaml' imported from guard.mjs",
+      }
+    },
+    waitForRetry(delay) {
+      retryDelays.push(delay)
+    },
+  })
+
+  assert.equal(result.status, 1)
+  assert.equal(calls, 4)
+  assert.deepEqual(retryDelays, [50, 100, 200])
+})
+
+test('does not retry other guard failures', () => {
+  let calls = 0
+  const result = runGuard(contract, {
+    spawn() {
+      calls += 1
+      return {
+        status: 1,
+        stderr:
+          "Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'unrelated-package' imported from guard.mjs",
+      }
+    },
+  })
+
+  assert.equal(result.status, 1)
+  assert.equal(calls, 1)
+})
+
+test('recovers from a real js-yaml ESM resolution failure', () => {
+  const fixtureDirectory = mkdtempSync(join(tmpdir(), 'yaml-resolution-'))
+  const fixtureGuardPath = join(fixtureDirectory, 'guard.mjs')
+  const fixturePackagePath = join(fixtureDirectory, 'node_modules', 'js-yaml')
+  const retryDelays = []
+
+  try {
+    writeFileSync(fixtureGuardPath, "import 'js-yaml'\n")
+
+    const result = runGuard(contract, {
+      guard: fixtureGuardPath,
+      waitForRetry(delay) {
+        retryDelays.push(delay)
+        mkdirSync(fixturePackagePath, { recursive: true })
+        writeFileSync(
+          join(fixturePackagePath, 'package.json'),
+          JSON.stringify({
+            name: 'js-yaml',
+            version: '0.0.0',
+            type: 'module',
+            exports: './index.mjs',
+          })
+        )
+        writeFileSync(join(fixturePackagePath, 'index.mjs'), '')
+        waitForYamlResolutionRetry(delay)
+      },
+    })
+
+    assert.equal(result.status, 0, result.stderr)
+    assert.deepEqual(retryDelays, [50])
+  } finally {
+    rmSync(fixtureDirectory, { recursive: true, force: true })
+  }
 })
 
 test('accepts the repository contract', () => {
