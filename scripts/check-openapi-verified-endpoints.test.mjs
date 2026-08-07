@@ -6,6 +6,7 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -91,6 +92,7 @@ function waitForYamlResolutionRetry(delay) {
 function runGuard(
   source,
   {
+    guard = guardPath,
     spawn = spawnSync,
     waitForRetry = waitForYamlResolutionRetry,
     writeCandidate = writeFileSync,
@@ -105,7 +107,7 @@ function runGuard(
     const options = {
       encoding: 'utf8',
     }
-    let result = spawn(process.execPath, [guardPath, candidatePath], options)
+    let result = spawn(process.execPath, [guard, candidatePath], options)
 
     for (const delay of YAML_RESOLUTION_RETRY_DELAYS) {
       if (!isTransientYamlResolutionFailure(result)) {
@@ -113,7 +115,7 @@ function runGuard(
       }
 
       waitForRetry(delay)
-      result = spawn(process.execPath, [guardPath, candidatePath], options)
+      result = spawn(process.execPath, [guard, candidatePath], options)
     }
 
     return result
@@ -204,6 +206,41 @@ test('does not retry other guard failures', () => {
 
   assert.equal(result.status, 1)
   assert.equal(calls, 1)
+})
+
+test('recovers from a real js-yaml ESM resolution failure', () => {
+  const fixtureDirectory = mkdtempSync(join(tmpdir(), 'yaml-resolution-'))
+  const fixtureGuardPath = join(fixtureDirectory, 'guard.mjs')
+  const fixturePackagePath = join(fixtureDirectory, 'node_modules', 'js-yaml')
+  const retryDelays = []
+
+  try {
+    writeFileSync(fixtureGuardPath, "import 'js-yaml'\n")
+
+    const result = runGuard(contract, {
+      guard: fixtureGuardPath,
+      waitForRetry(delay) {
+        retryDelays.push(delay)
+        mkdirSync(fixturePackagePath, { recursive: true })
+        writeFileSync(
+          join(fixturePackagePath, 'package.json'),
+          JSON.stringify({
+            name: 'js-yaml',
+            version: '0.0.0',
+            type: 'module',
+            exports: './index.mjs',
+          })
+        )
+        writeFileSync(join(fixturePackagePath, 'index.mjs'), '')
+        waitForYamlResolutionRetry(delay)
+      },
+    })
+
+    assert.equal(result.status, 0, result.stderr)
+    assert.deepEqual(retryDelays, [50])
+  } finally {
+    rmSync(fixtureDirectory, { recursive: true, force: true })
+  }
 })
 
 test('accepts the repository contract', () => {
