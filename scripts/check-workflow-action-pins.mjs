@@ -102,11 +102,19 @@ function mappingValue(node, key) {
 function workflowReferences(document) {
   const jobs = mappingValue(document, 'jobs')
 
+  if (jobs?.kind === 'alias') {
+    return [{ context: 'jobs', kind: 'alias-container' }]
+  }
+
   if (jobs?.kind !== 'mapping') {
     return []
   }
 
   return jobs.items.flatMap(({ value: job }) => {
+    if (job.kind === 'alias') {
+      return [{ context: 'job', kind: 'alias-container' }]
+    }
+
     if (job.kind !== 'mapping') {
       return []
     }
@@ -118,8 +126,17 @@ function workflowReferences(document) {
     }
 
     const steps = mappingValue(job, 'steps')
+    if (steps?.kind === 'alias') {
+      references.push({ context: 'steps', kind: 'alias-container' })
+    }
+
     if (steps?.kind === 'sequence') {
       for (const step of steps.items) {
+        if (step.kind === 'alias') {
+          references.push({ context: 'step', kind: 'alias-container' })
+          continue
+        }
+
         const action = mappingValue(step, 'uses')
         if (action) {
           references.push(action)
@@ -171,6 +188,12 @@ for (const workflowPath of paths) {
   }
 
   for (const referenceNode of workflowReferences(document)) {
+    if (referenceNode.kind === 'alias-container') {
+      fail(
+        `${workflowPath} ${referenceNode.context} must not use a YAML alias because external uses references cannot be verified.`
+      )
+    }
+
     if (referenceNode.kind !== 'scalar') {
       fail(
         `${workflowPath} uses reference must be an explicit string so its immutable pin and source comment can be verified.`

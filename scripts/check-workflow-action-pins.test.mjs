@@ -164,6 +164,67 @@ jobs:
   assert.match(result.stderr, /uses reference must be an explicit string/)
 })
 
+test('rejects an aliased job that bypasses job traversal', () => {
+  const result = runGuard({
+    'workflow.yml': `job-template: &job
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v7
+jobs:
+  action: *job
+`,
+  })
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stderr, /job must not use a YAML alias/)
+})
+
+test('rejects an aliased jobs mapping that bypasses job traversal', () => {
+  const result = runGuard({
+    'workflow.yml': `job-templates: &jobs
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+jobs: *jobs
+`,
+  })
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stderr, /jobs must not use a YAML alias/)
+})
+
+test('rejects an aliased steps sequence that bypasses step traversal', () => {
+  const result = runGuard({
+    'workflow.yml': `step-template: &steps
+  - uses: actions/checkout@v7
+jobs:
+  action:
+    runs-on: ubuntu-latest
+    steps: *steps
+`,
+  })
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stderr, /steps must not use a YAML alias/)
+})
+
+test('rejects an aliased step that bypasses uses traversal', () => {
+  const result = runGuard({
+    'workflow.yml': `step-template: &step
+  uses: actions/checkout@v7
+jobs:
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - *step
+`,
+  })
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stderr, /step must not use a YAML alias/)
+})
+
 test('rejects one trailing comment shared by flow-style references', () => {
   const result = runGuard({
     'workflow.yml': `on: push
