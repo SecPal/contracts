@@ -2,11 +2,12 @@
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: CC0-1.0
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs'
 import {
   basename,
   dirname,
   isAbsolute,
+  join,
   relative,
   resolve,
   sep,
@@ -20,8 +21,16 @@ function fail(message) {
 }
 
 function yamlPaths(directory) {
+  if (lstatSync(directory).isSymbolicLink()) {
+    fail(`${directory} must not be a symbolic link.`)
+  }
+
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = `${directory}/${entry.name}`
+
+    if (entry.isSymbolicLink()) {
+      fail(`${path} must not be a symbolic link.`)
+    }
 
     if (entry.isDirectory()) {
       return yamlPaths(path)
@@ -29,6 +38,20 @@ function yamlPaths(directory) {
 
     return /\.ya?ml$/i.test(entry.name) ? [path] : []
   })
+}
+
+function symbolicLinkInPath(root, target) {
+  const parts = relative(root, target).split(sep).filter(Boolean)
+  let path = root
+
+  for (const part of parts) {
+    path = join(path, part)
+    if (existsSync(path) && lstatSync(path).isSymbolicLink()) {
+      return path
+    }
+  }
+
+  return null
 }
 
 function manifestPaths(githubDirectory) {
@@ -82,7 +105,19 @@ function localActionManifest(repositoryRoot, reference, sourcePath) {
 
   const candidates = ['action.yml', 'action.yaml']
     .map((name) => `${actionDirectory}/${name}`)
-    .filter((path) => existsSync(path) && statSync(path).isFile())
+    .filter((path) => {
+      if (!existsSync(path)) {
+        return false
+      }
+
+      if (symbolicLinkInPath(repositoryRoot, path)) {
+        fail(
+          `${sourcePath} local action reference must not traverse symbolic links: ${reference}.`
+        )
+      }
+
+      return lstatSync(path).isFile()
+    })
 
   if (candidates.length !== 1) {
     fail(
@@ -298,7 +333,10 @@ let paths
 let repositoryRoot
 try {
   githubDirectoryDisplay = fileURLToPath(githubDirectory)
-  if (!statSync(githubDirectoryDisplay).isDirectory()) {
+  if (
+    lstatSync(githubDirectoryDisplay).isSymbolicLink() ||
+    !lstatSync(githubDirectoryDisplay).isDirectory()
+  ) {
     fail(`${githubDirectoryDisplay} must be a GitHub configuration directory.`)
   }
   paths = manifestPaths(githubDirectoryDisplay)

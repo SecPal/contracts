@@ -9,6 +9,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -28,7 +29,7 @@ const packageJson = JSON.parse(
   readFileSync(new URL('../package.json', import.meta.url), 'utf8')
 )
 
-function runGuard(manifests, { direct = false } = {}) {
+function runGuard(manifests, { direct = false, symlinks = {} } = {}) {
   const repositoryDirectory = mkdtempSync(
     join(tmpdir(), 'check-workflow-action-pins-')
   )
@@ -40,6 +41,12 @@ function runGuard(manifests, { direct = false } = {}) {
     const path = join(repositoryDirectory, relativePath)
     mkdirSync(dirname(path), { recursive: true })
     writeFileSync(path, content)
+  }
+
+  for (const [name, target] of Object.entries(symlinks)) {
+    const path = join(repositoryDirectory, name)
+    mkdirSync(dirname(path), { recursive: true })
+    symlinkSync(target, path)
   }
 
   try {
@@ -161,6 +168,44 @@ test('keeps scanning a directly supplied workflow directory', () => {
 
   assert.notEqual(result.status, 0, result.stderr || result.stdout)
   assert.match(result.stderr, /must end with a lowercase full 40-character/)
+})
+
+test('rejects symbolic links in the scanned workflow tree', () => {
+  const result = runGuard(
+    {
+      '.github/linked-workflow.yml': `jobs:
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@${fullSha} # v7
+`,
+    },
+    {
+      symlinks: {
+        '.github/workflows/workflow.yml': '../linked-workflow.yml',
+      },
+    }
+  )
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stderr, /must not be a symbolic link/)
+})
+
+test('rejects a symbolic workflow directory', () => {
+  const result = runGuard(
+    {
+      '.github/linked-workflows/workflow.yml': `jobs:
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@${fullSha} # v7
+`,
+    },
+    { symlinks: { '.github/workflows': 'linked-workflows' } }
+  )
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stderr, /must not be a symbolic link/)
 })
 
 test('rejects an uncommented duplicate of a documented reference', () => {
@@ -305,6 +350,54 @@ runs:
   })
 
   assert.equal(result.status, 0, result.stderr)
+})
+
+test('rejects a symbolic link in a referenced local action path', () => {
+  const result = runGuard(
+    {
+      'workflow.yml': `jobs:
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./tools/linked
+`,
+      'tools/target/action.yml': `name: CI action
+description: Example composite action
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@${fullSha} # v7
+`,
+    },
+    { symlinks: { 'tools/linked': 'target' } }
+  )
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stderr, /must not traverse symbolic links/)
+})
+
+test('rejects a symbolic local action manifest', () => {
+  const result = runGuard(
+    {
+      'workflow.yml': `jobs:
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./tools/linked
+`,
+      'tools/target/action.yml': `name: CI action
+description: Example composite action
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@${fullSha} # v7
+`,
+    },
+    { symlinks: { 'tools/linked/action.yml': '../target/action.yml' } }
+  )
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stderr, /must not traverse symbolic links/)
 })
 
 test('follows nested referenced local action manifests', () => {
