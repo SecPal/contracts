@@ -313,6 +313,33 @@ test('documents the current-password step-up for passkey enrollment', () => {
   )
 })
 
+test('documents the current-password step-up for passkey deletion', () => {
+  const passkeyStepUp =
+    parsedContract.components.schemas.PasskeyCurrentPasswordStepUpRequest
+  const passkeyDeletion =
+    parsedContract.paths['/me/passkeys/{credentialId}'].delete
+
+  assert.match(passkeyStepUp.description, /deletion/i)
+  assert.match(
+    passkeyStepUp.properties.current_password.description,
+    /deletion/i
+  )
+  assert.equal(passkeyDeletion.requestBody.required, true)
+  assert.equal(
+    passkeyDeletion.requestBody.content['application/json'].schema.$ref,
+    '#/components/schemas/PasskeyCurrentPasswordStepUpRequest'
+  )
+  assert.ok(passkeyDeletion.requestBody.content['application/json'].examples)
+  assert.equal(
+    passkeyDeletion.responses['422'].$ref,
+    '#/components/responses/ValidationError'
+  )
+  assert.equal(
+    passkeyDeletion.responses['429'].$ref,
+    '#/components/responses/TooManyRequests'
+  )
+})
+
 test('rejects passkey enrollment contract invariant regressions', () => {
   const mutations = [
     {
@@ -490,6 +517,63 @@ test('rejects passkey enrollment contract invariant regressions', () => {
 
     assert.notEqual(result.status, 0, `${mutation.invariant}: ${result.stdout}`)
     assert.match(result.stderr, /passkey enrollment/i)
+  }
+})
+
+test('rejects passkey deletion contract invariant regressions', () => {
+  const mutations = [
+    {
+      invariant: 'deletion request body remains required',
+      apply(candidate) {
+        candidate.paths[
+          '/me/passkeys/{credentialId}'
+        ].delete.requestBody.required = false
+      },
+    },
+    {
+      invariant: 'deletion reuses the password step-up schema',
+      apply(candidate) {
+        candidate.paths[
+          '/me/passkeys/{credentialId}'
+        ].delete.requestBody.content['application/json'].schema = {
+          type: 'object',
+        }
+      },
+    },
+    {
+      invariant: 'deletion example includes current_password',
+      apply(candidate) {
+        delete candidate.paths['/me/passkeys/{credentialId}'].delete.requestBody
+          .content['application/json'].examples.current_password_step_up.value
+          .current_password
+      },
+    },
+    {
+      invariant: 'deletion documents validation errors',
+      apply(candidate) {
+        candidate.paths['/me/passkeys/{credentialId}'].delete.responses[
+          '422'
+        ].$ref = '#/components/responses/Conflict'
+      },
+    },
+    {
+      invariant: 'deletion documents throttling',
+      apply(candidate) {
+        candidate.paths['/me/passkeys/{credentialId}'].delete.responses[
+          '429'
+        ].$ref = '#/components/responses/Conflict'
+      },
+    },
+  ]
+
+  for (const mutation of mutations) {
+    const candidate = structuredClone(parsedContract)
+    mutation.apply(candidate)
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, `${mutation.invariant}: ${result.stdout}`)
+    assert.match(result.stderr, /passkey deletion/i)
   }
 })
 
