@@ -39,7 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   commit SHA while preserving its existing release channel for Dependabot;
   added a syntax-aware repository-wide guard against mutable, abbreviated,
   undocumented, spoofed, or structurally aliased references in workflows and
-  composite actions (closes #430).
+  referenced local composite actions, and wired it into the pull-request lint
+  path (closes #430).
 - Pinned the transitive `brace-expansion` v5 dependency to 5.0.9 to remediate
   the unbounded intermediate-array denial-of-service vulnerability
   ([GHSA-rgw5-rvv9-x895](https://github.com/advisories/GHSA-rgw5-rvv9-x895)).

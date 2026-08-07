@@ -24,29 +24,48 @@ const dependabotAutoMergeWorkflow = readFileSync(
   new URL('../.github/workflows/dependabot-auto-merge.yml', import.meta.url),
   'utf8'
 )
+const packageJson = JSON.parse(
+  readFileSync(new URL('../package.json', import.meta.url), 'utf8')
+)
 
 function runGuard(manifests, { direct = false } = {}) {
-  const directory = mkdtempSync(join(tmpdir(), 'check-workflow-action-pins-'))
+  const repositoryDirectory = mkdtempSync(
+    join(tmpdir(), 'check-workflow-action-pins-')
+  )
+  const githubDirectory = join(repositoryDirectory, '.github')
 
   for (const [name, content] of Object.entries(manifests)) {
     const relativePath =
-      direct || name.includes('/') ? name : `workflows/${name}`
-    const path = join(directory, relativePath)
+      direct || name.includes('/') ? name : `.github/workflows/${name}`
+    const path = join(repositoryDirectory, relativePath)
     mkdirSync(dirname(path), { recursive: true })
     writeFileSync(path, content)
   }
 
   try {
-    return spawnSync(process.execPath, [guardPath, directory], {
-      encoding: 'utf8',
-    })
+    return spawnSync(
+      process.execPath,
+      [guardPath, direct ? repositoryDirectory : githubDirectory],
+      {
+        encoding: 'utf8',
+      }
+    )
   } finally {
-    rmSync(directory, { recursive: true, force: true })
+    rmSync(repositoryDirectory, { recursive: true, force: true })
   }
 }
 
+test('runs the pin guard from the lint script used by pull-request CI', () => {
+  assert.match(
+    packageJson.scripts.prelint,
+    /node scripts\/check-workflow-action-pins\.mjs/
+  )
+})
+
 test('accepts the repository workflows', () => {
-  const result = spawnSync(process.execPath, [guardPath], { encoding: 'utf8' })
+  const result = spawnSync(process.execPath, [guardPath], {
+    encoding: 'utf8',
+  })
 
   assert.equal(result.status, 0, result.stderr)
 })
@@ -209,7 +228,7 @@ test('rejects an alias used as the jobs mapping key', () => {
 
 test('rejects mutable external uses in a composite action manifest', () => {
   const result = runGuard({
-    'actions/example/action.yml': `name: Example action
+    '.github/actions/example/action.yml': `name: Example action
 description: Example composite action
 runs:
   using: composite
@@ -224,7 +243,7 @@ runs:
 
 test('accepts pinned external uses in a composite action manifest', () => {
   const result = runGuard({
-    'actions/example/action.yml': `name: Example action
+    '.github/actions/example/action.yml': `name: Example action
 description: Example composite action
 runs:
   using: composite
@@ -238,9 +257,105 @@ runs:
 
 test('ignores non-action YAML files beside composite action manifests', () => {
   const result = runGuard({
-    'actions/example/metadata.yml': `runs:
+    '.github/actions/example/metadata.yml': `runs:
   steps:
     - uses: actions/checkout@main
+`,
+  })
+
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('follows referenced local action manifests outside .github/actions', () => {
+  const result = runGuard({
+    'workflow.yml': `jobs:
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./tools/ci
+`,
+    'tools/ci/action.yml': `name: CI action
+description: Example composite action
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@main
+`,
+  })
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stderr, /must end with a lowercase full 40-character/)
+})
+
+test('accepts pinned referenced local actions outside .github/actions', () => {
+  const result = runGuard({
+    'workflow.yml': `jobs:
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./tools/ci
+`,
+    'tools/ci/action.yml': `name: CI action
+description: Example composite action
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@${fullSha} # v7
+`,
+  })
+
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('follows nested referenced local action manifests', () => {
+  const result = runGuard({
+    'workflow.yml': `jobs:
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./tools/outer
+`,
+    'tools/outer/action.yml': `name: Outer action
+description: Example composite action
+runs:
+  using: composite
+  steps:
+    - uses: ./tools/inner
+`,
+    'tools/inner/action.yml': `name: Inner action
+description: Example composite action
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@main
+`,
+  })
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stderr, /must end with a lowercase full 40-character/)
+})
+
+test('terminates local action reference cycles', () => {
+  const result = runGuard({
+    'workflow.yml': `jobs:
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./tools/one
+`,
+    'tools/one/action.yml': `name: First action
+description: Example composite action
+runs:
+  using: composite
+  steps:
+    - uses: ./tools/two
+`,
+    'tools/two/action.yml': `name: Second action
+description: Example composite action
+runs:
+  using: composite
+  steps:
+    - uses: ./tools/one
 `,
   })
 

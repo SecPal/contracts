@@ -3,6 +3,14 @@
 // SPDX-License-Identifier: CC0-1.0
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  relative,
+  resolve,
+  sep,
+} from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as yaml from 'js-yaml'
 
@@ -41,6 +49,48 @@ function manifestPaths(githubDirectory) {
     : []
 
   return [...workflows, ...actions]
+}
+
+function repositoryDirectory(githubDirectory) {
+  if (basename(githubDirectory) === '.github') {
+    return dirname(githubDirectory)
+  }
+
+  if (
+    basename(githubDirectory) === 'workflows' &&
+    basename(dirname(githubDirectory)) === '.github'
+  ) {
+    return dirname(dirname(githubDirectory))
+  }
+
+  return dirname(githubDirectory)
+}
+
+function localActionManifest(repositoryRoot, reference, sourcePath) {
+  const actionDirectory = resolve(repositoryRoot, reference)
+  const repositoryRelativePath = relative(repositoryRoot, actionDirectory)
+
+  if (
+    isAbsolute(repositoryRelativePath) ||
+    repositoryRelativePath === '..' ||
+    repositoryRelativePath.startsWith(`..${sep}`)
+  ) {
+    fail(
+      `${sourcePath} local action reference escapes the repository: ${reference}.`
+    )
+  }
+
+  const candidates = ['action.yml', 'action.yaml']
+    .map((name) => `${actionDirectory}/${name}`)
+    .filter((path) => existsSync(path) && statSync(path).isFile())
+
+  if (candidates.length !== 1) {
+    fail(
+      `${sourcePath} local action reference must resolve to exactly one action.yml or action.yaml manifest: ${reference}.`
+    )
+  }
+
+  return candidates[0]
 }
 
 function parseNode(events, eventIndex, source) {
@@ -154,7 +204,7 @@ function stepReferences(steps) {
     }
 
     const action = mappingValue(step, 'uses')
-    return action ? [action] : []
+    return action ? [{ ...action, referenceKind: 'action' }] : []
   })
 }
 
@@ -186,7 +236,7 @@ function workflowReferences(document) {
     const references = []
     const reusableWorkflow = mappingValue(job, 'uses')
     if (reusableWorkflow) {
-      references.push(reusableWorkflow)
+      references.push({ ...reusableWorkflow, referenceKind: 'workflow' })
     }
 
     const steps = mappingValue(job, 'steps')
@@ -245,17 +295,28 @@ const githubDirectory = process.argv[2]
 let githubDirectoryDisplay = githubDirectory.href
 
 let paths
+let repositoryRoot
 try {
   githubDirectoryDisplay = fileURLToPath(githubDirectory)
   if (!statSync(githubDirectoryDisplay).isDirectory()) {
     fail(`${githubDirectoryDisplay} must be a GitHub configuration directory.`)
   }
   paths = manifestPaths(githubDirectoryDisplay)
+  repositoryRoot = repositoryDirectory(githubDirectoryDisplay)
 } catch (error) {
   fail(`could not read ${githubDirectoryDisplay}: ${error}`)
 }
 
-for (const manifestPath of paths) {
+const pendingPaths = [...paths]
+const visitedPaths = new Set()
+
+for (let pathIndex = 0; pathIndex < pendingPaths.length; pathIndex += 1) {
+  const manifestPath = pendingPaths[pathIndex]
+  if (visitedPaths.has(manifestPath)) {
+    continue
+  }
+  visitedPaths.add(manifestPath)
+
   let document
   let manifestText
   try {
@@ -287,6 +348,16 @@ for (const manifestPath of paths) {
 
     const { event, value: reference } = referenceNode
     if (reference.startsWith('./')) {
+      if (referenceNode.referenceKind === 'action') {
+        const localManifest = localActionManifest(
+          repositoryRoot,
+          reference,
+          manifestPath
+        )
+        if (!visitedPaths.has(localManifest)) {
+          pendingPaths.push(localManifest)
+        }
+      }
       continue
     }
 
