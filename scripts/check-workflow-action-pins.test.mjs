@@ -4,9 +4,15 @@
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
@@ -19,11 +25,15 @@ const dependabotAutoMergeWorkflow = readFileSync(
   'utf8'
 )
 
-function runGuard(workflows) {
+function runGuard(manifests, { direct = false } = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'check-workflow-action-pins-'))
 
-  for (const [name, content] of Object.entries(workflows)) {
-    writeFileSync(join(directory, name), content)
+  for (const [name, content] of Object.entries(manifests)) {
+    const relativePath =
+      direct || name.includes('/') ? name : `workflows/${name}`
+    const path = join(directory, relativePath)
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, content)
   }
 
   try {
@@ -117,6 +127,23 @@ test('rejects malformed YAML', () => {
   assert.match(result.stderr, /^Error: could not parse /)
 })
 
+test('keeps scanning a directly supplied workflow directory', () => {
+  const result = runGuard(
+    {
+      'workflow.yml': `jobs:
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@main
+`,
+    },
+    { direct: true }
+  )
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stderr, /must end with a lowercase full 40-character/)
+})
+
 test('rejects an uncommented duplicate of a documented reference', () => {
   const result = runGuard({
     'workflow.yml': `jobs:
@@ -162,6 +189,62 @@ jobs:
 
   assert.notEqual(result.status, 0, result.stderr || result.stdout)
   assert.match(result.stderr, /uses reference must be an explicit string/)
+})
+
+test('rejects an alias used as the jobs mapping key', () => {
+  const result = runGuard({
+    'workflow.yml': `env:
+  JOBS_KEY: &jobs-key jobs
+*jobs-key :
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+`,
+  })
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stderr, /mapping key must not use a YAML alias/)
+})
+
+test('rejects mutable external uses in a composite action manifest', () => {
+  const result = runGuard({
+    'actions/example/action.yml': `name: Example action
+description: Example composite action
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@main
+`,
+  })
+
+  assert.notEqual(result.status, 0, result.stderr || result.stdout)
+  assert.match(result.stderr, /must end with a lowercase full 40-character/)
+})
+
+test('accepts pinned external uses in a composite action manifest', () => {
+  const result = runGuard({
+    'actions/example/action.yml': `name: Example action
+description: Example composite action
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@${fullSha} # v7
+`,
+  })
+
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('ignores non-action YAML files beside composite action manifests', () => {
+  const result = runGuard({
+    'actions/example/metadata.yml': `runs:
+  steps:
+    - uses: actions/checkout@main
+`,
+  })
+
+  assert.equal(result.status, 0, result.stderr)
 })
 
 test('rejects an aliased job that bypasses job traversal', () => {

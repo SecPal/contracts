@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: CC0-1.0
 
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import * as yaml from 'js-yaml'
 
@@ -11,16 +11,36 @@ function fail(message) {
   process.exit(1)
 }
 
-function workflowPaths(directory) {
+function yamlPaths(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = `${directory}/${entry.name}`
 
     if (entry.isDirectory()) {
-      return workflowPaths(path)
+      return yamlPaths(path)
     }
 
     return /\.ya?ml$/i.test(entry.name) ? [path] : []
   })
+}
+
+function manifestPaths(githubDirectory) {
+  const workflowsDirectory = `${githubDirectory}/workflows`
+  const actionsDirectory = `${githubDirectory}/actions`
+  const hasWorkflows = existsSync(workflowsDirectory)
+  const hasActions = existsSync(actionsDirectory)
+
+  if (!hasWorkflows && !hasActions) {
+    return yamlPaths(githubDirectory)
+  }
+
+  const workflows = hasWorkflows ? yamlPaths(workflowsDirectory) : []
+  const actions = hasActions
+    ? yamlPaths(actionsDirectory).filter((path) =>
+        /\/action\.ya?ml$/i.test(path)
+      )
+    : []
+
+  return [...workflows, ...actions]
 }
 
 function parseNode(events, eventIndex, source) {
@@ -99,6 +119,45 @@ function mappingValue(node, key) {
   )
 }
 
+function aliasKeyReference(node, context) {
+  if (
+    node?.kind === 'mapping' &&
+    node.items.some(({ key }) => key.kind === 'alias')
+  ) {
+    return { context, kind: 'alias-key' }
+  }
+
+  return null
+}
+
+function stepReferences(steps) {
+  if (steps?.kind === 'alias') {
+    return [{ context: 'steps', kind: 'alias-container' }]
+  }
+
+  if (steps?.kind !== 'sequence') {
+    return []
+  }
+
+  return steps.items.flatMap((step) => {
+    if (step.kind === 'alias') {
+      return [{ context: 'step', kind: 'alias-container' }]
+    }
+
+    if (step.kind !== 'mapping') {
+      return []
+    }
+
+    const aliasKey = aliasKeyReference(step, 'step')
+    if (aliasKey) {
+      return [aliasKey]
+    }
+
+    const action = mappingValue(step, 'uses')
+    return action ? [action] : []
+  })
+}
+
 function workflowReferences(document) {
   const jobs = mappingValue(document, 'jobs')
 
@@ -119,6 +178,11 @@ function workflowReferences(document) {
       return []
     }
 
+    const aliasKey = aliasKeyReference(job, 'job')
+    if (aliasKey) {
+      return [aliasKey]
+    }
+
     const references = []
     const reusableWorkflow = mappingValue(job, 'uses')
     if (reusableWorkflow) {
@@ -126,26 +190,41 @@ function workflowReferences(document) {
     }
 
     const steps = mappingValue(job, 'steps')
-    if (steps?.kind === 'alias') {
-      references.push({ context: 'steps', kind: 'alias-container' })
-    }
-
-    if (steps?.kind === 'sequence') {
-      for (const step of steps.items) {
-        if (step.kind === 'alias') {
-          references.push({ context: 'step', kind: 'alias-container' })
-          continue
-        }
-
-        const action = mappingValue(step, 'uses')
-        if (action) {
-          references.push(action)
-        }
-      }
-    }
+    references.push(...stepReferences(steps))
 
     return references
   })
+}
+
+function compositeActionReferences(document) {
+  const runs = mappingValue(document, 'runs')
+
+  if (runs?.kind === 'alias') {
+    return [{ context: 'runs', kind: 'alias-container' }]
+  }
+
+  if (runs?.kind !== 'mapping') {
+    return []
+  }
+
+  const aliasKey = aliasKeyReference(runs, 'composite action')
+  if (aliasKey) {
+    return [aliasKey]
+  }
+
+  return stepReferences(mappingValue(runs, 'steps'))
+}
+
+function manifestReferences(document) {
+  const aliasKey = aliasKeyReference(document, 'document')
+  if (aliasKey) {
+    return [aliasKey]
+  }
+
+  return [
+    ...workflowReferences(document),
+    ...compositeActionReferences(document),
+  ]
 }
 
 function sourceComment(source, scalarEvent) {
@@ -160,43 +239,49 @@ function sourceComment(source, scalarEvent) {
   return /^\s+#\s*([A-Za-z0-9][A-Za-z0-9._/-]*)\s*$/.exec(suffix)?.[1]
 }
 
-const workflowDirectory = process.argv[2]
+const githubDirectory = process.argv[2]
   ? new URL(process.argv[2], `file://${process.cwd()}/`)
-  : new URL('../.github/workflows/', import.meta.url)
-let workflowDirectoryDisplay = workflowDirectory.href
+  : new URL('../.github/', import.meta.url)
+let githubDirectoryDisplay = githubDirectory.href
 
 let paths
 try {
-  workflowDirectoryDisplay = fileURLToPath(workflowDirectory)
-  if (!statSync(workflowDirectoryDisplay).isDirectory()) {
-    fail(`${workflowDirectoryDisplay} must be a workflow directory.`)
+  githubDirectoryDisplay = fileURLToPath(githubDirectory)
+  if (!statSync(githubDirectoryDisplay).isDirectory()) {
+    fail(`${githubDirectoryDisplay} must be a GitHub configuration directory.`)
   }
-  paths = workflowPaths(workflowDirectoryDisplay)
+  paths = manifestPaths(githubDirectoryDisplay)
 } catch (error) {
-  fail(`could not read ${workflowDirectoryDisplay}: ${error}`)
+  fail(`could not read ${githubDirectoryDisplay}: ${error}`)
 }
 
-for (const workflowPath of paths) {
+for (const manifestPath of paths) {
   let document
-  let workflowText
+  let manifestText
   try {
-    workflowText = readFileSync(workflowPath, 'utf8')
-    yaml.load(workflowText, { schema: yaml.JSON_SCHEMA })
-    document = parseDocument(workflowText)
+    manifestText = readFileSync(manifestPath, 'utf8')
+    yaml.load(manifestText, { schema: yaml.JSON_SCHEMA })
+    document = parseDocument(manifestText)
   } catch (error) {
-    fail(`could not parse ${workflowPath}: ${error}`)
+    fail(`could not parse ${manifestPath}: ${error}`)
   }
 
-  for (const referenceNode of workflowReferences(document)) {
+  for (const referenceNode of manifestReferences(document)) {
     if (referenceNode.kind === 'alias-container') {
       fail(
-        `${workflowPath} ${referenceNode.context} must not use a YAML alias because external uses references cannot be verified.`
+        `${manifestPath} ${referenceNode.context} must not use a YAML alias because external uses references cannot be verified.`
+      )
+    }
+
+    if (referenceNode.kind === 'alias-key') {
+      fail(
+        `${manifestPath} ${referenceNode.context} mapping key must not use a YAML alias because external uses references cannot be verified.`
       )
     }
 
     if (referenceNode.kind !== 'scalar') {
       fail(
-        `${workflowPath} uses reference must be an explicit string so its immutable pin and source comment can be verified.`
+        `${manifestPath} uses reference must be an explicit string so its immutable pin and source comment can be verified.`
       )
     }
 
@@ -207,16 +292,16 @@ for (const workflowPath of paths) {
 
     if (!/@[0-9a-f]{40}$/.test(reference)) {
       fail(
-        `${workflowPath} external uses reference must end with a lowercase full 40-character commit SHA: ${reference}.`
+        `${manifestPath} external uses reference must end with a lowercase full 40-character commit SHA: ${reference}.`
       )
     }
 
-    if (!sourceComment(workflowText, event)) {
+    if (!sourceComment(manifestText, event)) {
       fail(
-        `${workflowPath} external uses reference must retain its source tag or branch in a same-line comment: ${reference}.`
+        `${manifestPath} external uses reference must retain its source tag or branch in a same-line comment: ${reference}.`
       )
     }
   }
 }
 
-console.log('Workflow action pin guard OK.')
+console.log('GitHub action pin guard OK.')
