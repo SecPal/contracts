@@ -1710,7 +1710,7 @@ components:
 
     PasskeyCurrentPasswordStepUpRequest:
       type: object
-      description: Fresh current-password proof required before a sensitive passkey enrollment action.
+      description: Fresh current-password proof required before a sensitive passkey enrollment or deletion action.
       required:
         - current_password
       properties:
@@ -1718,7 +1718,7 @@ components:
           type: string
           format: password
           writeOnly: true
-          description: Current account password used for the enrollment step-up check.
+          description: Current account password used for the passkey enrollment or deletion step-up check.
           example: CorrectHorseBatteryStaple!
 
     PasskeyRegistrationVerificationRequest:
@@ -7829,6 +7829,8 @@ paths:
         Remove one enrolled passkey from the authenticated user's account.
 
         This endpoint affects only the selected passkey credential. It does not disable the existing phase-1 TOTP factor or invalidate recovery codes.
+
+        **Note on request body:** This `DELETE` operation requires a JSON body carrying the current-password step-up proof. Some HTTP clients and middleware drop bodies on `DELETE` requests. Integrators must ensure the `Content-Type: application/json` header is set and the body is transmitted; verify behaviour with your HTTP client before deploying.
       operationId: deleteMyPasskey
       tags:
         - Me
@@ -7844,6 +7846,17 @@ paths:
           schema:
             type: string
             example: 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyCurrentPasswordStepUpRequest'
+            examples:
+              current_password_step_up:
+                summary: Confirm the current password before deleting the passkey.
+                value:
+                  current_password: CorrectHorseBatteryStaple!
       responses:
         '200':
           description: Passkey deleted successfully
@@ -7857,6 +7870,10 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/SimpleTooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
 

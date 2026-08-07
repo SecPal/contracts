@@ -7,8 +7,8 @@
  * or regresses their critical contract invariants (email verification resend +
  * German address reference data + employee documents + qualification catalog +
  * employee qualifications + organizational units + employee compliance alerts +
- * passkey enrollment password step-up + canonical schema-4 bootstrap and
- * notification runtime metadata).
+ * passkey enrollment and deletion password step-up + canonical schema-4
+ * bootstrap and notification runtime metadata).
  *
  * Usage: node scripts/check-openapi-verified-endpoints.mjs <path-to-openapi.yaml>
  */
@@ -52,6 +52,7 @@ const REQUIRED_OPERATIONS = [
   ['get', '/lookups/legal-entities'],
   ['post', '/me/passkeys/challenges/registration'],
   ['post', '/me/passkeys/challenges/registration/{challengeId}/verify'],
+  ['delete', '/me/passkeys/{credentialId}'],
 ]
 
 const target = process.argv[2]
@@ -129,6 +130,7 @@ const passkeyRegistrationStart =
   paths['/me/passkeys/challenges/registration']?.post
 const passkeyRegistrationVerification =
   paths['/me/passkeys/challenges/registration/{challengeId}/verify']?.post
+const passkeyDeletion = paths['/me/passkeys/{credentialId}']?.delete
 const passkeyCurrentPasswordStepUp =
   schemas.PasskeyCurrentPasswordStepUpRequest ?? {}
 const passkeyRegistrationVerificationRequest =
@@ -139,6 +141,10 @@ const passkeyRegistrationStartRequestBody =
   passkeyRegistrationStart?.requestBody ?? {}
 const passkeyRegistrationVerificationRequestBody =
   passkeyRegistrationVerification?.requestBody ?? {}
+const passkeyDeletionRequestBody = passkeyDeletion?.requestBody ?? {}
+const passkeyDeletionExample =
+  passkeyDeletionRequestBody.content?.['application/json']?.examples
+    ?.current_password_step_up?.value
 const passkeyRegistrationVerificationStepUp =
   passkeyRegistrationVerificationRequest.allOf?.find(
     (schema) =>
@@ -184,6 +190,28 @@ if (
 ) {
   contractErrors.push(
     'Passkey enrollment must preserve the required bodies, validation response, password step-up, credential, and optional label contracts.'
+  )
+}
+
+if (
+  passkeyDeletionRequestBody.required !== true ||
+  passkeyDeletionRequestBody.content?.['application/json']?.schema?.$ref !==
+    '#/components/schemas/PasskeyCurrentPasswordStepUpRequest' ||
+  !matchesSchema(
+    passkeyDeletionRequestBody.content?.['application/json']?.schema,
+    passkeyDeletionExample
+  ) ||
+  !/drop bodies on `DELETE` requests/i.test(
+    passkeyDeletion?.description ?? ''
+  ) ||
+  !/Content-Type: application\/json/.test(passkeyDeletion?.description ?? '') ||
+  passkeyDeletion.responses?.['422']?.$ref !==
+    '#/components/responses/ValidationError' ||
+  passkeyDeletion.responses?.['429']?.$ref !==
+    '#/components/responses/SimpleTooManyRequests'
+) {
+  contractErrors.push(
+    'Passkey deletion must preserve its required current-password step-up body, schema-valid example, DELETE-body transport guidance, validation response, and message-only throttling response.'
   )
 }
 

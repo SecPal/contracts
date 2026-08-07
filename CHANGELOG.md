@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   enrollment challenge. Consumers regenerating clients from earlier contracts
   must provide the required JSON bodies and `current_password` property
   (closes #418).
+- **Breaking:** Corrected passkey deletion to require the runtime-enforced
+  current-password step-up JSON body and document its validation and throttling
+  responses. Consumers regenerating clients from earlier contracts must provide
+  `current_password` when calling `DELETE /me/passkeys/{credentialId}`.
 - Removed the retired standalone changelog host from contract-repository domain
   policy and guidance.
 - Changed local and hosted pull-request size reporting to treat 600 changed
