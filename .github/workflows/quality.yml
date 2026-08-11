@@ -22,12 +22,12 @@ jobs:
   reuse:
     name: REUSE Compliance
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/reusable-reuse.yml@76d07ca0d9bd796896de1c05c3307d66e90cdc6a # main
+    uses: SecPal/.github/.github/workflows/reusable-reuse.yml@eefac02583d4c50c77323c0200745ab4fb988fa1 # main
 
   license-compatibility:
     name: License Compatibility
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/reusable-license-compatibility.yml@76d07ca0d9bd796896de1c05c3307d66e90cdc6a # main
+    uses: SecPal/.github/.github/workflows/reusable-license-compatibility.yml@eefac02583d4c50c77323c0200745ab4fb988fa1 # main
 
   prettier:
     name: Prettier Formatting
@@ -36,7 +36,7 @@ jobs:
   markdown-lint:
     name: Markdown Lint
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/reusable-markdown-lint.yml@76d07ca0d9bd796896de1c05c3307d66e90cdc6a # main
+    uses: SecPal/.github/.github/workflows/reusable-markdown-lint.yml@eefac02583d4c50c77323c0200745ab4fb988fa1 # main
     with:
       # yamllint disable-line rule:line-length
       governance-ref: '6f8e13a7a62cee356811a7f58d6b92119941652f'
@@ -44,7 +44,7 @@ jobs:
   ai-instructions:
     name: AI Instructions
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/reusable-ai-instructions.yml@76d07ca0d9bd796896de1c05c3307d66e90cdc6a # main
+    uses: SecPal/.github/.github/workflows/reusable-ai-instructions.yml@eefac02583d4c50c77323c0200745ab4fb988fa1 # main
     with:
       # yamllint disable-line rule:line-length
       governance-ref: '6f8e13a7a62cee356811a7f58d6b92119941652f'
@@ -56,4 +56,4 @@ jobs:
   actionlint:
     name: Actionlint
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/reusable-actionlint.yml@76d07ca0d9bd796896de1c05c3307d66e90cdc6a # main
+    uses: SecPal/.github/.github/workflows/reusable-actionlint.yml@eefac02583d4c50c77323c0200745ab4fb988fa1 # main
