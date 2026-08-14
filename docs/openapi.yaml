@@ -3709,6 +3709,18 @@ components:
           type: string
           format: binary
           description: Binary attachment payload for the onboarding dossier.
+        idempotency_key:
+          type: string
+          minLength: 32
+          maxLength: 64
+          pattern: '^[A-Za-z0-9_-]+$'
+          description: |
+            Optional opaque retry key generated once per logical upload. Reuse the same key only when
+            retrying the identical submission, file bytes, sanitized filename, `document_type`, and
+            `document_subtype`. Keys are scoped to the authenticated tenant. An exact retry returns the
+            existing, non-deleted attachment. After an attachment is deleted, its key remains reserved;
+            reusing a reserved key or using a key for any different upload returns `409 Conflict`.
+          example: 7G2zJ6mJdQn4xYK8fVk2wU9cR3pL5sTa
         document_type:
           $ref: '#/components/schemas/OnboardingSubmissionUploadDocumentType'
         document_subtype:
@@ -6523,7 +6535,7 @@ components:
             $ref: '#/components/schemas/ValidationProblem'
 
     OnboardingUploadMissingDocumentSubtype:
-      description: Validation Error - Missing onboarding upload document subtype
+      description: Validation Error - Invalid onboarding upload request
       content:
         application/json:
           schema:
@@ -6536,6 +6548,24 @@ components:
                 errors:
                   document_subtype:
                     - 'The document subtype field is required when document type is id_document.'
+            invalidIdempotencyKey:
+              summary: '`idempotency_key` does not meet the bounded key contract'
+              value:
+                message: 'The given data was invalid.'
+                errors:
+                  idempotency_key:
+                    - 'The idempotency key field format is invalid.'
+
+    OnboardingUploadIdempotencyConflict:
+      description: >
+        Conflict - The tenant-scoped idempotency key represents a different upload or remains reserved
+        after its attachment was deleted
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SimpleMessageResponse'
+          example:
+            message: The upload idempotency key was already used for a different upload.
 
     UnprocessableEntity:
       description: Unprocessable Entity - Input validation or workflow preconditions failed
@@ -12302,13 +12332,23 @@ paths:
         identity split, proof-of-residence evidence, or a front/back residence permit upload. Accepted
         formats: PDF, JPG, PNG; max 10240 KiB (10 MiB).
 
+        Clients that may retry after an interrupted response should generate one opaque, unpredictable
+        `idempotency_key` per logical upload and reuse it only for an exact retry. The key is tenant-scoped.
+        An exact retry must match the original submission, file bytes, sanitized filename,
+        `document_type`, and `document_subtype`; it returns the existing, non-deleted attachment with
+        `200 OK`, even if the submission is no longer editable. After an attachment is deleted, the
+        idempotency key remains reserved and a retry returns `409 Conflict`. Reusing the key for any
+        different upload also returns `409 Conflict`. A new upload with an unused key, or without a key,
+        returns `201 Created`.
+
         Valid request examples:
-        - `file=signed-contract.pdf`, `document_type=contract`
+        - `file=signed-contract.pdf`, `document_type=contract`, `idempotency_key=7G2zJ6mJdQn4xYK8fVk2wU9cR3pL5sTa`
         - `file=passport-front.jpg`, `document_type=id_document`, `document_subtype=identity_document_front`
         - `file=residence-permit-front.jpg`, `document_type=id_document`, `document_subtype=residence_permit_front`
 
-        Invalid request example:
+        Invalid request examples:
         - `file=passport-front.jpg`, `document_type=id_document` without `document_subtype` returns a `422` validation response
+        - `idempotency_key=invalid-key-with-an-illegal-char!` returns a `422` validation response
       operationId: uploadOnboardingSubmissionFile
       tags:
         - Onboarding
@@ -12334,8 +12374,14 @@ paths:
               file:
                 contentType: application/pdf, image/jpeg, image/png
       responses:
+        '200':
+          description: Exact idempotent retry; the originally created onboarding attachment is returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingSubmissionFileUploadResponse'
         '201':
-          description: Onboarding submission attachment uploaded successfully.
+          description: A new onboarding submission attachment was uploaded successfully.
           content:
             application/json:
               schema:
@@ -12346,6 +12392,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/OnboardingUploadIdempotencyConflict'
         '422':
           $ref: '#/components/responses/OnboardingUploadMissingDocumentSubtype'
         '500':
