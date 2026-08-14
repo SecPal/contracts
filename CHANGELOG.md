@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Updated `@redocly/cli` from `2.46.0` to `2.46.1` in the local contract
+  validation toolchain and reproducible lockfile; the upstream patch refreshes
+  its AJV, OpenAPI Core, Respect Core, and client-generator dependencies
+  (closes #443).
 - Updated `@redocly/cli` from `2.43.3` to `2.46.0` in the local contract
   validation toolchain and reproducible lockfile (closes #432).
 - Updated `@redocly/cli` from `2.43.2` to `2.43.3` so local contract
