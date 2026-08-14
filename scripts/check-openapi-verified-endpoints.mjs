@@ -7,6 +7,7 @@
  * or regresses their critical contract invariants (email verification resend +
  * German address reference data + employee documents + qualification catalog +
  * employee qualifications + organizational units + employee compliance alerts +
+ * onboarding upload idempotency +
  * passkey enrollment and deletion password step-up + canonical schema-4
  * bootstrap and notification runtime metadata).
  *
@@ -50,6 +51,7 @@ const REQUIRED_OPERATIONS = [
   ['post', '/organizational-units/{organizational_unit}/parent'],
   ['delete', '/organizational-units/{organizational_unit}/parent/{parent}'],
   ['get', '/lookups/legal-entities'],
+  ['post', '/onboarding/submissions/{submission}/files'],
   ['post', '/me/passkeys/challenges/registration'],
   ['post', '/me/passkeys/challenges/registration/{challengeId}/verify'],
   ['delete', '/me/passkeys/{credentialId}'],
@@ -126,6 +128,10 @@ const parentIdParameter = paths['/organizational-units']?.get?.parameters?.find(
 const organizationalUnitListParameters =
   paths['/organizational-units']?.get?.parameters ?? []
 const employeeComplianceAlerts = paths['/employees/compliance-alerts']?.get
+const onboardingSubmissionFileUpload =
+  paths['/onboarding/submissions/{submission}/files']?.post
+const onboardingSubmissionFileUploadRequest =
+  schemas.UploadOnboardingSubmissionFileRequest ?? {}
 const passkeyRegistrationStart =
   paths['/me/passkeys/challenges/registration']?.post
 const passkeyRegistrationVerification =
@@ -136,6 +142,40 @@ const passkeyCurrentPasswordStepUp =
 const passkeyRegistrationVerificationRequest =
   schemas.PasskeyRegistrationVerificationRequest ?? {}
 const contractErrors = []
+
+const onboardingUploadIdempotencyKey =
+  onboardingSubmissionFileUploadRequest.properties?.idempotency_key ?? {}
+const onboardingUploadConflict =
+  responses.OnboardingUploadIdempotencyConflict ?? {}
+
+if (
+  onboardingSubmissionFileUpload?.requestBody?.content?.['multipart/form-data']
+    ?.schema?.$ref !==
+    '#/components/schemas/UploadOnboardingSubmissionFileRequest' ||
+  onboardingSubmissionFileUploadRequest.required?.includes('idempotency_key') ||
+  onboardingUploadIdempotencyKey.type !== 'string' ||
+  onboardingUploadIdempotencyKey.minLength !== 32 ||
+  onboardingUploadIdempotencyKey.maxLength !== 64 ||
+  onboardingUploadIdempotencyKey.pattern !== '^[A-Za-z0-9_-]+$' ||
+  onboardingSubmissionFileUpload?.responses?.['200']?.content?.[
+    'application/json'
+  ]?.schema?.$ref !==
+    '#/components/schemas/OnboardingSubmissionFileUploadResponse' ||
+  onboardingSubmissionFileUpload?.responses?.['201']?.content?.[
+    'application/json'
+  ]?.schema?.$ref !==
+    '#/components/schemas/OnboardingSubmissionFileUploadResponse' ||
+  onboardingSubmissionFileUpload?.responses?.['409']?.$ref !==
+    '#/components/responses/OnboardingUploadIdempotencyConflict' ||
+  onboardingUploadConflict.content?.['application/json']?.schema?.$ref !==
+    '#/components/schemas/SimpleMessageResponse' ||
+  onboardingUploadConflict.content?.['application/json']?.example?.message !==
+    'The upload idempotency key was already used for a different upload.'
+) {
+  contractErrors.push(
+    'Onboarding file upload must preserve its optional bounded idempotency key, 200 exact-replay, 201 creation, and message-only 409 conflict contracts.'
+  )
+}
 
 const passkeyRegistrationStartRequestBody =
   passkeyRegistrationStart?.requestBody ?? {}

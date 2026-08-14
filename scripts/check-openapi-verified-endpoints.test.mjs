@@ -249,6 +249,151 @@ test('accepts the repository contract', () => {
   assert.equal(result.status, 0, result.stderr)
 })
 
+test('documents onboarding file upload idempotency', () => {
+  const upload =
+    parsedContract.paths['/onboarding/submissions/{submission}/files'].post
+  const request =
+    parsedContract.components.schemas.UploadOnboardingSubmissionFileRequest
+  const idempotencyKey = request.properties.idempotency_key
+  const conflict =
+    parsedContract.components.responses.OnboardingUploadIdempotencyConflict
+
+  assert.equal(
+    upload.requestBody.content['multipart/form-data'].schema.$ref,
+    '#/components/schemas/UploadOnboardingSubmissionFileRequest'
+  )
+  assert.equal(request.required.includes('idempotency_key'), false)
+  assert.deepEqual(
+    {
+      type: idempotencyKey.type,
+      minLength: idempotencyKey.minLength,
+      maxLength: idempotencyKey.maxLength,
+      pattern: idempotencyKey.pattern,
+    },
+    {
+      type: 'string',
+      minLength: 32,
+      maxLength: 64,
+      pattern: '^[A-Za-z0-9_-]+$',
+    }
+  )
+  assert.match(upload.description, /exact retry/i)
+  assert.match(upload.description, /tenant-scoped/i)
+  assert.match(upload.description, /deleted attachment/i)
+  assert.match(upload.description, /idempotency key remains reserved/i)
+  assert.equal(
+    upload.responses['200'].content['application/json'].schema.$ref,
+    '#/components/schemas/OnboardingSubmissionFileUploadResponse'
+  )
+  assert.equal(
+    upload.responses['201'].content['application/json'].schema.$ref,
+    '#/components/schemas/OnboardingSubmissionFileUploadResponse'
+  )
+  assert.equal(
+    upload.responses['409'].$ref,
+    '#/components/responses/OnboardingUploadIdempotencyConflict'
+  )
+  assert.equal(
+    conflict.content['application/json'].schema.$ref,
+    '#/components/schemas/SimpleMessageResponse'
+  )
+  assert.deepEqual(conflict.content['application/json'].example, {
+    message:
+      'The upload idempotency key was already used for a different upload.',
+  })
+})
+
+test('rejects onboarding file upload idempotency regressions', () => {
+  const mutations = [
+    {
+      invariant: 'idempotency key remains present',
+      apply(candidate) {
+        delete candidate.components.schemas
+          .UploadOnboardingSubmissionFileRequest.properties.idempotency_key
+      },
+    },
+    {
+      invariant: 'idempotency key remains optional',
+      apply(candidate) {
+        candidate.components.schemas.UploadOnboardingSubmissionFileRequest.required.push(
+          'idempotency_key'
+        )
+      },
+    },
+    {
+      invariant: 'idempotency key retains its lower bound',
+      apply(candidate) {
+        candidate.components.schemas.UploadOnboardingSubmissionFileRequest.properties.idempotency_key.minLength = 31
+      },
+    },
+    {
+      invariant: 'idempotency key retains its upper bound',
+      apply(candidate) {
+        candidate.components.schemas.UploadOnboardingSubmissionFileRequest.properties.idempotency_key.maxLength = 65
+      },
+    },
+    {
+      invariant: 'idempotency key retains its bounded alphabet',
+      apply(candidate) {
+        candidate.components.schemas.UploadOnboardingSubmissionFileRequest.properties.idempotency_key.pattern =
+          '^.*$'
+      },
+    },
+    {
+      invariant: 'exact retries retain the upload response shape',
+      apply(candidate) {
+        candidate.paths[
+          '/onboarding/submissions/{submission}/files'
+        ].post.responses['200'].content['application/json'].schema.$ref =
+          '#/components/schemas/SimpleMessageResponse'
+      },
+    },
+    {
+      invariant: 'new uploads retain the upload response shape',
+      apply(candidate) {
+        candidate.paths[
+          '/onboarding/submissions/{submission}/files'
+        ].post.responses['201'].content['application/json'].schema.$ref =
+          '#/components/schemas/SimpleMessageResponse'
+      },
+    },
+    {
+      invariant: 'key reuse retains its dedicated conflict response',
+      apply(candidate) {
+        candidate.paths[
+          '/onboarding/submissions/{submission}/files'
+        ].post.responses['409'].$ref = '#/components/responses/Conflict'
+      },
+    },
+    {
+      invariant: 'key reuse remains a message-only response',
+      apply(candidate) {
+        candidate.components.responses.OnboardingUploadIdempotencyConflict.content[
+          'application/json'
+        ].schema.$ref = '#/components/schemas/Error'
+      },
+    },
+    {
+      invariant: 'key reuse retains the runtime message',
+      apply(candidate) {
+        candidate.components.responses.OnboardingUploadIdempotencyConflict.content[
+          'application/json'
+        ].example.message = 'Conflict.'
+      },
+    },
+  ]
+
+  for (const { invariant, apply } of mutations) {
+    const candidate = structuredClone(parsedContract)
+    apply(candidate)
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, `${invariant}: ${result.stdout}`)
+    assert.match(result.stderr, /onboarding file upload/i, invariant)
+  }
+})
+
 test('documents the current-password step-up for passkey enrollment', () => {
   const passkeyStepUp =
     parsedContract.components.schemas.PasskeyCurrentPasswordStepUpRequest
