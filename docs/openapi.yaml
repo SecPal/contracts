@@ -6535,7 +6535,7 @@ components:
             $ref: '#/components/schemas/ValidationProblem'
 
     OnboardingUploadMissingDocumentSubtype:
-      description: Validation Error - Missing onboarding upload document subtype
+      description: Validation Error - Invalid onboarding upload request
       content:
         application/json:
           schema:
@@ -6548,9 +6548,18 @@ components:
                 errors:
                   document_subtype:
                     - 'The document subtype field is required when document type is id_document.'
+            invalidIdempotencyKey:
+              summary: '`idempotency_key` does not meet the bounded key contract'
+              value:
+                message: 'The given data was invalid.'
+                errors:
+                  idempotency_key:
+                    - 'The idempotency key field format is invalid.'
 
     OnboardingUploadIdempotencyConflict:
-      description: Conflict - The tenant-scoped idempotency key already represents a different upload
+      description: >
+        Conflict - The tenant-scoped idempotency key represents a different upload or remains reserved
+        after its attachment was deleted
       content:
         application/json:
           schema:
@@ -12327,7 +12336,7 @@ paths:
         `idempotency_key` per logical upload and reuse it only for an exact retry. The key is tenant-scoped.
         An exact retry must match the original submission, file bytes, sanitized filename,
         `document_type`, and `document_subtype`; it returns the existing, non-deleted attachment with
-        `200 OK`, even if the submission is no longer editable. After a deleted attachment, the
+        `200 OK`, even if the submission is no longer editable. After an attachment is deleted, the
         idempotency key remains reserved and a retry returns `409 Conflict`. Reusing the key for any
         different upload also returns `409 Conflict`. A new upload with an unused key, or without a key,
         returns `201 Created`.
@@ -12337,8 +12346,9 @@ paths:
         - `file=passport-front.jpg`, `document_type=id_document`, `document_subtype=identity_document_front`
         - `file=residence-permit-front.jpg`, `document_type=id_document`, `document_subtype=residence_permit_front`
 
-        Invalid request example:
+        Invalid request examples:
         - `file=passport-front.jpg`, `document_type=id_document` without `document_subtype` returns a `422` validation response
+        - `idempotency_key=invalid-key-with-an-illegal-char!` returns a `422` validation response
       operationId: uploadOnboardingSubmissionFile
       tags:
         - Onboarding

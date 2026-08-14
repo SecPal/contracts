@@ -58,7 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Documented tenant-scoped onboarding attachment upload idempotency, including
   the optional bounded multipart retry key, exact-replay `200` response, new
-  upload `201` response, and message-only `409` conflict response
+  upload `201` response, deleted-key and different-upload `409` conflicts, and
+  the `422` invalid-key validation example
   (SecPal/api#1423).
 - Completed the `Employee` response contract with every field emitted by
   `EmployeeResource`, including identity-document and work-permit copy

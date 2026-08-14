@@ -257,6 +257,8 @@ test('documents onboarding file upload idempotency', () => {
   const idempotencyKey = request.properties.idempotency_key
   const conflict =
     parsedContract.components.responses.OnboardingUploadIdempotencyConflict
+  const validation =
+    parsedContract.components.responses.OnboardingUploadMissingDocumentSubtype
 
   assert.equal(
     upload.requestBody.content['multipart/form-data'].schema.$ref,
@@ -279,7 +281,7 @@ test('documents onboarding file upload idempotency', () => {
   )
   assert.match(upload.description, /exact retry/i)
   assert.match(upload.description, /tenant-scoped/i)
-  assert.match(upload.description, /deleted attachment/i)
+  assert.match(upload.description, /after an attachment is deleted/i)
   assert.match(upload.description, /idempotency key remains reserved/i)
   assert.equal(
     upload.responses['200'].content['application/json'].schema.$ref,
@@ -294,6 +296,15 @@ test('documents onboarding file upload idempotency', () => {
     '#/components/responses/OnboardingUploadIdempotencyConflict'
   )
   assert.equal(
+    upload.responses['422'].$ref,
+    '#/components/responses/OnboardingUploadMissingDocumentSubtype'
+  )
+  assert.match(conflict.description, /different upload/i)
+  assert.match(
+    conflict.description,
+    /reserved after its attachment was deleted/i
+  )
+  assert.equal(
     conflict.content['application/json'].schema.$ref,
     '#/components/schemas/SimpleMessageResponse'
   )
@@ -301,6 +312,22 @@ test('documents onboarding file upload idempotency', () => {
     message:
       'The upload idempotency key was already used for a different upload.',
   })
+  assert.equal(
+    validation.description,
+    'Validation Error - Invalid onboarding upload request'
+  )
+  assert.deepEqual(
+    validation.content['application/json'].examples.invalidIdempotencyKey,
+    {
+      summary: '`idempotency_key` does not meet the bounded key contract',
+      value: {
+        message: 'The given data was invalid.',
+        errors: {
+          idempotency_key: ['The idempotency key field format is invalid.'],
+        },
+      },
+    }
+  )
 })
 
 test('rejects onboarding file upload idempotency regressions', () => {
@@ -379,6 +406,37 @@ test('rejects onboarding file upload idempotency regressions', () => {
         candidate.components.responses.OnboardingUploadIdempotencyConflict.content[
           'application/json'
         ].example.message = 'Conflict.'
+      },
+    },
+    {
+      invariant: 'deleted-key reuse remains documented as a conflict',
+      apply(candidate) {
+        candidate.components.responses.OnboardingUploadIdempotencyConflict.description =
+          'Conflict - The tenant-scoped idempotency key already represents a different upload'
+      },
+    },
+    {
+      invariant:
+        'invalid idempotency keys retain the upload validation response',
+      apply(candidate) {
+        candidate.paths[
+          '/onboarding/submissions/{submission}/files'
+        ].post.responses['422'].$ref = '#/components/responses/ValidationError'
+      },
+    },
+    {
+      invariant: 'upload validation covers all invalid upload fields',
+      apply(candidate) {
+        candidate.components.responses.OnboardingUploadMissingDocumentSubtype.description =
+          'Validation Error - Missing onboarding upload document subtype'
+      },
+    },
+    {
+      invariant: 'invalid idempotency keys retain a validation example',
+      apply(candidate) {
+        delete candidate.components.responses
+          .OnboardingUploadMissingDocumentSubtype.content['application/json']
+          .examples.invalidIdempotencyKey
       },
     },
   ]

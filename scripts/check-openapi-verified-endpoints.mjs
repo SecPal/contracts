@@ -147,6 +147,8 @@ const onboardingUploadIdempotencyKey =
   onboardingSubmissionFileUploadRequest.properties?.idempotency_key ?? {}
 const onboardingUploadConflict =
   responses.OnboardingUploadIdempotencyConflict ?? {}
+const onboardingUploadValidation =
+  responses.OnboardingUploadMissingDocumentSubtype ?? {}
 
 if (
   onboardingSubmissionFileUpload?.requestBody?.content?.['multipart/form-data']
@@ -167,13 +169,26 @@ if (
     '#/components/schemas/OnboardingSubmissionFileUploadResponse' ||
   onboardingSubmissionFileUpload?.responses?.['409']?.$ref !==
     '#/components/responses/OnboardingUploadIdempotencyConflict' ||
+  onboardingSubmissionFileUpload?.responses?.['422']?.$ref !==
+    '#/components/responses/OnboardingUploadMissingDocumentSubtype' ||
+  !onboardingUploadConflict.description?.includes('different upload') ||
+  !onboardingUploadConflict.description?.includes(
+    'remains reserved after its attachment was deleted'
+  ) ||
   onboardingUploadConflict.content?.['application/json']?.schema?.$ref !==
     '#/components/schemas/SimpleMessageResponse' ||
   onboardingUploadConflict.content?.['application/json']?.example?.message !==
-    'The upload idempotency key was already used for a different upload.'
+    'The upload idempotency key was already used for a different upload.' ||
+  onboardingUploadValidation.description !==
+    'Validation Error - Invalid onboarding upload request' ||
+  onboardingUploadValidation.content?.['application/json']?.schema?.$ref !==
+    '#/components/schemas/ValidationProblem' ||
+  onboardingUploadValidation.content?.['application/json']?.examples
+    ?.invalidIdempotencyKey?.value?.errors?.idempotency_key?.[0] !==
+    'The idempotency key field format is invalid.'
 ) {
   contractErrors.push(
-    'Onboarding file upload must preserve its optional bounded idempotency key, 200 exact-replay, 201 creation, and message-only 409 conflict contracts.'
+    'Onboarding file upload must preserve its optional bounded idempotency key, 200 exact-replay, 201 creation, message-only 409 conflict, and 422 validation contracts.'
   )
 }
 
