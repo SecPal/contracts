@@ -2,24 +2,28 @@
 # SPDX-FileCopyrightText: 2026 SecPal
 # SPDX-License-Identifier: AGPL-3.0-or-later
 name: Contracts Runtime Overlay
-description: Reinforces strict SecPal governance for all files in this repo.
+description: Delegates generic governance and preserves Contracts-specific constraints.
 applyTo: '**'
 ---
 
 # Contracts Runtime Overlay
 
-This file auto-applies to all files in this repo so strict SecPal governance stays always present at runtime.
+This file auto-applies to all files in this repository.
 
-- `AGENTS.md` is the authoritative runtime baseline for this repo.
+- `AGENTS.md` is the authoritative runtime baseline for this repository.
   `.github/copilot-instructions.md` is only a compatibility mirror.
-- Non-negotiable: contract-first and test-first work, quality first, 1 topic =
-  1 PR = 1 branch, immediate GitHub issue creation for every real out-of-scope
-  finding, and no bypass.
-- If work needs more than one PR, or probably will, create an EPIC with linked
-  sub-issues before implementation.
-- Design discipline is always-on: DRY, KISS, YAGNI, SOLID, and fail fast.
-- GitHub communication stays in English and uses file and line references instead of large verbatim code quotes.
+- `SecPal/.github/docs/work-graph-contract.md` is the single organization-wide
+  owner of generic graph, delivery, finding, replanning, review, evidence, and
+  stop-condition semantics. Do not restate them in this overlay.
+- Preserve Contracts-specific OpenAPI 3.1 ownership, `$ref` reuse, compatibility,
+  validation, domain, action-pinning, narrow-matcher, and dependency-override
+  constraints from `AGENTS.md`.
+- Use meaningful failing contract evidence for observable OpenAPI changes where
+  it can prove the changed contract. Existing structural evidence may suffice
+  for governance prose and behavior-preserving changes.
+- Never bypass hooks or force-push.
+- Keep GitHub communication in English and reference files and lines instead of
+  pasting large code blocks.
 - Do not add AI self-references, generated-by text, tool promotion, or AI
   attribution unless the task explicitly requires documenting AI tooling.
-- Keep changes repo-local, minimal, and consistent with OpenAPI 3.1, Redocly validation, and contract-first design.
-- Apply the SecPal domain policy and immediate warning and issue triage rules from the repo baseline.
+- Keep changes repository-local and apply the domain policy from `AGENTS.md`.

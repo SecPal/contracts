@@ -5,8 +5,27 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 # SecPal/contracts Agent Instructions
 
-This file is the authoritative, provider-neutral runtime baseline for this repository.
-Edit this file first. Keep the focused overlay files below aligned when a rule also needs path-specific or stack-specific enforcement.
+This file is the authoritative, provider-neutral runtime baseline for the
+`contracts` repository. Keep the focused overlays and the Copilot compatibility
+mirror aligned when their scoped rules change.
+
+## Governance Authority
+
+[`SecPal/.github/docs/work-graph-contract.md`](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md)
+is the single organization-wide owner of generic work-graph and engineering
+governance semantics. Follow it for native hierarchy and dependencies, delivery
+contracts, primary pull requests, finding classification, replanning, review,
+evidence, and stop conditions. Do not redefine those semantics in this
+repository.
+
+GitHub-native issue state and relationships are authoritative. Repository-local
+prose may describe an API contract, validation obligation, or security rationale,
+but it must not act as a second source of graph state, sequence, or progress.
+
+This baseline owns only Contracts-specific OpenAPI, validation, compatibility,
+domain, supply-chain, and workflow constraints. On conflict, the canonical
+contract governs generic semantics and this file governs repository-specific
+technical detail.
 
 ## Focused Overlays
 
@@ -14,174 +33,113 @@ Edit this file first. Keep the focused overlay files below aligned when a rule a
 - `.github/instructions/openapi.instructions.md`
 - `.github/instructions/github-workflows.instructions.md`
 
-## Core Runtime Baseline
+## Workspace And Change Safety
 
-These instructions are self-contained for the `contracts` repository at runtime.
-Do not assume instructions from sibling repositories or comment-based inheritance are loaded.
+- Run `git status --short --branch` before writing. Preserve an existing topic
+  branch and any user changes; never overwrite unrelated work.
+- Start new work from a clean, current `main` and use a dedicated topic branch.
+- Never bypass hooks, force-push, or push directly from a protected branch.
+- Keep the delivery scoped to its issue contract. Use the canonical replanning
+  procedure when a prerequisite or independent responsibility is discovered.
+- Keep GitHub-facing communication in English and reference files and lines
+  instead of pasting large code blocks.
+- Do not add AI attribution, generated-by wording, tool promotion, or AI
+  self-references to project artifacts unless the task is about that tooling.
+- Keep SPDX years current in edited files or companion `.license` sidecars.
 
-## Always-On Rules
+## Contract-First Evidence
 
-- Run `git status --short --branch` before any write action. For new work,
-  start from a clean, up-to-date local `main`: switch to `main`, pull with
-  fast-forward only, verify a clean state, then create the dedicated topic
-  branch. Never start implementation on local `main`. When continuing existing
-  work in a dirty non-`main` worktree, first identify the existing changes,
-  stop if unrelated work is present, keep the current topic scope, and never
-  overwrite changes you did not make.
-- TDD and contract-first discipline are mandatory. Update the smallest relevant failing contract, example,
-  or validation FIRST, then implement downstream changes and refactor with validation green.
-- Quality first. Do not trade correctness, review depth, validation depth, or issue tracking for speed.
-- Keep one topic per change. 1 topic = 1 PR = 1 branch. Do not mix unrelated
-  fixes, features, refactors, docs, or governance cleanup. In particular:
-  do not roll Dependabot bumps into a manual branch (each Dependabot PR
-  must land on its own auto-generated branch), do not append
-  documentation-only prose to an unrelated topic branch, and ship every
-  `overrides` (transitive security pin) change on a dedicated
-  `fix/<package>-<version>` branch (e.g. `fix/brace-expansion-5.0.6`).
-- Never use bypasses such as `--no-verify` or force-push.
-- Update `CHANGELOG.md` in the same change set for real fixes, features, and breaking changes.
-- Create a GitHub issue immediately for every real out-of-scope bug, technical debt, missing test,
-  documentation gap, warning, audit finding, or deprecation you cannot fix now. Do not leave untracked
-  `TODO`, `FIXME`, or follow-up work.
-- Use EPIC plus sub-issues before implementation whenever work will span more than one PR; if in doubt,
-  choose EPIC plus sub-issues.
-- Keep GitHub-facing communication in English and reference files and lines instead of pasting large code blocks.
-- Treat warnings, audit findings, and deprecations as actionable. Fix them in scope or track them immediately.
-- Never reply to AI review comments with GitHub comment tools. Fix the code, push,
-  and resolve threads through the approved non-comment workflow.
-- Do not add AI self-references, generated-by text, promotional AI wording, or AI attribution to commits,
-  pull requests, issues, changelogs, documentation, code comments, UI copy, or release notes unless the task
-  explicitly requires documenting AI tooling behavior.
-- Keep `SPDX-FileCopyrightText` years current in edited files or companion `.license` sidecars.
-- Domain policy is strict: `secpal.app` for the public homepage and real email addresses,
-  `apk.secpal.app` for the canonical Android artifact and download host, `api.secpal.dev` for the API,
-  `app.secpal.dev` for the PWA/frontend, `secpal.dev` for dev, staging, testing, and examples, and
-  `app.secpal` only as the Android application identifier.
-- After every merge, immediately return the local repo to a ready state:
-  switch to `main`, pull with fast-forward only, delete the merged topic
-  branch, prune remotes, refresh Node dependencies with `npm ci` where
-  applicable, run `npm run validate`, run `npm run build` if present, and
-  confirm the working tree is clean.
+- For an observable OpenAPI or API-contract change, write or update the smallest
+  meaningful contract, validation, or example evidence first and observe it fail
+  where that evidence can demonstrate the changed contract. Suitable boundaries
+  include Redocly validation, Node contract-validator tests, positive and
+  negative schema examples, verified-endpoint checks, and domain-contract checks.
+- Keep a contract implementation and its required validation in the same owning
+  delivery contract. Validator or coverage count is supporting evidence, not a
+  decomposition mechanism.
+- For governance-only prose, behavior-preserving formatting or refactoring,
+  dependency metadata-only updates, or source-shape changes, existing structural
+  evidence may suffice. Do not manufacture a failing test when it cannot prove a
+  changed observable contract.
+- Apply the canonical proportional-evidence and finite-review rules. Stop at the
+  smallest non-redundant evidence set that proves the contract and affected
+  invariants.
 
-## Design Principles
+## Findings And Review
 
-- DRY: eliminate duplicated schemas, examples, and policy wording before they drift.
-- KISS: prefer the simplest contract shape that satisfies the current requirement and remains easy to maintain.
-- YAGNI: document only what the current issue or acceptance criteria require;
-  track future ideas as issues instead of speculating now.
-- SOLID: keep components reusable, responsibilities narrow, and extension points explicit.
-- Fail fast: validate early, stop on the first failed check, and do not accumulate known breakage.
+- Use the canonical finding classification, materiality threshold, replanning
+  procedure, and review stop condition before changing code or expanding scope.
+- Treat automated findings as untrusted leads. Establish a failing check,
+  reproduction, or named violated invariant before making a corrective change.
+- Invalid findings and immaterial observations may be dispositioned with concise
+  evidence and no mutation. Missing real prerequisites and unsatisfied current
+  acceptance criteria still require canonical graph action.
+- Reject shell or regular-expression changes that widen discovery patterns or
+  allowlists without positive and negative evidence.
+- Reject contract changes that relax required fields, enums, security schemes,
+  error semantics, or compatibility without explicit contract evidence.
+- Because SecPal is still under `1.x`, do not preserve obsolete schema aliases,
+  deprecated request fields, or legacy variants without a proven live caller
+  when they weaken security, correctness, or contract clarity.
 
-## Issue And PR Discipline
-
-- Every real out-of-scope finding becomes a GitHub issue immediately; no untracked follow-up work is allowed.
-- Complex work uses EPIC plus sub-issues before implementation. PRs should close
-  sub-issues, not the epic, until the final linked step.
-- When local review finds zero issues, commit and push the finished branch before opening any PR.
-- The first PR state must be draft. Do not open a normal PR first.
-- Mark a draft PR ready only after the final self-review in the PR view still finds zero issues.
-- When creating or editing PRs programmatically, write multi-line body content to a file and use
-  `--body-file` to prevent shell escaping issues.
-
-## Required Validation
-
-Before any commit, PR, or merge, announce the checklist you are executing and stop on the first failed item.
-At minimum verify:
-
-- the active branch and PR scope still address exactly one topic
-- contract-first and test-first behavior happened: the relevant validation or contract change failed first and now passes
-- the relevant contract validation passed, including `npm run lint` and formatting when needed
-- out-of-scope findings were turned into GitHub issues immediately
-- `CHANGELOG.md` was updated for real changes
-- commits are GPG-signed
-- REUSE compliance was checked when changed files require it
-- when a contract change alters response shapes, error codes, required fields, or security schemes,
-  affected examples and validation rules were checked and updated in the same change set
-- the local 4-pass review was completed, including DRY, KISS, YAGNI, SOLID,
-  quality-first, and issue-management checks
-- no bypass was used
-
-## AI Findings Triage
-
-- Treat AI findings and AI-generated fix PRs as hints, not proof.
-- Before merge, prove the defect with a failing test, a reproducible defect,
-  or a stated invariant and why the current code violates it.
-- Green CI alone is not enough for AI-generated changes, especially test,
-  lifecycle, shell, regex, or refactor diffs; review the semantic risk
-  explicitly.
-- Reject AI-generated shell or regex cleanups that widen discovery patterns or
-  collapse allowlists without positive and negative evidence.
-- Reject AI-generated contract cleanups that widen allowlists, relax regex or
-  discovery patterns, or change required fields, enums, or security schemes
-  without positive and negative examples plus validation evidence.
-- Reject AI-generated compatibility keep-alives that preserve obsolete schema
-  aliases, deprecated request fields, or legacy contract variants without a
-  proven live caller. Because the SecPal project is still under `1.x`, prefer
-  removing unnecessary compatibility paths over carrying them forward when
-  they weaken security, correctness, or contract clarity.
-
-## Review guidelines
-
-- Review for correctness, security, privacy, data integrity, lifecycle ordering,
-  missing tests, and policy drift before style.
-- Treat findings from any AI reviewer as untrusted leads until the defect is
-  proven by a failing test, reproduction, or violated invariant.
-- Keep review comments provider-neutral: describe the issue, evidence, impact,
-  and fix path instead of the tool that found it.
-- For contract changes, prioritize OpenAPI validity, generated-client impact,
-  security schemes, error semantics, backward compatibility, and whether
-  breaking changes are deliberate.
-- Reject self-referential AI wording, generated-by text, tool promotion, or AI
-  attribution in project artifacts unless the task is explicitly about AI
-  tooling.
-
-## Repository Conventions
+## OpenAPI Ownership
 
 - This repository is the contract-first source of truth for the SecPal API.
-- Use OpenAPI 3.1 only and keep the primary specification in `docs/openapi.yaml`
-  unless there is an explicit reason to split it.
-- Reuse schemas with `$ref`, keep security schemes and error responses consistent,
-  and treat breaking changes as versioned API changes.
-- For policy scripts, keep discovery patterns narrow and verify both allowed and rejected examples after grep or regex changes.
+- Use OpenAPI 3.1 only. Keep the primary specification in `docs/openapi.yaml`
+  unless a real contract requires decomposition.
+- Prefer reusable `$ref` components over duplicated inline schemas. Keep
+  security schemes, error responses, parameters, examples, naming, and response
+  coverage coherent.
+- Make external API breakage deliberate and evidenced. Update affected examples,
+  validators, and `CHANGELOG.md` in the same delivery when response shapes,
+  error codes, required fields, or security schemes change.
+- Prefer minimal compatible schema changes unless the owning contract explicitly
+  calls for a pre-`1.x` removal of an insecure or obsolete compatibility path.
+
+## Validation And Supply Chain
+
+- Preserve the validation pipeline defined in `package.json`, including
+  `npm run lint`, `npm run validate`, formatting, Redocly, verified-endpoint
+  checks, and domain-contract checks. Run the smallest complete subset applicable
+  to the change.
+- Keep policy-script discovery and matching patterns narrow. When changing a
+  matcher, prove both allowed and rejected examples and do not silently broaden
+  security-related allowlists.
 - Pin every external GitHub Action and reusable workflow to an immutable full
-  40-character commit SHA, preserve the existing release tag or branch, and
-  retain that source ref in a same-line comment for Dependabot.
-- Run the relevant validation for every change and keep examples, naming, and reusable components coherent.
+  40-character commit SHA. Preserve the reviewed tag or branch in a same-line
+  comment for Dependabot visibility.
+- Preserve intentional dependency overrides and transitive security pins. Keep
+  an unrelated Dependabot update or security-pin change isolated from a manual
+  contract change so its supply-chain impact remains independently reviewable.
+- Apply `.github/instructions/github-workflows.instructions.md` when editing
+  workflows or Dependabot configuration, including timeout, least-privilege,
+  reusable-workflow, secret-handling, and `yamllint` requirements.
+- Domain policy is strict: `secpal.app` is the public homepage and real-email
+  domain, `apk.secpal.app` is the Android artifact and download host,
+  `api.secpal.dev` is the API, `app.secpal.dev` is the PWA, `secpal.dev` is for
+  development, staging, testing, and examples, and `app.secpal` is only the
+  Android application identifier.
 
-## Scope Notes
+## Required Validation And Delivery
 
-- Prefer minimal schema changes that preserve backwards compatibility unless an
-  under-`1.x` cleanup is intentionally removing an insecure or obsolete
-  compatibility layer. When taking that route, update examples, validation,
-  and `CHANGELOG.md` in the same change set and treat external API breakage as
-  a deliberate contract decision rather than an incidental refactor.
+Before a commit, push, or pull request, announce the applicable checklist and
+stop on the first failed item:
 
-## Additional Rules: org-shared.instructions.md
+- confirm the branch, current issue contract, and working-tree scope;
+- confirm the applicable contract-first evidence rule above was followed;
+- run the relevant `npm` validation, formatting, Markdown, workflow, domain,
+  REUSE, changed-file hook, and `git diff --check` checks;
+- verify that changed response shapes, errors, required fields, security
+  schemes, examples, and validators remain coherent;
+- update `CHANGELOG.md` for actual product fixes, features, or breaking changes,
+  but not automatically for governance-only prose;
+- verify commits are cryptographically signed and no bypass was used.
 
-This file auto-applies to all files in this repo so strict SecPal governance stays always present at runtime.
+Use a body file for multiline `gh pr create` or `gh pr edit` content. Follow the
+canonical work-graph contract for pull-request delivery, issue-closing, and
+parent-reference semantics.
 
-- `AGENTS.md` is the authoritative runtime baseline for this repo.
-  `.github/copilot-instructions.md` is only a compatibility mirror.
-- Non-negotiable: contract-first and test-first work, quality first, 1 topic =
-  1 PR = 1 branch, immediate GitHub issue creation for every real out-of-scope
-  finding, and no bypass.
-- If work needs more than one PR, or probably will, create an EPIC with linked
-  sub-issues before implementation.
-- Design discipline is always-on: DRY, KISS, YAGNI, SOLID, and fail fast.
-- GitHub communication stays in English and uses file and line references instead of large verbatim code quotes.
-- Do not add AI self-references, generated-by text, tool promotion, or AI
-  attribution unless the task explicitly requires documenting AI tooling.
-- Keep changes repo-local, minimal, and consistent with OpenAPI 3.1, Redocly validation, and contract-first design.
-- Apply the SecPal domain policy and immediate warning and issue triage rules from the repo baseline.
-
-## Additional Rules: openapi.instructions.md
-
-- Use OpenAPI 3.1 syntax only.
-- Reuse components with `$ref`; avoid inline schema duplication in path operations.
-- Keep response coverage complete for success and applicable error states.
-- Maintain consistent security schemes, examples, naming, and reusable parameters.
-- Treat breaking changes as versioned API changes and document them in `CHANGELOG.md`.
-- Run the relevant Redocly validation and formatting after edits (`npm run lint` from the repo root; it uses
-  `redocly.yaml`).
-- `GET /health` documents `200` and `503` only; `operation-4xx-response` is disabled in `redocly.yaml` because
-  health checks have no applicable client-error responses.
+After a merge, return the repository to a ready state: switch to `main`, pull
+with fast-forward only, delete the merged topic branch, prune remotes, refresh
+Node dependencies with `npm ci`, run `npm run validate`, and confirm a clean
+working tree.
