@@ -30,7 +30,7 @@ jobs:
   project-automation:
     name: Project automation
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/project-automation-core.yml@4817458e7b005982e247630460ee0449cffdb919 # main
+    uses: SecPal/.github/.github/workflows/project-automation-core.yml@18befca1fe8712374b93331bf235a28912937e85 # main
     secrets:
       APP_ID: ${{ secrets.APP_ID }}
       APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
@@ -38,7 +38,7 @@ jobs:
   draft-reminder:
     name: Draft PR Reminder
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/draft-pr-reminder.yml@4817458e7b005982e247630460ee0449cffdb919 # main
+    uses: SecPal/.github/.github/workflows/draft-pr-reminder.yml@18befca1fe8712374b93331bf235a28912937e85 # main
     permissions:
       issues: write
       pull-requests: write
