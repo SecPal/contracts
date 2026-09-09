@@ -1160,6 +1160,11 @@ const customerSiteDomainMutations = [
     permission: 'customers.update',
   },
   {
+    label: 'PUT transactional customer edit',
+    operation: paths['/customers/{customer}/transactional-edit']?.put,
+    permission: 'customers.update',
+  },
+  {
     label: 'DELETE customers',
     operation: customerDelete,
     permission: 'customers.delete',
@@ -1715,6 +1720,174 @@ requireUniquenessRules([
     reusableFields: ['contact_name', 'phone', 'email', 'comments'],
   },
 ])
+
+const transactionalCustomerEditPath =
+  paths['/customers/{customer}/transactional-edit'] ?? {}
+const transactionalCustomerEdit = transactionalCustomerEditPath.put
+const transactionalCustomerEditOperations = Object.values(paths).flatMap(
+  (pathItem) =>
+    Object.values(pathItem ?? {}).filter(
+      (operation) =>
+        operation?.operationId === 'transactionallyEditCustomer' ||
+        operation?.requestBody?.content?.['application/json']?.schema?.$ref ===
+          '#/components/schemas/CustomerTransactionalEditRequest'
+    )
+)
+if (
+  transactionalCustomerEditOperations.length !== 1 ||
+  transactionalCustomerEdit?.operationId !== 'transactionallyEditCustomer'
+) {
+  errors.push(
+    'Exactly one PUT /customers/{customer}/transactional-edit operation must own the transactional customer edit contract.'
+  )
+}
+
+const transactionalCustomerEditRequest =
+  schemas.CustomerTransactionalEditRequest ?? {}
+const transactionalCustomerEditAssignments =
+  transactionalCustomerEditRequest.properties?.customer_establishments
+if (
+  transactionalCustomerEditRequest.type !== 'object' ||
+  transactionalCustomerEditRequest.additionalProperties !== false ||
+  JSON.stringify(transactionalCustomerEditRequest.required) !==
+    JSON.stringify(['customer', 'customer_establishments']) ||
+  JSON.stringify(
+    Object.keys(transactionalCustomerEditRequest.properties ?? {})
+  ) !== JSON.stringify(['customer', 'customer_establishments']) ||
+  transactionalCustomerEditRequest.properties?.customer?.$ref !==
+    '#/components/schemas/CustomerUpdateRequest' ||
+  transactionalCustomerEditAssignments?.type !== 'array' ||
+  transactionalCustomerEditAssignments.uniqueItems !== true ||
+  transactionalCustomerEditAssignments.items?.$ref !==
+    '#/components/schemas/CustomerEstablishmentCreateRequest'
+) {
+  errors.push(
+    'CustomerTransactionalEditRequest must remain closed and reuse the customer update and customer-establishment request contracts for one complete desired collection.'
+  )
+}
+
+const transactionalCustomerEditRequiredRelationships =
+  schemas.CustomerTransactionalEditRequiredRelationships ?? {}
+const transactionalCustomerEditResult =
+  schemas.CustomerTransactionalEditResult ?? {}
+const transactionalCustomerEditResponse =
+  schemas.CustomerTransactionalEditResponse ?? {}
+if (
+  JSON.stringify(transactionalCustomerEditResult.allOf) !==
+    JSON.stringify([
+      { $ref: '#/components/schemas/Customer' },
+      {
+        $ref: '#/components/schemas/CustomerTransactionalEditRequiredRelationships',
+      },
+    ]) ||
+  JSON.stringify(transactionalCustomerEditRequiredRelationships.required) !==
+    JSON.stringify(['customer_establishments']) ||
+  transactionalCustomerEditRequiredRelationships.properties
+    ?.customer_establishments?.$ref !==
+    '#/components/schemas/CustomerEstablishmentRelationship' ||
+  transactionalCustomerEditResponse.type !== 'object' ||
+  transactionalCustomerEditResponse.additionalProperties !== false ||
+  JSON.stringify(transactionalCustomerEditResponse.required) !==
+    JSON.stringify(['data']) ||
+  transactionalCustomerEditResponse.properties?.data?.$ref !==
+    '#/components/schemas/CustomerTransactionalEditResult'
+) {
+  errors.push(
+    'The transactional customer edit response must be closed and reuse Customer plus the required complete CustomerEstablishment relationship.'
+  )
+}
+
+const transactionalCustomerEditDescription =
+  transactionalCustomerEdit?.description ?? ''
+const transactionalCustomerEditIfMatch =
+  transactionalCustomerEdit?.parameters?.find(
+    (parameter) => parameter?.name === 'If-Match'
+  )
+const customerGetEtag =
+  paths['/customers/{customer}']?.get?.responses?.['200']?.headers?.ETag
+if (
+  transactionalCustomerEditIfMatch?.in !== 'header' ||
+  transactionalCustomerEditIfMatch.required !== true ||
+  transactionalCustomerEditIfMatch.schema?.type !== 'string' ||
+  !customerGetEtag ||
+  !/strong entity tag/i.test(customerGetEtag.description ?? '') ||
+  transactionalCustomerEdit?.requestBody?.content?.['application/json']?.schema
+    ?.$ref !== '#/components/schemas/CustomerTransactionalEditRequest' ||
+  transactionalCustomerEdit?.responses?.['200']?.content?.['application/json']
+    ?.schema?.$ref !==
+    '#/components/schemas/CustomerTransactionalEditResponse' ||
+  !transactionalCustomerEdit?.responses?.['200']?.headers?.ETag
+) {
+  errors.push(
+    'The transactional customer edit must require the aggregate GET entity tag and return the committed response with its successor ETag.'
+  )
+}
+
+const transactionalCustomerEditResponseRefs = {
+  400: '#/components/responses/BadRequest',
+  401: '#/components/responses/Unauthorized',
+  403: '#/components/responses/Forbidden',
+  404: '#/components/responses/NotFound',
+  409: '#/components/responses/CustomerTransactionalEditConflict',
+  412: '#/components/responses/CustomerTransactionalEditStale',
+  422: '#/components/responses/CustomerTransactionalEditValidationError',
+  500: '#/components/responses/InternalServerError',
+}
+if (
+  Object.entries(transactionalCustomerEditResponseRefs).some(
+    ([status, responseRef]) =>
+      transactionalCustomerEdit?.responses?.[status]?.$ref !== responseRef
+  )
+) {
+  errors.push(
+    'The transactional customer edit must retain complete authentication, authorization, tenant-safe, conflict, stale, and validation responses.'
+  )
+}
+
+const transactionalCustomerEditSemantics = [
+  /complete desired.*customer_establishments.*collection/is,
+  /one transaction/i,
+  /omitted pairs are deleted/i,
+  /each `establishment_id` may occur at most once/i,
+  /duplicate establishment targets.*422/is,
+  /missing, inaccessible, cross-tenant, wrong-Legal-Entity, inactive, and deleted assignment targets.*same information-poor.*422/is,
+  /stale tag.*412/is,
+  /authorization.*revalidated inside the transaction.*before commit/is,
+  /stale authorization.*403/is,
+  /non-success response rolls back the complete edit/is,
+  /Site.*409.*without identifying the dependent resource/is,
+  /OU scopes do not grant access to customer or site domain writes/i,
+  /separate `CustomerEstablishment` CRUD operations.*not a second transactional customer-edit path/is,
+]
+if (
+  transactionalCustomerEditSemantics.some(
+    (pattern) => !pattern.test(transactionalCustomerEditDescription)
+  )
+) {
+  errors.push(
+    'The transactional customer edit must retain atomic reconciliation, deterministic conflicts, authorization revalidation, tenant-safe failures, Site boundaries, and separate CRUD semantics.'
+  )
+}
+
+const duplicateTargetExample =
+  responses.CustomerTransactionalEditValidationError?.content?.[
+    'application/json'
+  ]?.examples?.duplicateEstablishmentTarget?.value
+const invalidAssignmentExample =
+  responses.CustomerTransactionalEditValidationError?.content?.[
+    'application/json'
+  ]?.examples?.invalidAssignment?.value
+if (
+  duplicateTargetExample?.errors?.customer_establishments?.[0] !==
+    'Each establishment may be assigned at most once.' ||
+  invalidAssignmentExample?.errors?.[
+    'customer_establishments.0.establishment_id'
+  ]?.[0] !== 'The selected establishment is invalid.'
+) {
+  errors.push(
+    'Transactional customer edit validation examples must distinguish duplicate targets from a neutral invalid assignment.'
+  )
+}
 
 for (const schemaName of [
   'LegalEntityLookup',

@@ -57,6 +57,92 @@ test('accepts the repository domain contract', () => {
   assert.equal(result.status, 0, result.stderr)
 })
 
+test('defines one transactional customer edit aggregate contract', () => {
+  const operation = paths['/customers/{customer}/transactional-edit']?.put
+
+  assert.ok(operation, 'transactional customer edit operation must exist')
+  assert.equal(operation.operationId, 'transactionallyEditCustomer')
+  assert.equal(
+    operation.requestBody.content['application/json'].schema.$ref,
+    '#/components/schemas/CustomerTransactionalEditRequest'
+  )
+  assert.equal(
+    operation.responses['200'].content['application/json'].schema.$ref,
+    '#/components/schemas/CustomerTransactionalEditResponse'
+  )
+  assert.equal(
+    operation.parameters.find((parameter) => parameter.name === 'If-Match')
+      ?.required,
+    true
+  )
+  assert.deepEqual(
+    Object.keys(schemas.CustomerTransactionalEditRequest.properties),
+    ['customer', 'customer_establishments']
+  )
+  assert.deepEqual(schemas.CustomerTransactionalEditRequest.required, [
+    'customer',
+    'customer_establishments',
+  ])
+  assert.equal(
+    schemas.CustomerTransactionalEditRequest.properties.customer.$ref,
+    '#/components/schemas/CustomerUpdateRequest'
+  )
+  assert.equal(
+    schemas.CustomerTransactionalEditRequest.properties.customer_establishments
+      .items.$ref,
+    '#/components/schemas/CustomerEstablishmentCreateRequest'
+  )
+  assert.deepEqual(
+    schemas.CustomerTransactionalEditResult.allOf.map((schema) => schema.$ref),
+    [
+      '#/components/schemas/Customer',
+      '#/components/schemas/CustomerTransactionalEditRequiredRelationships',
+    ]
+  )
+  assert.deepEqual(
+    schemas.CustomerTransactionalEditRequiredRelationships.required,
+    ['customer_establishments']
+  )
+  assert.equal(
+    schemas.CustomerTransactionalEditRequiredRelationships.properties
+      .customer_establishments.$ref,
+    '#/components/schemas/CustomerEstablishmentRelationship'
+  )
+  assert.deepEqual(
+    ['403', '404', '409', '412', '422'].map(
+      (status) => operation.responses[status].$ref
+    ),
+    [
+      '#/components/responses/Forbidden',
+      '#/components/responses/NotFound',
+      '#/components/responses/CustomerTransactionalEditConflict',
+      '#/components/responses/CustomerTransactionalEditStale',
+      '#/components/responses/CustomerTransactionalEditValidationError',
+    ]
+  )
+})
+
+test('guard rejects weakened transactional customer edit semantics', () => {
+  const candidate = structuredClone(contract)
+  const operation =
+    candidate.paths['/customers/{customer}/transactional-edit'].put
+  operation.parameters = operation.parameters.filter(
+    (parameter) => parameter.name !== 'If-Match'
+  )
+  operation.description =
+    'Requires `customers.update`; unscoped callers require `customers.update`. OU scopes do not grant access to customer or site domain writes; callers with any organizational scopes receive 403.'
+  operation.responses['422'] = {
+    $ref: '#/components/responses/ValidationError',
+  }
+
+  const result = runGuard(candidate)
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /aggregate GET entity tag/)
+  assert.match(result.stderr, /tenant-safe failures/)
+  assert.match(result.stderr, /complete authentication.*responses/)
+})
+
 test('defines OU-free customer, site, and employee domain relationships', () => {
   assert.deepEqual(schemas.Customer.required.includes('legal_entity_id'), true)
   assert.deepEqual(

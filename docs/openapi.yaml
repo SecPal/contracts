@@ -6021,6 +6021,85 @@ components:
             resulting:
               legal_entity_id: '770e8400-e29b-41d4-a716-446655440002'
 
+    CustomerTransactionalEditRequest:
+      type: object
+      additionalProperties: false
+      description: |
+        One atomic customer edit. `customer` contains the requested master-data
+        changes. `customer_establishments` is the complete desired assignment
+        collection after the edit; an empty array removes every removable link.
+        Every item must repeat the path customer's UUID as `customer_id`.
+      required:
+        - customer
+        - customer_establishments
+      properties:
+        customer:
+          $ref: '#/components/schemas/CustomerUpdateRequest'
+        customer_establishments:
+          type: array
+          description: Complete desired customer-establishment assignment collection. Each establishment may occur at most once.
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/CustomerEstablishmentCreateRequest'
+
+    CustomerTransactionalEditRequiredRelationships:
+      type: object
+      description: Response overlay requiring the committed assignment snapshot on the reused Customer domain schema.
+      required:
+        - customer_establishments
+      properties:
+        customer_establishments:
+          $ref: '#/components/schemas/CustomerEstablishmentRelationship'
+
+    CustomerTransactionalEditResult:
+      description: Committed customer master data and complete customer-establishment assignment snapshot.
+      allOf:
+        - $ref: '#/components/schemas/Customer'
+        - $ref: '#/components/schemas/CustomerTransactionalEditRequiredRelationships'
+
+    CustomerTransactionalEditResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/CustomerTransactionalEditResult'
+
+    CustomerTransactionalEditConflictError:
+      type: object
+      additionalProperties: false
+      description: Neutral conflict returned when current dependent state prevents the complete desired edit.
+      required:
+        - message
+        - code
+      properties:
+        message:
+          type: string
+          enum:
+            - The customer edit conflicts with the current resource state.
+        code:
+          type: string
+          enum:
+            - CUSTOMER_EDIT_CONFLICT
+
+    CustomerTransactionalEditStaleError:
+      type: object
+      additionalProperties: false
+      description: Neutral failed-precondition response for a stale aggregate entity tag.
+      required:
+        - message
+        - code
+      properties:
+        message:
+          type: string
+          enum:
+            - The customer edit snapshot is stale.
+        code:
+          type: string
+          enum:
+            - CUSTOMER_EDIT_STALE
+
     Site:
       type: object
       additionalProperties: false
@@ -6738,6 +6817,48 @@ components:
           example:
             message: A matching record already exists.
             code: DUPLICATE_RESOURCE
+
+    CustomerTransactionalEditConflict:
+      description: Conflict - Current dependent state prevents the complete desired customer edit; no requested change is committed and no conflicting resource is identified.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CustomerTransactionalEditConflictError'
+          example:
+            message: The customer edit conflicts with the current resource state.
+            code: CUSTOMER_EDIT_CONFLICT
+
+    CustomerTransactionalEditStale:
+      description: Precondition Failed - The supplied aggregate entity tag is stale; no requested change is committed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CustomerTransactionalEditStaleError'
+          example:
+            message: The customer edit snapshot is stale.
+            code: CUSTOMER_EDIT_STALE
+
+    CustomerTransactionalEditValidationError:
+      description: Validation Error - The desired customer or assignment collection is invalid; no requested change is committed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+          examples:
+            duplicateEstablishmentTarget:
+              summary: One establishment occurs more than once in the desired collection
+              value:
+                message: The given data was invalid.
+                errors:
+                  customer_establishments:
+                    - Each establishment may be assigned at most once.
+            invalidAssignment:
+              summary: An assignment target is unavailable in the authorized customer domain
+              value:
+                message: The given data was invalid.
+                errors:
+                  customer_establishments.0.establishment_id:
+                    - The selected establishment is invalid.
 
     OrganizationalUnitHasChildrenConflict:
       description: Conflict - Non-deleted direct child units must be moved or deleted first, regardless of their `is_active` values
@@ -11289,6 +11410,12 @@ paths:
       responses:
         '200':
           description: Customer retrieved successfully
+          headers:
+            ETag:
+              description: Strong entity tag for this customer master-data and complete customer-establishment assignment snapshot. Callers must return it in `If-Match` when submitting the transactional edit operation.
+              schema:
+                type: string
+              example: '"customer-edit-8f14e45fceea167a5a36dedd4bea2543"'
           content:
             application/json:
               schema:
@@ -11437,6 +11564,90 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /customers/{customer}/transactional-edit:
+    put:
+      summary: Transactionally Edit Customer
+      description: |
+        Applies customer master-data changes and reconciles the complete desired `customer_establishments` collection in one transaction. Existing pairs update their local contact data, new pairs are created, and omitted pairs are deleted. The `200` response is the committed customer with its complete committed customer-establishment assignment snapshot; it omits `sites`, `assignments`, and relationship counts.
+
+        Requires `customers.update`, view access to the customer, and a strong `If-Match` entity tag from `GET /customers/{customer}`. The tag represents both customer master data and the complete customer-establishment collection. A stale tag returns the neutral **412** response. Authorization and tenant access are revalidated inside the transaction before mutation and before commit; stale authorization returns **403**. Every non-success response rolls back the complete edit.
+
+        **Assignment validation:** every item must repeat the path `customer` as `customer_id`; each `establishment_id` may occur at most once; and every target must be active, non-deleted, in the same tenant, in the customer's resulting Legal Entity, and authorized for the caller. Missing, inaccessible, cross-tenant, wrong-Legal-Entity, inactive, and deleted assignment targets use the same information-poor **422** field error. Duplicate establishment targets also return **422**. Removing a customer-establishment link used by a Site, or changing Legal Entity while a Site prevents reassignment, returns the neutral **409** response without identifying the dependent resource.
+
+        **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive **403**; unscoped callers require `customers.update` and view access. A missing or tenant-inaccessible path customer uses the same information-poor **404** response. Legal Entity, Establishment, Site, and customer-establishment relationships remain tenant scoped and expose no organizational-unit relationship. The separate `CustomerEstablishment` CRUD operations remain available for intentional single-link changes; they are not a second transactional customer-edit path.
+      operationId: transactionallyEditCustomer
+      tags:
+        - Customers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: customer
+          in: path
+          required: true
+          description: Customer UUID
+          schema:
+            type: string
+            format: uuid
+        - name: If-Match
+          in: header
+          required: true
+          description: Strong entity tag returned by `GET /customers/{customer}` for the exact customer and complete assignment snapshot being edited.
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 128
+          example: '"customer-edit-8f14e45fceea167a5a36dedd4bea2543"'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerTransactionalEditRequest'
+            example:
+              customer:
+                name: Transactional Example GmbH
+                billing_address:
+                  street: Hauptstraße 123
+                  city: Berlin
+                  postal_code: '10115'
+                  country: DE
+              customer_establishments:
+                - customer_id: '550e8400-e29b-41d4-a716-446655440000'
+                  establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+                  contact_name: Max Mustermann
+                  phone: '+49 30 12345678'
+                  email: 'max.mustermann@secpal.dev'
+                  comments: Use the service entrance after 18:00.
+      responses:
+        '200':
+          description: Customer and complete customer-establishment assignment collection committed successfully
+          headers:
+            ETag:
+              description: Strong entity tag for the committed customer master-data and complete assignment snapshot.
+              schema:
+                type: string
+              example: '"customer-edit-c9f0f895fb98ab9159f51fd0297e236d"'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerTransactionalEditResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/CustomerTransactionalEditConflict'
+        '412':
+          $ref: '#/components/responses/CustomerTransactionalEditStale'
+        '422':
+          $ref: '#/components/responses/CustomerTransactionalEditValidationError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
