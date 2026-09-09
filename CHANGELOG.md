@@ -60,6 +60,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added the authoritative tenant-isolated Legal Hold HTTP/OpenAPI contract for
+  list, create, inspect, single-Activity attachment, justified detachment, and
+  justified release operations. The contract is available for adoption by
+  `SecPal/api#455`; it does not claim that the API implementation has shipped
+  (closes #474).
 - Documented tenant-scoped onboarding attachment upload idempotency, including
   the optional bounded multipart retry key, exact-replay `200` response, new
   upload `201` response, deleted-key and different-upload `409` conflicts, and
