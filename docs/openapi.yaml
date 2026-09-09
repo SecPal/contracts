@@ -49,6 +49,8 @@ tags:
     description: Authenticated German address reference-data lookup endpoints for employee onboarding and HR forms.
   - name: Activity Logs
     description: Tamper-evident audit trail operations and verification flows.
+  - name: Legal Holds
+    description: Tenant-isolated Legal Hold lifecycle and Activity evidence-link operations.
   - name: Employees
     description: Employee lifecycle management endpoints.
   - name: Qualifications
@@ -480,6 +482,257 @@ components:
           type: [string, 'null']
           description: Reason why the activity became orphaned
           example: null
+
+    LegalHoldStatus:
+      type: string
+      description: Closed-set Legal Hold lifecycle. Released holds cannot be reopened or mutated.
+      enum: [active, released]
+      example: active
+
+    LegalHoldJustification:
+      type: string
+      minLength: 1
+      maxLength: 2000
+      pattern: '\S'
+      description: Non-blank business justification after surrounding whitespace is trimmed.
+      example: Preserve evidence for the referenced proceeding.
+
+    NullableLegalHoldJustification:
+      type: [string, 'null']
+      minLength: 1
+      maxLength: 2000
+      description: Committed business justification, or `null` before the corresponding lifecycle transition.
+      example: null
+
+    LegalHoldCommonFields:
+      type: object
+      required:
+        - id
+        - case_reference
+        - status
+        - created_at
+        - released_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Stable public Legal Hold identifier.
+          example: '11111111-1111-4111-8111-111111111111'
+        case_reference:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: '\S'
+          description: Tenant-unique business case reference.
+          example: CASE-2026-001
+        status:
+          $ref: '#/components/schemas/LegalHoldStatus'
+        created_at:
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
+          description: Timestamp when the Legal Hold was committed.
+          example: '2026-09-09T18:00:00Z'
+        released_at:
+          allOf:
+            - $ref: '#/components/schemas/NullableApiTimestamp'
+          description: Timestamp when release was committed, or `null` while the Legal Hold is active.
+          example: null
+      allOf:
+        - if:
+            properties:
+              status:
+                const: active
+            required:
+              - status
+          then:
+            properties:
+              released_at:
+                type: 'null'
+          else:
+            properties:
+              released_at:
+                $ref: '#/components/schemas/ApiTimestamp'
+
+    LegalHoldSummary:
+      description: Minimal Legal Hold representation returned by collection operations.
+      allOf:
+        - $ref: '#/components/schemas/LegalHoldCommonFields'
+      unevaluatedProperties: false
+
+    LegalHoldActivityAttachment:
+      type: object
+      description: >-
+        Immutable historical link between one Legal Hold and one Activity. A non-null `detached_at`
+        records detachment; the resource is retained and is never represented as deleted.
+      additionalProperties: false
+      required:
+        - id
+        - activity_id
+        - attached_at
+        - detached_at
+        - detachment_justification
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Stable public attachment identifier.
+          example: '22222222-2222-4222-8222-222222222222'
+        activity_id:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Stable identity of the single attached Activity; no Activity payload is embedded.
+          example: 4242
+        attached_at:
+          allOf:
+            - $ref: '#/components/schemas/ApiTimestamp'
+          description: Timestamp when the attachment was committed.
+          example: '2026-09-09T18:05:00Z'
+        detached_at:
+          allOf:
+            - $ref: '#/components/schemas/NullableApiTimestamp'
+          description: Timestamp when detachment was committed, or `null` while the attachment is active.
+          example: null
+        detachment_justification:
+          allOf:
+            - $ref: '#/components/schemas/NullableLegalHoldJustification'
+          description: Business justification recorded at detachment, or `null` while attached.
+          example: null
+
+    LegalHold:
+      description: >-
+        Legal Hold detail including bounded business justifications and immutable attachment history.
+        Tenant identifiers, actor identities, Activity payloads, and audit or storage internals are not exposed.
+      allOf:
+        - $ref: '#/components/schemas/LegalHoldCommonFields'
+        - type: object
+          required:
+            - justification
+            - release_justification
+            - attachments
+          properties:
+            justification:
+              $ref: '#/components/schemas/LegalHoldJustification'
+            release_justification:
+              $ref: '#/components/schemas/NullableLegalHoldJustification'
+            attachments:
+              type: array
+              description: Complete attachment history, including detached attachments, ordered by `attached_at` ascending and then `id` ascending.
+              items:
+                $ref: '#/components/schemas/LegalHoldActivityAttachment'
+        - if:
+            properties:
+              status:
+                const: active
+            required:
+              - status
+          then:
+            properties:
+              release_justification:
+                type: 'null'
+          else:
+            properties:
+              release_justification:
+                $ref: '#/components/schemas/LegalHoldJustification'
+      unevaluatedProperties: false
+
+    LegalHoldCreateRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - case_reference
+        - justification
+      properties:
+        case_reference:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: '\S'
+          description: Non-blank tenant-unique business case reference after surrounding whitespace is trimmed.
+          example: CASE-2026-001
+        justification:
+          $ref: '#/components/schemas/LegalHoldJustification'
+
+    LegalHoldAttachRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - activity_id
+      properties:
+        activity_id:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Identifier of exactly one existing Activity visible to the caller in the active tenant.
+          example: 4242
+
+    LegalHoldDetachRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - justification
+      properties:
+        justification:
+          $ref: '#/components/schemas/LegalHoldJustification'
+
+    LegalHoldReleaseRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - justification
+      properties:
+        justification:
+          $ref: '#/components/schemas/LegalHoldJustification'
+
+    LegalHoldResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/LegalHold'
+
+    LegalHoldActivityAttachmentResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/LegalHoldActivityAttachment'
+
+    LegalHoldCollectionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+        - links
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LegalHoldSummary'
+        links:
+          $ref: '#/components/schemas/PaginationLinks'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    LegalHoldNotFoundError:
+      type: object
+      additionalProperties: false
+      description: Neutral information-poor error shared by nonexistent and tenant-inaccessible Legal Hold targets.
+      required:
+        - message
+        - code
+      properties:
+        message:
+          type: string
+          const: Resource not found
+        code:
+          type: string
+          const: NOT_FOUND
 
     HealthStatus:
       type: object
@@ -6373,6 +6626,24 @@ components:
             - DUPLICATE_RESOURCE
 
   parameters:
+    LegalHoldId:
+      name: legalHold
+      in: path
+      required: true
+      description: Legal Hold UUID. Malformed values fail validation with 422; unavailable active-tenant resources use the information-poor 404 response.
+      schema:
+        type: string
+        format: uuid
+
+    LegalHoldAttachmentId:
+      name: attachment
+      in: path
+      required: true
+      description: Attachment UUID within the selected Legal Hold. Malformed values fail validation with 422; unavailable active-tenant resources use the information-poor 404 response.
+      schema:
+        type: string
+        format: uuid
+
     EmployeePage:
       name: page
       in: query
@@ -6474,6 +6745,93 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/OrganizationalUnitHasChildrenConflict'
+
+    LegalHoldNotFound:
+      description: >-
+        Not Found - The selected Legal Hold, attachment, or Activity is unavailable in the active tenant.
+        Nonexistent and tenant-inaccessible targets are indistinguishable and use the same information-poor response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LegalHoldNotFoundError'
+          example:
+            message: Resource not found
+            code: NOT_FOUND
+
+    LegalHoldValidationError:
+      description: >-
+        Unprocessable Entity - A required field or identifier is missing, empty, malformed, or exceeds its bound.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+          examples:
+            invalidRequest:
+              summary: Missing required business input
+              value:
+                message: The given data was invalid.
+                errors:
+                  justification:
+                    - The justification field is required.
+            invalidIdentifier:
+              summary: Malformed Legal Hold identifier
+              value:
+                message: The given data was invalid.
+                errors:
+                  legal_hold:
+                    - The legal hold field must be a valid UUID.
+
+    LegalHoldCreateConflict:
+      description: Conflict - The active tenant already contains a Legal Hold with the requested case reference.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: A Legal Hold with this case reference already exists.
+            code: CONFLICT
+
+    LegalHoldAttachConflict:
+      description: Conflict - The Legal Hold is no longer active or the Activity already has an active attachment to it.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            holdNotActive:
+              value:
+                message: The Legal Hold is not active.
+                code: CONFLICT
+            duplicateActiveAttachment:
+              value:
+                message: The Activity is already actively attached to this Legal Hold.
+                code: CONFLICT
+
+    LegalHoldDetachConflict:
+      description: Conflict - The Legal Hold is no longer active or the selected attachment is already detached.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            holdNotActive:
+              value:
+                message: The Legal Hold is not active.
+                code: CONFLICT
+            attachmentAlreadyDetached:
+              value:
+                message: The attachment is already detached.
+                code: CONFLICT
+
+    LegalHoldReleaseConflict:
+      description: Conflict - The Legal Hold is no longer active and cannot transition to released again.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: The Legal Hold is not active.
+            code: CONFLICT
 
     Unauthorized:
       description: Unauthorized - Authentication required
@@ -8774,6 +9132,293 @@ paths:
                         It belongs to an organizational unit outside your scope.
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # =============================================================================
+  # Legal Holds
+  # =============================================================================
+
+  /legal-holds:
+    get:
+      summary: List Legal Holds
+      description: >-
+        Returns only Legal Holds visible in the active tenant and requires `legal_holds.read`.
+        Results use offset pagination and deterministic `created_at` descending, then `id` descending ordering.
+        Collection items use the minimal summary representation; business justifications and attachment history
+        remain available only through inspection.
+      operationId: listLegalHolds
+      tags:
+        - Legal Holds
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number for Legal Hold collection pagination.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          required: false
+          description: Number of Legal Holds per page (max 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 15
+      responses:
+        '200':
+          description: Paginated active-tenant Legal Hold summaries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegalHoldCollectionResponse'
+              example:
+                data:
+                  - id: '11111111-1111-4111-8111-111111111111'
+                    case_reference: CASE-2026-001
+                    status: active
+                    created_at: '2026-09-09T18:00:00Z'
+                    released_at: null
+                links:
+                  first: 'https://api.secpal.dev/v1/legal-holds?page=1'
+                  last: 'https://api.secpal.dev/v1/legal-holds?page=1'
+                  prev: null
+                  next: null
+                meta:
+                  current_page: 1
+                  per_page: 15
+                  last_page: 1
+                  total: 1
+                  from: 1
+                  to: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/LegalHoldValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      summary: Create Legal Hold
+      description: >-
+        Creates one active Legal Hold in the active tenant and requires `legal_holds.create`.
+        Tenant, lifecycle, actor, timestamp, release, and audit facts are server-owned.
+        A successful response returns the committed Legal Hold after required audit evidence is recorded
+        atomically. If required audit evidence cannot be recorded, the domain mutation does not commit and
+        the neutral server-error response is returned.
+      operationId: createLegalHold
+      tags:
+        - Legal Holds
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LegalHoldCreateRequest'
+            example:
+              case_reference: CASE-2026-001
+              justification: Preserve evidence for the referenced proceeding.
+      responses:
+        '201':
+          description: Legal Hold created and committed with required audit evidence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegalHoldResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/LegalHoldCreateConflict'
+        '422':
+          $ref: '#/components/responses/LegalHoldValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /legal-holds/{legalHold}:
+    get:
+      summary: Inspect Legal Hold
+      description: >-
+        Returns one Legal Hold and its immutable attachment history from the active tenant and requires
+        `legal_holds.read`. Detached attachments remain in the representation. The lifecycle endpoint does not
+        expose the internal Legal Hold audit Activity stream, Activity payloads, actor identities, or tenant data.
+      operationId: getLegalHold
+      tags:
+        - Legal Holds
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LegalHoldId'
+      responses:
+        '200':
+          description: Legal Hold detail and attachment history.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegalHoldResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/LegalHoldNotFound'
+        '422':
+          $ref: '#/components/responses/LegalHoldValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /legal-holds/{legalHold}/attachments:
+    post:
+      summary: Attach Activity To Legal Hold
+      description: >-
+        Creates one immutable evidence attachment between an active Legal Hold and exactly one existing Activity
+        visible in the active tenant and requires `legal_holds.attach`. An active Hold with an active attachment
+        prevents normal Activity retention deletion. A successful response returns the committed attachment after
+        required audit evidence is recorded atomically. If required audit evidence cannot be recorded, the domain
+        mutation does not commit and the neutral server-error response is returned.
+      operationId: attachLegalHoldActivity
+      tags:
+        - Legal Holds
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LegalHoldId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LegalHoldAttachRequest'
+            example:
+              activity_id: 4242
+      responses:
+        '201':
+          description: One Activity attachment created and committed with required audit evidence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegalHoldActivityAttachmentResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/LegalHoldNotFound'
+        '409':
+          $ref: '#/components/responses/LegalHoldAttachConflict'
+        '422':
+          $ref: '#/components/responses/LegalHoldValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /legal-holds/{legalHold}/attachments/{attachment}/detach:
+    post:
+      summary: Detach Activity From Legal Hold
+      description: >-
+        Detaches one authoritative attachment from an active Legal Hold with a required justification and requires
+        `legal_holds.detach`. Detachment preserves the historical attachment and does not protect the Activity from
+        normal retention after commit. A successful response returns the committed detached attachment after
+        required audit evidence is recorded atomically. If required audit evidence cannot be recorded, the domain
+        mutation does not commit and the neutral server-error response is returned.
+      operationId: detachLegalHoldActivity
+      tags:
+        - Legal Holds
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LegalHoldId'
+        - $ref: '#/components/parameters/LegalHoldAttachmentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LegalHoldDetachRequest'
+            example:
+              justification: Evidence is no longer within the proceeding scope.
+      responses:
+        '200':
+          description: Attachment detached and committed with required audit evidence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegalHoldActivityAttachmentResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/LegalHoldNotFound'
+        '409':
+          $ref: '#/components/responses/LegalHoldDetachConflict'
+        '422':
+          $ref: '#/components/responses/LegalHoldValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /legal-holds/{legalHold}/release:
+    post:
+      summary: Release Legal Hold
+      description: >-
+        Transitions one active Legal Hold to released with a required justification and requires
+        `legal_holds.release`. Release restores normal retention eligibility only after the release commits; it does
+        not trigger immediate deletion. A successful response returns the committed released Legal Hold after
+        required audit evidence is recorded atomically. If required audit evidence cannot be recorded, the domain
+        mutation does not commit and the neutral server-error response is returned. A released Hold cannot be
+        reopened or mutated.
+      operationId: releaseLegalHold
+      tags:
+        - Legal Holds
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LegalHoldId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LegalHoldReleaseRequest'
+            example:
+              justification: The proceeding has concluded and preservation is no longer required.
+      responses:
+        '200':
+          description: Legal Hold released and committed with required audit evidence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegalHoldResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/LegalHoldNotFound'
+        '409':
+          $ref: '#/components/responses/LegalHoldReleaseConflict'
+        '422':
+          $ref: '#/components/responses/LegalHoldValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
