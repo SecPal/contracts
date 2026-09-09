@@ -63,6 +63,12 @@ test('rejects incorrect success status or response shapes', () => {
   }, /create must return only 201 with LegalHoldResponse/)
 })
 
+test('rejects a missing Legal Hold operation ID', () => {
+  rejectsContract((candidate) => {
+    delete candidate.paths['/legal-holds/{legalHold}'].get.operationId
+  }, /operation IDs must be present and unique/)
+})
+
 test('rejects delete, reopen, expiry, or bulk-release surfaces', () => {
   for (const pathKey of [
     '/legal-holds/{legalHold}/delete',
@@ -94,6 +100,24 @@ test('rejects stale create inputs', () => {
     const request = candidate.components.schemas.LegalHoldCreateRequest
     request.properties.case_type = { type: 'string' }
   }, /Create accepts exactly required case_reference and justification/)
+})
+
+test('rejects whitespace-only business inputs', () => {
+  for (const removePattern of [
+    (candidate) => {
+      delete candidate.components.schemas.LegalHoldJustification.pattern
+    },
+    (candidate) => {
+      delete candidate.components.schemas.LegalHoldCommonFields.properties
+        .case_reference.pattern
+    },
+    (candidate) => {
+      delete candidate.components.schemas.LegalHoldCreateRequest.properties
+        .case_reference.pattern
+    },
+  ]) {
+    rejectsContract(removePattern, /must reject whitespace-only values/)
+  }
 })
 
 test('rejects bulk Activity attachment input', () => {
@@ -132,11 +156,25 @@ test('rejects missing malformed-input semantics', () => {
   }, /release must document malformed input as 422/)
 })
 
+test('rejects an unauthenticated Legal Hold operation', () => {
+  rejectsContract((candidate) => {
+    delete candidate.paths['/legal-holds'].get.security
+  }, /must require BearerAuth/)
+})
+
 test('rejects an existence-revealing resource response', () => {
   rejectsContract((candidate) => {
     candidate.components.responses.LegalHoldNotFound.description =
       'The requested resource was not found.'
   }, /must conceal foreign-tenant and nonexistent targets/)
+})
+
+test('rejects a permissive information-poor response payload', () => {
+  rejectsContract((candidate) => {
+    candidate.components.responses.LegalHoldNotFound.content[
+      'application/json'
+    ].schema.$ref = '#/components/schemas/Error'
+  }, /must use a closed neutral payload/)
 })
 
 test('rejects internal response fields', () => {
@@ -165,4 +203,17 @@ test('rejects retention-contract drift', () => {
       'removes evidence'
     )
   }, /preserve the accepted retention contract/)
+})
+
+test('rejects release-state schema contradictions', () => {
+  for (const removeConstraint of [
+    (candidate) => {
+      delete candidate.components.schemas.LegalHoldCommonFields.allOf
+    },
+    (candidate) => {
+      candidate.components.schemas.LegalHold.allOf.pop()
+    },
+  ]) {
+    rejectsContract(removeConstraint, /must couple release metadata to status/)
+  }
 })

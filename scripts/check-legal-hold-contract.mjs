@@ -151,9 +151,14 @@ for (const [name, [status, schemaName]] of Object.entries(successContracts)) {
   )
 }
 
+const operationIds = Object.values(operations).map(
+  (operation) => operation?.operationId
+)
 rejectUnless(
-  new Set(Object.values(operations).map((operation) => operation?.operationId))
-    .size === 6,
+  operationIds.every(
+    (operationId) =>
+      typeof operationId === 'string' && operationId.trim() !== ''
+  ) && new Set(operationIds).size === 6,
   'Legal Hold operation IDs must be present and unique.'
 )
 
@@ -174,6 +179,10 @@ for (const [name, permission] of Object.entries(expectedPermissions)) {
   rejectUnless(
     !/legal[-_]hold:[a-z]/i.test(description),
     `${name} must not use a legacy colon-style permission.`
+  )
+  rejectUnless(
+    isDeepStrictEqual(operations[name]?.security, [{ BearerAuth: [] }]),
+    `${name} must require BearerAuth.`
   )
 }
 
@@ -203,8 +212,9 @@ rejectUnless(
 rejectUnless(
   justification?.type === 'string' &&
     justification?.minLength === 1 &&
-    justification?.maxLength === 2000,
-  'Legal Hold justifications must contain 1 to 2000 characters.'
+    justification?.maxLength === 2000 &&
+    justification?.pattern === '\\S',
+  'Legal Hold justifications must contain 1 to 2000 characters and must reject whitespace-only values.'
 )
 
 rejectUnless(
@@ -264,6 +274,28 @@ rejectUnless(
   'Legal Hold summary fields must remain privacy-minimized.'
 )
 rejectUnless(
+  commonFields?.properties?.case_reference?.pattern === '\\S' &&
+    createRequest?.properties?.case_reference?.pattern === '\\S',
+  'Legal Hold case references must reject whitespace-only values.'
+)
+
+const expectedReleasedAtConstraint = {
+  if: {
+    properties: { status: { const: 'active' } },
+    required: ['status'],
+  },
+  then: { properties: { released_at: { type: 'null' } } },
+  else: {
+    properties: {
+      released_at: { $ref: '#/components/schemas/ApiTimestamp' },
+    },
+  },
+}
+rejectUnless(
+  isDeepStrictEqual(commonFields?.allOf, [expectedReleasedAtConstraint]),
+  'Legal Hold schemas must couple release metadata to status.'
+)
+rejectUnless(
   schemas.LegalHoldSummary?.allOf?.[0]?.$ref ===
     '#/components/schemas/LegalHoldCommonFields' &&
     schemas.LegalHoldSummary?.unevaluatedProperties === false,
@@ -281,6 +313,28 @@ rejectUnless(
     ]) &&
     schemas.LegalHold?.unevaluatedProperties === false,
   'LegalHold detail must add only justifications and attachment history.'
+)
+const expectedReleaseJustificationConstraint = {
+  if: {
+    properties: { status: { const: 'active' } },
+    required: ['status'],
+  },
+  then: { properties: { release_justification: { type: 'null' } } },
+  else: {
+    properties: {
+      release_justification: {
+        $ref: '#/components/schemas/LegalHoldJustification',
+      },
+    },
+  },
+}
+rejectUnless(
+  schemas.LegalHold?.allOf?.length === 3 &&
+    isDeepStrictEqual(
+      schemas.LegalHold?.allOf?.[2],
+      expectedReleaseJustificationConstraint
+    ),
+  'Legal Hold schemas must couple release metadata to status.'
 )
 
 const attachment = schemas.LegalHoldActivityAttachment
@@ -371,6 +425,17 @@ rejectUnless(
   /active tenant/i.test(responses.LegalHoldNotFound?.description ?? '') &&
     /indistinguishable/i.test(responses.LegalHoldNotFound?.description ?? ''),
   'LegalHoldNotFound must conceal foreign-tenant and nonexistent targets.'
+)
+const notFoundError = schemas.LegalHoldNotFoundError
+rejectUnless(
+  responses.LegalHoldNotFound?.content?.['application/json']?.schema?.$ref ===
+    '#/components/schemas/LegalHoldNotFoundError' &&
+    hasExactProperties(notFoundError, ['message', 'code']) &&
+    hasExactRequired(notFoundError, ['message', 'code']) &&
+    notFoundError?.additionalProperties === false &&
+    notFoundError?.properties?.message?.const === 'Resource not found' &&
+    notFoundError?.properties?.code?.const === 'NOT_FOUND',
+  'LegalHoldNotFound must use a closed neutral payload.'
 )
 
 for (const operation of MUTATIONS) {

@@ -493,6 +493,7 @@ components:
       type: string
       minLength: 1
       maxLength: 2000
+      pattern: '\S'
       description: Non-blank business justification after surrounding whitespace is trimmed.
       example: Preserve evidence for the referenced proceeding.
 
@@ -521,6 +522,7 @@ components:
           type: string
           minLength: 1
           maxLength: 64
+          pattern: '\S'
           description: Tenant-unique business case reference.
           example: CASE-2026-001
         status:
@@ -535,6 +537,21 @@ components:
             - $ref: '#/components/schemas/NullableApiTimestamp'
           description: Timestamp when release was committed, or `null` while the Legal Hold is active.
           example: null
+      allOf:
+        - if:
+            properties:
+              status:
+                const: active
+            required:
+              - status
+          then:
+            properties:
+              released_at:
+                type: 'null'
+          else:
+            properties:
+              released_at:
+                $ref: '#/components/schemas/ApiTimestamp'
 
     LegalHoldSummary:
       description: Minimal Legal Hold representation returned by collection operations.
@@ -603,6 +620,20 @@ components:
               description: Complete attachment history, including detached attachments, ordered by `attached_at` ascending and then `id` ascending.
               items:
                 $ref: '#/components/schemas/LegalHoldActivityAttachment'
+        - if:
+            properties:
+              status:
+                const: active
+            required:
+              - status
+          then:
+            properties:
+              release_justification:
+                type: 'null'
+          else:
+            properties:
+              release_justification:
+                $ref: '#/components/schemas/LegalHoldJustification'
       unevaluatedProperties: false
 
     LegalHoldCreateRequest:
@@ -616,6 +647,7 @@ components:
           type: string
           minLength: 1
           maxLength: 64
+          pattern: '\S'
           description: Non-blank tenant-unique business case reference after surrounding whitespace is trimmed.
           example: CASE-2026-001
         justification:
@@ -686,6 +718,21 @@ components:
           $ref: '#/components/schemas/PaginationLinks'
         meta:
           $ref: '#/components/schemas/PaginationMeta'
+
+    LegalHoldNotFoundError:
+      type: object
+      additionalProperties: false
+      description: Neutral information-poor error shared by nonexistent and tenant-inaccessible Legal Hold targets.
+      required:
+        - message
+        - code
+      properties:
+        message:
+          type: string
+          const: Resource not found
+        code:
+          type: string
+          const: NOT_FOUND
 
     HealthStatus:
       type: object
@@ -6706,7 +6753,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: '#/components/schemas/LegalHoldNotFoundError'
           example:
             message: Resource not found
             code: NOT_FOUND
