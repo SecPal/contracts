@@ -485,7 +485,7 @@ components:
 
     LegalHoldStatus:
       type: string
-      description: Closed Legal Hold lifecycle. Released holds cannot be reopened or mutated.
+      description: Closed-set Legal Hold lifecycle. Released holds cannot be reopened or mutated.
       enum: [active, released]
       example: active
 
