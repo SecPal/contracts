@@ -287,6 +287,7 @@ function requireUniquenessRules(rules) {
 
 function requireAssignmentWorkflows(workflows, lookups) {
   const relationshipFields = new Set([
+    'contract_id',
     'customer_id',
     'legal_entity_id',
     'establishment_id',
@@ -341,10 +342,11 @@ function requireAssignmentWorkflows(workflows, lookups) {
         identifiers.every(uuidValue)
       )
     }
+    const rejectedStatuses = workflow.rejectedStatuses ?? [409, 422]
     if (
       !hasValidEvidence(accepted) ||
       !hasValidEvidence(rejected) ||
-      ![409, 422].includes(rejected?.status)
+      !rejectedStatuses.includes(rejected?.status)
     ) {
       errors.push(
         `${workflow.label} must retain complete positive and negative workflow evidence.`
@@ -1246,6 +1248,33 @@ requireAssignmentWorkflows(
       relationshipFields: ['legal_entity_id'],
       permission: 'customers.update',
       lookups: ['legalEntities'],
+    },
+    {
+      label: 'POST Contract customer association',
+      operation: paths['/contracts']?.post,
+      requestSchema: 'ContractCreateRequest',
+      relationshipFields: ['customer_id'],
+      permission: 'contracts.create',
+      rejectedStatuses: [404],
+      lookups: [],
+    },
+    {
+      label: 'PATCH Contract customer association',
+      operation: paths['/contracts/{contract}']?.patch,
+      requestSchema: 'ContractUpdateRequest',
+      relationshipFields: ['customer_id'],
+      permission: 'contracts.update',
+      rejectedStatuses: [404, 409],
+      lookups: [],
+    },
+    {
+      label: 'POST Service Booking Contract association',
+      operation: paths['/service-bookings']?.post,
+      requestSchema: 'ServiceBookingCreateRequest',
+      relationshipFields: ['contract_id'],
+      permission: 'service_bookings.create',
+      rejectedStatuses: [404],
+      lookups: [],
     },
     {
       label: 'POST customer-establishment assignments',

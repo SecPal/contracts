@@ -72,6 +72,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   across the submitted collection, path/body customer mismatches are rejected,
   and committed responses exclude unrelated customer relationships
   (SecPal/contracts#477).
+- Defined the authoritative Service Booking CRUD contract for
+  `SecPal/api#382`; the API implementation has not shipped yet.
+- Defined the authoritative tenant-isolated Contract CRUD OpenAPI surface for
+  adoption by `SecPal/api#381`; the API implementation has not shipped yet.
 - Added the authoritative tenant-isolated Legal Hold HTTP/OpenAPI contract for
   list, create, inspect, single-Activity attachment, justified detachment, and
   justified release operations. The contract is available for adoption by
