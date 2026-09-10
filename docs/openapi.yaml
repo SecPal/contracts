@@ -6120,6 +6120,41 @@ components:
         data:
           $ref: '#/components/schemas/CustomerTransactionalEditResult'
 
+    CustomerTransactionalEditForbiddenError:
+      type: object
+      additionalProperties: false
+      description: Deterministic information-poor denial for callers without complete transactional customer-edit authority.
+      required:
+        - message
+        - code
+      properties:
+        message:
+          type: string
+          enum:
+            - Insufficient permissions
+        code:
+          type: string
+          enum:
+            - FORBIDDEN
+      x-validation-examples:
+        accepted:
+          - name: Neutral authorization denial
+            value:
+              message: Insufficient permissions
+              code: FORBIDDEN
+        rejected:
+          - name: Denial reason details disclose authorization state
+            value:
+              message: Insufficient permissions
+              code: FORBIDDEN
+              details:
+                reason: site_assignment_only
+          - name: Arbitrary fields disclose hidden domain state
+            value:
+              message: Insufficient permissions
+              code: FORBIDDEN
+              denied_scope: incomplete_assignment_visibility
+
     CustomerTransactionalEditConflictError:
       type: object
       additionalProperties: false
@@ -6881,6 +6916,16 @@ components:
           example:
             message: The customer edit conflicts with the current resource state.
             code: CUSTOMER_EDIT_CONFLICT
+
+    CustomerTransactionalEditForbidden:
+      description: Forbidden - The caller lacks complete transactional customer-edit authority. The fixed payload discloses no authorization reason, scope, assignment, customer-establishment, or Site state.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CustomerTransactionalEditForbiddenError'
+          example:
+            message: Insufficient permissions
+            code: FORBIDDEN
 
     CustomerTransactionalEditStale:
       description: Precondition Failed - The supplied aggregate entity tag is stale; no requested change is committed.
@@ -11726,7 +11771,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          $ref: '#/components/responses/CustomerTransactionalEditForbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':

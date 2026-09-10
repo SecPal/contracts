@@ -78,7 +78,12 @@ function requireNoOuScopeDomainMutations(rules) {
     /OU scopes? (?:also )?grant access to (?:this|customer|site|the) domain write/i,
   ]
 
-  for (const { label, operation, permission } of rules) {
+  for (const {
+    label,
+    operation,
+    permission,
+    forbiddenRef = '#/components/responses/Forbidden',
+  } of rules) {
     if (operation) {
       coveredOperations.add(operation)
     }
@@ -91,7 +96,7 @@ function requireNoOuScopeDomainMutations(rules) {
       !noOuBoundary.test(description) ||
       !unscopedPermission.test(description) ||
       contradictoryOuAccess.some((pattern) => pattern.test(description)) ||
-      operation?.responses?.['403']?.$ref !== '#/components/responses/Forbidden'
+      operation?.responses?.['403']?.$ref !== forbiddenRef
     ) {
       errors.push(
         `${label} must keep its permission, complete no-OU domain-write boundary, and 403 response aligned.`
@@ -1163,6 +1168,7 @@ const customerSiteDomainMutations = [
     label: 'PUT transactional customer edit',
     operation: paths['/customers/{customer}/transactional-edit']?.put,
     permission: 'customers.update',
+    forbiddenRef: '#/components/responses/CustomerTransactionalEditForbidden',
   },
   {
     label: 'DELETE customers',
@@ -1915,7 +1921,7 @@ if (
 const transactionalCustomerEditResponseRefs = {
   400: '#/components/responses/BadRequest',
   401: '#/components/responses/Unauthorized',
-  403: '#/components/responses/Forbidden',
+  403: '#/components/responses/CustomerTransactionalEditForbidden',
   404: '#/components/responses/NotFound',
   409: '#/components/responses/CustomerTransactionalEditConflict',
   412: '#/components/responses/CustomerTransactionalEditStale',
@@ -1930,6 +1936,78 @@ if (
 ) {
   errors.push(
     'The transactional customer edit must retain complete authentication, authorization, tenant-safe, conflict, stale, and validation responses.'
+  )
+}
+
+function acceptsFixedClosedError(schema, value) {
+  if (
+    schema?.type !== 'object' ||
+    schema.additionalProperties !== false ||
+    JSON.stringify(schema.required) !== JSON.stringify(['message', 'code']) ||
+    JSON.stringify(Object.keys(schema.properties ?? {})) !==
+      JSON.stringify(['message', 'code']) ||
+    typeof value !== 'object' ||
+    value === null ||
+    Array.isArray(value) ||
+    JSON.stringify(Object.keys(value)) !== JSON.stringify(['message', 'code'])
+  ) {
+    return false
+  }
+
+  return Object.entries(schema.properties).every(
+    ([property, propertySchema]) =>
+      propertySchema?.type === 'string' &&
+      propertySchema.enum?.includes(value[property]) === true
+  )
+}
+
+const transactionalCustomerEditForbidden =
+  responses.CustomerTransactionalEditForbidden ?? {}
+const transactionalCustomerEditForbiddenMedia =
+  transactionalCustomerEditForbidden.content?.['application/json'] ?? {}
+const transactionalCustomerEditForbiddenSchema =
+  schemas.CustomerTransactionalEditForbiddenError ?? {}
+const transactionalCustomerEditForbiddenExamples =
+  transactionalCustomerEditForbiddenSchema['x-validation-examples'] ?? {}
+const fixedTransactionalCustomerEditForbidden = {
+  message: 'Insufficient permissions',
+  code: 'FORBIDDEN',
+}
+if (
+  transactionalCustomerEdit?.responses?.['403']?.$ref !==
+    '#/components/responses/CustomerTransactionalEditForbidden' ||
+  transactionalCustomerEditForbiddenMedia.schema?.$ref !==
+    '#/components/schemas/CustomerTransactionalEditForbiddenError' ||
+  JSON.stringify(transactionalCustomerEditForbiddenMedia.example) !==
+    JSON.stringify(fixedTransactionalCustomerEditForbidden) ||
+  JSON.stringify(
+    transactionalCustomerEditForbiddenSchema.properties?.message
+  ) !==
+    JSON.stringify({ type: 'string', enum: ['Insufficient permissions'] }) ||
+  JSON.stringify(transactionalCustomerEditForbiddenSchema.properties?.code) !==
+    JSON.stringify({ type: 'string', enum: ['FORBIDDEN'] }) ||
+  !acceptsFixedClosedError(
+    transactionalCustomerEditForbiddenSchema,
+    transactionalCustomerEditForbiddenExamples.accepted?.[0]?.value
+  ) ||
+  transactionalCustomerEditForbiddenExamples.rejected?.length !== 2 ||
+  transactionalCustomerEditForbiddenExamples.rejected.some((example) =>
+    acceptsFixedClosedError(
+      transactionalCustomerEditForbiddenSchema,
+      example?.value
+    )
+  ) ||
+  !Object.hasOwn(
+    transactionalCustomerEditForbiddenExamples.rejected?.[0]?.value ?? {},
+    'details'
+  ) ||
+  !Object.hasOwn(
+    transactionalCustomerEditForbiddenExamples.rejected?.[1]?.value ?? {},
+    'denied_scope'
+  )
+) {
+  errors.push(
+    'Transactional customer edit must retain its fixed authorization denial payload, dedicated response/schema references, closed code/message-only shape, and rejected disclosure examples.'
   )
 }
 

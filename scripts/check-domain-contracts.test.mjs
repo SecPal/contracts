@@ -33,6 +33,27 @@ function resolveParameter(candidate, parameter) {
   return parameter
 }
 
+function acceptsFixedClosedError(schema, value) {
+  if (
+    schema?.type !== 'object' ||
+    schema.additionalProperties !== false ||
+    JSON.stringify(schema.required) !== JSON.stringify(['message', 'code']) ||
+    JSON.stringify(Object.keys(schema.properties ?? {})) !==
+      JSON.stringify(['message', 'code']) ||
+    typeof value !== 'object' ||
+    value === null ||
+    Array.isArray(value) ||
+    JSON.stringify(Object.keys(value)) !== JSON.stringify(['message', 'code'])
+  ) {
+    return false
+  }
+
+  return (
+    schema.properties.message?.enum?.includes(value.message) === true &&
+    schema.properties.code?.enum?.includes(value.code) === true
+  )
+}
+
 function runGuard(candidate, candidateChangelog = changelogSource) {
   const directory = mkdtempSync(join(tmpdir(), 'domain-contracts-'))
   const candidatePath = join(directory, 'openapi.yaml')
@@ -177,6 +198,34 @@ test('defines one transactional customer edit aggregate contract', () => {
   )
   assert.equal(putAuthorization.rejected[0].site_assignment_only, true)
   assert.equal(putAuthorization.rejected[0].status, 403)
+  const authorizationDeniedResponse =
+    contract.components.responses.CustomerTransactionalEditForbidden
+  const authorizationDeniedSchema =
+    schemas.CustomerTransactionalEditForbiddenError
+  const authorizationDeniedMedia =
+    authorizationDeniedResponse.content['application/json']
+  assert.equal(
+    authorizationDeniedMedia.schema.$ref,
+    '#/components/schemas/CustomerTransactionalEditForbiddenError'
+  )
+  assert.deepEqual(authorizationDeniedMedia.example, {
+    message: 'Insufficient permissions',
+    code: 'FORBIDDEN',
+  })
+  assert.equal(
+    acceptsFixedClosedError(
+      authorizationDeniedSchema,
+      authorizationDeniedSchema['x-validation-examples'].accepted[0].value
+    ),
+    true
+  )
+  for (const rejected of authorizationDeniedSchema['x-validation-examples']
+    .rejected) {
+    assert.equal(
+      acceptsFixedClosedError(authorizationDeniedSchema, rejected.value),
+      false
+    )
+  }
   const customerMismatch =
     schemas.CustomerTransactionalEditRequest['x-validation-examples']
       .rejected[0]
@@ -190,7 +239,7 @@ test('defines one transactional customer edit aggregate contract', () => {
       (status) => operation.responses[status].$ref
     ),
     [
-      '#/components/responses/Forbidden',
+      '#/components/responses/CustomerTransactionalEditForbidden',
       '#/components/responses/NotFound',
       '#/components/responses/CustomerTransactionalEditConflict',
       '#/components/responses/CustomerTransactionalEditStale',
@@ -262,6 +311,58 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
         delete candidate.paths['/customers/{customer}'].get[
           'x-aggregate-etag-authorization-examples'
         ]
+      },
+    },
+    {
+      name: 'F1 deterministic denial rejects generic Forbidden',
+      expected: /fixed authorization denial payload/,
+      mutate(candidate) {
+        candidate.paths[
+          '/customers/{customer}/transactional-edit'
+        ].put.responses['403'] = {
+          $ref: '#/components/responses/Forbidden',
+        }
+      },
+    },
+    {
+      name: 'F1 deterministic denial rejects schema replacement',
+      expected: /fixed authorization denial payload/,
+      mutate(candidate) {
+        candidate.components.responses.CustomerTransactionalEditForbidden.content[
+          'application/json'
+        ].schema.$ref = '#/components/schemas/Error'
+      },
+    },
+    {
+      name: 'F1 deterministic denial rejects code mutation',
+      expected: /fixed authorization denial payload/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditForbiddenError.properties.code.enum =
+          ['CUSTOMER_EDIT_FORBIDDEN']
+      },
+    },
+    {
+      name: 'F1 deterministic denial rejects message mutation',
+      expected: /fixed authorization denial payload/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditForbiddenError.properties.message.enum =
+          ['The caller lacks complete assignment visibility.']
+      },
+    },
+    {
+      name: 'F1 deterministic denial rejects details disclosure',
+      expected: /fixed authorization denial payload/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditForbiddenError.properties.details =
+          { type: 'object' }
+      },
+    },
+    {
+      name: 'F1 deterministic denial rejects arbitrary disclosure fields',
+      expected: /fixed authorization denial payload/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditForbiddenError.properties.denied_scope =
+          { type: 'string' }
       },
     },
     {
