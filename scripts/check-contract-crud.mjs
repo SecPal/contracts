@@ -114,13 +114,10 @@ rejectUnless(
   'Contract CRUD must expose only the three canonical paths and five operations.'
 )
 
-const forbiddenAdjacentPaths = Object.keys(paths).filter(
-  (pathKey) =>
-    pathKey.startsWith('/service-bookings') ||
-    pathKey.startsWith('/internal-cost-centers') ||
-    /^\/contracts\/(?:.*\/)?(?:service-bookings|cost-centers)(?:\/|$)/.test(
-      pathKey
-    )
+const forbiddenAdjacentPaths = Object.keys(paths).filter((pathKey) =>
+  /^\/contracts\/(?:.*\/)?(?:service-bookings|cost-centers)(?:\/|$)/.test(
+    pathKey
+  )
 )
 rejectUnless(
   forbiddenAdjacentPaths.length === 0,
@@ -226,7 +223,7 @@ const requiredErrors = {
     401: 'Unauthorized',
     403: 'Forbidden',
     404: 'ContractNotFound',
-    409: 'Conflict',
+    409: 'ContractConflict',
     422: 'ContractValidationError',
     429: 'TooManyRequests',
     500: 'InternalServerError',
@@ -235,7 +232,7 @@ const requiredErrors = {
     401: 'Unauthorized',
     403: 'Forbidden',
     404: 'ContractNotFound',
-    409: 'Conflict',
+    409: 'ContractConflict',
     422: 'ContractValidationError',
     429: 'TooManyRequests',
     500: 'InternalServerError',
@@ -412,6 +409,31 @@ rejectUnless(
   'Contract lifecycle and business dates must use their canonical schemas.'
 )
 
+const lifecycleVariants = contract?.oneOf ?? []
+const activeVariant = lifecycleVariants.find(
+  (variant) => variant?.title === 'ActiveContract'
+)
+const retiredVariant = lifecycleVariants.find(
+  (variant) => variant?.title === 'RetiredContract'
+)
+rejectUnless(
+  lifecycleVariants.length === 2 &&
+    activeVariant?.type === 'object' &&
+    hasExactRequired(activeVariant, ['status', 'retired_at']) &&
+    hasExactKeys(activeVariant?.properties, ['status', 'retired_at']) &&
+    activeVariant?.properties?.status?.type === 'string' &&
+    activeVariant?.properties?.status?.const === 'active' &&
+    activeVariant?.properties?.retired_at?.type === 'null' &&
+    retiredVariant?.type === 'object' &&
+    hasExactRequired(retiredVariant, ['status', 'retired_at']) &&
+    hasExactKeys(retiredVariant?.properties, ['status', 'retired_at']) &&
+    retiredVariant?.properties?.status?.type === 'string' &&
+    retiredVariant?.properties?.status?.const === 'retired' &&
+    retiredVariant?.properties?.retired_at?.$ref ===
+      '#/components/schemas/ApiTimestamp',
+  'Contract schema must reject active-with-timestamp and retired-with-null lifecycle combinations.'
+)
+
 rejectUnless(
   /null.*status.*active.*server-generated timestamp.*status.*retired/is.test(
     contract?.properties?.retired_at?.description ?? ''
@@ -481,6 +503,20 @@ rejectUnless(
     notFound?.properties?.message?.const === 'Resource not found' &&
     notFound?.properties?.code?.const === 'NOT_FOUND',
   'ContractNotFound must be closed, neutral, and information-poor.'
+)
+
+const conflict = schemas.ContractConflictError
+rejectUnless(
+  responses.ContractConflict?.content?.['application/json']?.schema?.$ref ===
+    '#/components/schemas/ContractConflictError' &&
+    conflict?.type === 'object' &&
+    conflict?.additionalProperties === false &&
+    hasExactKeys(conflict?.properties, ['message', 'code']) &&
+    hasExactRequired(conflict, ['message', 'code']) &&
+    conflict?.properties?.message?.type === 'string' &&
+    conflict?.properties?.code?.type === 'string' &&
+    conflict?.properties?.code?.const === 'CONFLICT',
+  'Contract conflicts must use a closed neutral envelope without history or persistence details.'
 )
 
 rejectUnless(

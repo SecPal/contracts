@@ -42,6 +42,16 @@ test('accepts the authoritative Contract CRUD contract', () => {
   assert.match(result.stdout, /Contract CRUD OpenAPI guard passed/)
 })
 
+test('accepts separately owned adjacent top-level resource surfaces', () => {
+  const candidate = structuredClone(contract)
+  candidate.paths['/service-bookings'] = { get: { responses: {} } }
+  candidate.paths['/internal-cost-centers'] = { get: { responses: {} } }
+
+  const result = runGuard(candidate)
+
+  assert.equal(result.status, 0, result.stderr)
+})
+
 test('rejects drift across the Contract CRUD trust boundaries', () => {
   const cases = [
     {
@@ -128,6 +138,24 @@ test('rejects drift across the Contract CRUD trust boundaries', () => {
       },
     },
     {
+      label: 'active Contract with retirement timestamp',
+      diagnostic: /reject active-with-timestamp and retired-with-null/,
+      mutate(candidate) {
+        candidate.components.schemas.Contract.oneOf[0].properties.retired_at = {
+          $ref: '#/components/schemas/ApiTimestamp',
+        }
+      },
+    },
+    {
+      label: 'retired Contract with null retirement evidence',
+      diagnostic: /reject active-with-timestamp and retired-with-null/,
+      mutate(candidate) {
+        candidate.components.schemas.Contract.oneOf[1].properties.retired_at = {
+          type: 'null',
+        }
+      },
+    },
+    {
       label: 'unsupported billing unit',
       diagnostic: /BillingUnit must be exactly/,
       mutate(candidate) {
@@ -186,6 +214,15 @@ test('rejects drift across the Contract CRUD trust boundaries', () => {
       mutate(candidate) {
         candidate.components.responses.ContractNotFound.description =
           'The requested record does not exist.'
+      },
+    },
+    {
+      label: 'history-revealing conflict details',
+      diagnostic: /closed neutral envelope without history or persistence/,
+      mutate(candidate) {
+        candidate.components.schemas.ContractConflictError.additionalProperties = true
+        candidate.components.schemas.ContractConflictError.properties.details =
+          { type: 'object' }
       },
     },
     {
