@@ -768,6 +768,7 @@ test('documents evidence for every relationship-writing workflow', () => {
     'CustomerUpdateRequest',
     'ContractCreateRequest',
     'ContractUpdateRequest',
+    'ServiceBookingCreateRequest',
     'CustomerEstablishmentCreateRequest',
     'SiteCreateRequest',
     'SiteUpdateRequest',
@@ -812,6 +813,12 @@ test('documents concealed Contract customer-association failures', () => {
   assert.equal(createExamples.rejected[0].status, 404)
   assert.equal(updateExamples.rejected[0].status, 404)
   assert.equal(updateExamples.rejected[1].status, 409)
+})
+
+test('documents concealed Service Booking Contract-association failures', () => {
+  const examples = schemas.ServiceBookingCreateRequest['x-validation-examples']
+
+  assert.equal(examples.rejected[0].status, 404)
 })
 
 test('documents tenant-consistent customer establishment links', () => {
