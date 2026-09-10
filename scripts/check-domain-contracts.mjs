@@ -1794,10 +1794,79 @@ if (
   transactionalCustomerEditAssignments?.type !== 'array' ||
   transactionalCustomerEditAssignments.uniqueItems !== true ||
   transactionalCustomerEditAssignments.items?.$ref !==
-    '#/components/schemas/CustomerEstablishmentCreateRequest'
+    '#/components/schemas/CustomerTransactionalEditEstablishmentRequest'
 ) {
   errors.push(
     'CustomerTransactionalEditRequest must remain closed and reuse the customer update and customer-establishment request contracts for one complete desired collection.'
+  )
+}
+
+const transactionalEstablishmentRequest =
+  schemas.CustomerTransactionalEditEstablishmentRequest ?? {}
+const transactionalContactSemantics =
+  transactionalEstablishmentRequest['x-contact-field-semantics'] ?? {}
+const transactionalContactExamples =
+  transactionalEstablishmentRequest['x-contact-field-examples'] ?? {}
+const transactionalContactFields = [
+  'contact_name',
+  'phone',
+  'email',
+  'comments',
+]
+const retainedContactExamples = transactionalContactExamples.retained ?? []
+const newContactExamples = transactionalContactExamples.new ?? []
+if (
+  JSON.stringify(transactionalEstablishmentRequest.allOf) !==
+    JSON.stringify([
+      { $ref: '#/components/schemas/CustomerEstablishmentCreateRequest' },
+    ]) ||
+  JSON.stringify(transactionalContactSemantics.fields) !==
+    JSON.stringify(transactionalContactFields) ||
+  JSON.stringify(transactionalContactSemantics.membership) !==
+    JSON.stringify({
+      present_existing_pair: 'retain',
+      present_new_pair: 'create',
+      absent_existing_pair: 'delete subject to conflict rules',
+    }) ||
+  JSON.stringify(transactionalContactSemantics.retained_pair) !==
+    JSON.stringify({
+      omitted: 'preserve stored value',
+      null: 'clear to null',
+      value: 'replace stored value',
+    }) ||
+  JSON.stringify(transactionalContactSemantics.new_pair) !==
+    JSON.stringify({
+      omitted: 'initialize null',
+      null: 'initialize null',
+      value: 'initialize supplied value',
+    }) ||
+  retainedContactExamples.length !== transactionalContactFields.length ||
+  newContactExamples.length !== transactionalContactFields.length ||
+  transactionalContactFields.some((field) => {
+    const retained = retainedContactExamples.find(
+      (example) => example.field === field
+    )
+    const created = newContactExamples.find(
+      (example) => example.field === field
+    )
+    return (
+      retained?.omitted !== true ||
+      retained?.omitted_result !== retained?.stored_value ||
+      retained?.null !== null ||
+      retained?.null_result !== null ||
+      retained?.value === undefined ||
+      retained?.value_result !== retained?.value ||
+      created?.omitted !== true ||
+      created?.omitted_result !== null ||
+      created?.null !== null ||
+      created?.null_result !== null ||
+      created?.value === undefined ||
+      created?.value_result !== created?.value
+    )
+  })
+) {
+  errors.push(
+    'Transactional customer-establishment contact semantics must reuse the create contract and prove replace-all membership plus retained omission/preserve, null/clear, value/replace, and new omission/null initialization for all four contact fields.'
   )
 }
 
@@ -1951,7 +2020,7 @@ const transactionalCustomerEditResponseRefs = {
   400: '#/components/responses/BadRequest',
   401: '#/components/responses/Unauthorized',
   403: '#/components/responses/CustomerTransactionalEditForbidden',
-  404: '#/components/responses/NotFound',
+  404: '#/components/responses/CustomerTransactionalEditNotFound',
   409: '#/components/responses/CustomerTransactionalEditConflict',
   412: '#/components/responses/CustomerTransactionalEditStale',
   422: '#/components/responses/CustomerTransactionalEditValidationError',
@@ -1988,6 +2057,55 @@ function acceptsFixedClosedError(schema, value) {
       propertySchema?.type === 'string' &&
       propertySchema.enum?.includes(value[property]) === true
   )
+}
+
+const transactionalValidationErrorRules = [
+  {
+    pattern:
+      /^customer\.(legal_entity_id|vat_id|name|billing_address(?:\.(?:street|city|postal_code|country|latitude|longitude))?|is_active)$/,
+    message: 'The customer field is invalid.',
+  },
+  {
+    pattern: /^customer_establishments$/,
+    message: 'Each establishment may be assigned at most once.',
+  },
+  {
+    pattern: /^customer_establishments\.[0-9]+\.establishment_id$/,
+    message: 'The selected establishment is invalid.',
+  },
+  {
+    pattern: /^customer_establishments\.[0-9]+\.customer_id$/,
+    message: 'The selected customer is invalid.',
+  },
+]
+
+function acceptsTransactionalValidationProblem(value) {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    Array.isArray(value) ||
+    JSON.stringify(Object.keys(value)) !==
+      JSON.stringify(['message', 'errors']) ||
+    value.message !== 'The given data was invalid.' ||
+    typeof value.errors !== 'object' ||
+    value.errors === null ||
+    Array.isArray(value.errors) ||
+    Object.keys(value.errors).length === 0
+  ) {
+    return false
+  }
+
+  return Object.entries(value.errors).every(([field, messages]) => {
+    const rule = transactionalValidationErrorRules.find(({ pattern }) =>
+      pattern.test(field)
+    )
+    return (
+      rule !== undefined &&
+      Array.isArray(messages) &&
+      messages.length === 1 &&
+      messages[0] === rule.message
+    )
+  })
 }
 
 const transactionalCustomerEditForbidden =
@@ -2040,6 +2158,150 @@ if (
   )
 }
 
+const transactionalValidationResponse =
+  responses.CustomerTransactionalEditValidationError ?? {}
+const transactionalValidationMedia =
+  transactionalValidationResponse.content?.['application/json'] ?? {}
+const transactionalValidationSchema =
+  schemas.CustomerTransactionalEditValidationProblem ?? {}
+const transactionalValidationErrors =
+  transactionalValidationSchema.properties?.errors ?? {}
+const transactionalValidationExamples =
+  transactionalValidationSchema['x-validation-examples'] ?? {}
+const transactionalValidationPatterns = {
+  '^customer\\.(legal_entity_id|vat_id|name|billing_address(?:\\.(?:street|city|postal_code|country|latitude|longitude))?|is_active)$':
+    '#/components/schemas/CustomerTransactionalEditCustomerFieldErrors',
+  '^customer_establishments$':
+    '#/components/schemas/CustomerTransactionalEditDuplicateTargetErrors',
+  '^customer_establishments\\.[0-9]+\\.establishment_id$':
+    '#/components/schemas/CustomerTransactionalEditInvalidEstablishmentErrors',
+  '^customer_establishments\\.[0-9]+\\.customer_id$':
+    '#/components/schemas/CustomerTransactionalEditInvalidCustomerErrors',
+}
+const transactionalValidationFieldSchemas = {
+  CustomerTransactionalEditCustomerFieldErrors:
+    'The customer field is invalid.',
+  CustomerTransactionalEditDuplicateTargetErrors:
+    'Each establishment may be assigned at most once.',
+  CustomerTransactionalEditInvalidEstablishmentErrors:
+    'The selected establishment is invalid.',
+  CustomerTransactionalEditInvalidCustomerErrors:
+    'The selected customer is invalid.',
+}
+if (
+  transactionalCustomerEdit?.responses?.['422']?.$ref !==
+    '#/components/responses/CustomerTransactionalEditValidationError' ||
+  transactionalValidationMedia.schema?.$ref !==
+    '#/components/schemas/CustomerTransactionalEditValidationProblem' ||
+  transactionalValidationSchema.type !== 'object' ||
+  transactionalValidationSchema.additionalProperties !== false ||
+  JSON.stringify(transactionalValidationSchema.required) !==
+    JSON.stringify(['message', 'errors']) ||
+  JSON.stringify(
+    Object.keys(transactionalValidationSchema.properties ?? {})
+  ) !== JSON.stringify(['message', 'errors']) ||
+  JSON.stringify(transactionalValidationSchema.properties?.message) !==
+    JSON.stringify({
+      type: 'string',
+      enum: ['The given data was invalid.'],
+    }) ||
+  transactionalValidationErrors.type !== 'object' ||
+  transactionalValidationErrors.minProperties !== 1 ||
+  transactionalValidationErrors.additionalProperties !== false ||
+  JSON.stringify(
+    Object.fromEntries(
+      Object.entries(transactionalValidationErrors.patternProperties ?? {}).map(
+        ([pattern, schema]) => [pattern, schema?.$ref]
+      )
+    )
+  ) !== JSON.stringify(transactionalValidationPatterns) ||
+  Object.entries(transactionalValidationFieldSchemas).some(
+    ([schemaName, message]) => {
+      const schema = schemas[schemaName] ?? {}
+      return (
+        schema.type !== 'array' ||
+        schema.minItems !== 1 ||
+        schema.maxItems !== 1 ||
+        JSON.stringify(schema.items) !==
+          JSON.stringify({ type: 'string', enum: [message] })
+      )
+    }
+  ) ||
+  transactionalValidationExamples.accepted?.length !== 4 ||
+  transactionalValidationExamples.accepted.some(
+    (example) => !acceptsTransactionalValidationProblem(example?.value)
+  ) ||
+  transactionalValidationExamples.rejected?.length !== 6 ||
+  transactionalValidationExamples.rejected.some((example) =>
+    acceptsTransactionalValidationProblem(example?.value)
+  ) ||
+  JSON.stringify(
+    transactionalValidationExamples.rejected.map((example) => example.category)
+  ) !==
+    JSON.stringify([
+      'top-level-property',
+      'unexpected-error-key',
+      'arbitrary-string',
+      'cross-tenant-detail',
+      'wrong-legal-entity-detail',
+      'resource-existence-hint',
+    ])
+) {
+  errors.push(
+    'Transactional customer edit 422 must use its dedicated closed validation schema, accept only customer master-data and fixed transactional field errors, and reject arbitrary or tenant-disclosing keys, strings, details, hints, and properties.'
+  )
+}
+
+const transactionalNotFoundResponse =
+  responses.CustomerTransactionalEditNotFound ?? {}
+const transactionalNotFoundMedia =
+  transactionalNotFoundResponse.content?.['application/json'] ?? {}
+const transactionalNotFoundSchema =
+  schemas.CustomerTransactionalEditNotFoundError ?? {}
+const transactionalNotFoundExamples =
+  transactionalNotFoundSchema['x-validation-examples'] ?? {}
+const fixedTransactionalNotFound = {
+  message: 'Resource not found',
+  code: 'NOT_FOUND',
+}
+if (
+  transactionalCustomerEdit?.responses?.['404']?.$ref !==
+    '#/components/responses/CustomerTransactionalEditNotFound' ||
+  transactionalNotFoundMedia.schema?.$ref !==
+    '#/components/schemas/CustomerTransactionalEditNotFoundError' ||
+  JSON.stringify(transactionalNotFoundMedia.example) !==
+    JSON.stringify(fixedTransactionalNotFound) ||
+  !acceptsFixedClosedError(
+    transactionalNotFoundSchema,
+    transactionalNotFoundExamples.accepted?.[0]?.value
+  ) ||
+  !acceptsFixedClosedError(
+    transactionalNotFoundSchema,
+    transactionalNotFoundExamples.accepted?.[1]?.value
+  ) ||
+  JSON.stringify(transactionalNotFoundExamples.accepted?.[0]?.value) !==
+    JSON.stringify(transactionalNotFoundExamples.accepted?.[1]?.value) ||
+  transactionalNotFoundExamples.rejected?.length !== 6 ||
+  transactionalNotFoundExamples.rejected.some((example) =>
+    acceptsFixedClosedError(transactionalNotFoundSchema, example?.value)
+  ) ||
+  JSON.stringify(
+    transactionalNotFoundExamples.rejected.map((example) => example.category)
+  ) !==
+    JSON.stringify([
+      'message-drift',
+      'code-drift',
+      'details',
+      'tenant-id',
+      'existence-hint',
+      'extra-property',
+    ])
+) {
+  errors.push(
+    'Transactional customer edit 404 must retain its dedicated response/schema references and one fixed closed missing-or-inaccessible payload without details, tenant IDs, existence hints, or extra properties.'
+  )
+}
+
 for (const [responseName, schemaName, message, code] of [
   [
     'CustomerTransactionalEditConflict',
@@ -2075,7 +2337,7 @@ for (const [responseName, schemaName, message, code] of [
 const transactionalCustomerEditSemantics = [
   /complete desired.*customer_establishments.*collection/is,
   /one transaction/i,
-  /omitted pairs are deleted/i,
+  /absent existing pair is deleted/i,
   /each `establishment_id` may occur at most once/i,
   /duplicate establishment targets.*422/is,
   /missing, inaccessible, cross-tenant, wrong-Legal-Entity, inactive, and deleted assignment targets.*same information-poor.*422/is,

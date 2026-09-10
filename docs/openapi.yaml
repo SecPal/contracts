@@ -6482,6 +6482,92 @@ components:
           type: [string, 'null']
           maxLength: 2000
 
+    CustomerTransactionalEditEstablishmentRequest:
+      description: Transactional overlay for one member of the complete desired customer-establishment collection. It reuses the create shape while defining how membership and optional contact fields reconcile.
+      allOf:
+        - $ref: '#/components/schemas/CustomerEstablishmentCreateRequest'
+      x-contact-field-semantics:
+        fields:
+          - contact_name
+          - phone
+          - email
+          - comments
+        membership:
+          present_existing_pair: retain
+          present_new_pair: create
+          absent_existing_pair: delete subject to conflict rules
+        retained_pair:
+          omitted: preserve stored value
+          null: clear to null
+          value: replace stored value
+        new_pair:
+          omitted: initialize null
+          null: initialize null
+          value: initialize supplied value
+      x-contact-field-examples:
+        retained:
+          - field: contact_name
+            stored_value: Stored Contact
+            omitted: true
+            omitted_result: Stored Contact
+            null: null
+            null_result: null
+            value: Replacement Contact
+            value_result: Replacement Contact
+          - field: phone
+            stored_value: '+49 30 11111111'
+            omitted: true
+            omitted_result: '+49 30 11111111'
+            null: null
+            null_result: null
+            value: '+49 30 22222222'
+            value_result: '+49 30 22222222'
+          - field: email
+            stored_value: stored.contact@secpal.dev
+            omitted: true
+            omitted_result: stored.contact@secpal.dev
+            null: null
+            null_result: null
+            value: replacement.contact@secpal.dev
+            value_result: replacement.contact@secpal.dev
+          - field: comments
+            stored_value: Stored comment
+            omitted: true
+            omitted_result: Stored comment
+            null: null
+            null_result: null
+            value: Replacement comment
+            value_result: Replacement comment
+        new:
+          - field: contact_name
+            omitted: true
+            omitted_result: null
+            null: null
+            null_result: null
+            value: New Contact
+            value_result: New Contact
+          - field: phone
+            omitted: true
+            omitted_result: null
+            null: null
+            null_result: null
+            value: '+49 30 33333333'
+            value_result: '+49 30 33333333'
+          - field: email
+            omitted: true
+            omitted_result: null
+            null: null
+            null_result: null
+            value: new.contact@secpal.dev
+            value_result: new.contact@secpal.dev
+          - field: comments
+            omitted: true
+            omitted_result: null
+            null: null
+            null_result: null
+            value: New comment
+            value_result: New comment
+
     CustomerEstablishmentResponse:
       type: object
       additionalProperties: false
@@ -6628,7 +6714,7 @@ components:
           x-unique-by:
             - establishment_id
           items:
-            $ref: '#/components/schemas/CustomerEstablishmentCreateRequest'
+            $ref: '#/components/schemas/CustomerTransactionalEditEstablishmentRequest'
           x-uniqueness-examples:
             accepted:
               - name: Distinct establishments may reuse local contact data
@@ -6740,6 +6826,201 @@ components:
               message: Insufficient permissions
               code: FORBIDDEN
               denied_scope: incomplete_assignment_visibility
+
+    CustomerTransactionalEditNotFoundError:
+      type: object
+      additionalProperties: false
+      description: Deterministic information-poor response shared by missing and tenant-inaccessible transactional path customers.
+      required:
+        - message
+        - code
+      properties:
+        message:
+          type: string
+          enum:
+            - Resource not found
+        code:
+          type: string
+          enum:
+            - NOT_FOUND
+      x-validation-examples:
+        accepted:
+          - name: Missing path customer
+            value:
+              message: Resource not found
+              code: NOT_FOUND
+          - name: Tenant-inaccessible path customer
+            value:
+              message: Resource not found
+              code: NOT_FOUND
+        rejected:
+          - name: Different message identifies customer state
+            category: message-drift
+            value:
+              message: Customer exists but is unavailable
+              code: NOT_FOUND
+          - name: Different code identifies customer state
+            category: code-drift
+            value:
+              message: Resource not found
+              code: CUSTOMER_IN_OTHER_TENANT
+          - name: Details disclose the lookup result
+            category: details
+            value:
+              message: Resource not found
+              code: NOT_FOUND
+              details:
+                inaccessible: true
+          - name: Tenant identifier discloses ownership
+            category: tenant-id
+            value:
+              message: Resource not found
+              code: NOT_FOUND
+              tenant_id: '660e8400-e29b-41d4-a716-446655440002'
+          - name: Existence hint distinguishes an inaccessible customer
+            category: existence-hint
+            value:
+              message: Resource not found
+              code: NOT_FOUND
+              exists: true
+          - name: Arbitrary property discloses hidden state
+            category: extra-property
+            value:
+              message: Resource not found
+              code: NOT_FOUND
+              customer_state: hidden
+
+    CustomerTransactionalEditCustomerFieldErrors:
+      type: array
+      minItems: 1
+      maxItems: 1
+      items:
+        type: string
+        enum:
+          - The customer field is invalid.
+
+    CustomerTransactionalEditDuplicateTargetErrors:
+      type: array
+      minItems: 1
+      maxItems: 1
+      items:
+        type: string
+        enum:
+          - Each establishment may be assigned at most once.
+
+    CustomerTransactionalEditInvalidEstablishmentErrors:
+      type: array
+      minItems: 1
+      maxItems: 1
+      items:
+        type: string
+        enum:
+          - The selected establishment is invalid.
+
+    CustomerTransactionalEditInvalidCustomerErrors:
+      type: array
+      minItems: 1
+      maxItems: 1
+      items:
+        type: string
+        enum:
+          - The selected customer is invalid.
+
+    CustomerTransactionalEditValidationProblem:
+      type: object
+      additionalProperties: false
+      description: Closed validation envelope for customer master-data fields and the transactional assignment variants. Every message is fixed and tenant neutral.
+      required:
+        - message
+        - errors
+      properties:
+        message:
+          type: string
+          enum:
+            - The given data was invalid.
+        errors:
+          type: object
+          minProperties: 1
+          additionalProperties: false
+          patternProperties:
+            '^customer\.(legal_entity_id|vat_id|name|billing_address(?:\.(?:street|city|postal_code|country|latitude|longitude))?|is_active)$':
+              $ref: '#/components/schemas/CustomerTransactionalEditCustomerFieldErrors'
+            '^customer_establishments$':
+              $ref: '#/components/schemas/CustomerTransactionalEditDuplicateTargetErrors'
+            '^customer_establishments\.[0-9]+\.establishment_id$':
+              $ref: '#/components/schemas/CustomerTransactionalEditInvalidEstablishmentErrors'
+            '^customer_establishments\.[0-9]+\.customer_id$':
+              $ref: '#/components/schemas/CustomerTransactionalEditInvalidCustomerErrors'
+      x-validation-examples:
+        accepted:
+          - name: Customer master-data validation
+            value:
+              message: The given data was invalid.
+              errors:
+                customer.name:
+                  - The customer field is invalid.
+          - name: Duplicate establishment target
+            value:
+              message: The given data was invalid.
+              errors:
+                customer_establishments:
+                  - Each establishment may be assigned at most once.
+          - name: Neutral invalid assignment target
+            value:
+              message: The given data was invalid.
+              errors:
+                customer_establishments.0.establishment_id:
+                  - The selected establishment is invalid.
+          - name: Nested customer mismatch
+            value:
+              message: The given data was invalid.
+              errors:
+                customer_establishments.0.customer_id:
+                  - The selected customer is invalid.
+        rejected:
+          - name: Arbitrary top-level property
+            category: top-level-property
+            value:
+              message: The given data was invalid.
+              errors:
+                customer.name:
+                  - The customer field is invalid.
+              trace_id: hidden-state
+          - name: Unexpected error key
+            category: unexpected-error-key
+            value:
+              message: The given data was invalid.
+              errors:
+                customer.tenant_id:
+                  - The customer field is invalid.
+          - name: Arbitrary error string
+            category: arbitrary-string
+            value:
+              message: The given data was invalid.
+              errors:
+                customer.name:
+                  - A database-specific validation failure occurred.
+          - name: Cross-tenant detail
+            category: cross-tenant-detail
+            value:
+              message: The given data was invalid.
+              errors:
+                customer_establishments.0.establishment_id:
+                  - The establishment belongs to tenant 660e8400-e29b-41d4-a716-446655440002.
+          - name: Wrong-Legal-Entity detail
+            category: wrong-legal-entity-detail
+            value:
+              message: The given data was invalid.
+              errors:
+                customer_establishments.0.establishment_id:
+                  - The establishment belongs to another Legal Entity.
+          - name: Resource existence hint
+            category: resource-existence-hint
+            value:
+              message: The given data was invalid.
+              errors:
+                customer_establishments.0.establishment_id:
+                  - The establishment exists but is inaccessible.
 
     CustomerTransactionalEditConflictError:
       type: object
@@ -7535,6 +7816,16 @@ components:
             message: Insufficient permissions
             code: FORBIDDEN
 
+    CustomerTransactionalEditNotFound:
+      description: Not Found - Missing and tenant-inaccessible path customers return this identical fixed payload.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CustomerTransactionalEditNotFoundError'
+          example:
+            message: Resource not found
+            code: NOT_FOUND
+
     CustomerTransactionalEditStale:
       description: Precondition Failed - The supplied aggregate entity tag is stale; no requested change is committed.
       content:
@@ -7550,8 +7841,15 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ValidationProblem'
+            $ref: '#/components/schemas/CustomerTransactionalEditValidationProblem'
           examples:
+            customerMasterData:
+              summary: A customer master-data field is invalid
+              value:
+                message: The given data was invalid.
+                errors:
+                  customer.name:
+                    - The customer field is invalid.
             duplicateEstablishmentTarget:
               summary: One establishment occurs more than once in the desired collection
               value:
@@ -12898,7 +13196,7 @@ paths:
     put:
       summary: Transactionally Edit Customer
       description: |
-        Applies customer master-data changes and reconciles the complete desired `customer_establishments` collection in one transaction. Existing pairs update their local contact data, new pairs are created, and omitted pairs are deleted. The `200` response is the committed customer with its complete committed customer-establishment assignment snapshot; it omits `sites`, `assignments`, and relationship counts.
+        Applies customer master-data changes and reconciles the complete desired `customer_establishments` collection in one transaction. A present existing pair is retained, a present new pair is created, and an absent existing pair is deleted subject to the documented conflicts. For `contact_name`, `phone`, `email`, and `comments` on a retained pair, an omitted field preserves its stored value, explicit `null` clears it, and a value replaces it. On a new pair, omission and explicit `null` initialize the field to null, while a value initializes the supplied value. The `200` response is the committed customer with its complete committed customer-establishment assignment snapshot; it omits `sites`, `assignments`, and relationship counts.
 
         Requires `customers.update`, `customers.read` without organizational scopes, and a strong `If-Match` entity tag from `GET /customers/{customer}`. This unrestricted read authority guarantees visibility of the complete customer-establishment collection represented by the tag. Assignment-only and site-only callers receive **403** even when they may view a filtered customer representation. A stale tag returns the neutral **412** response. Authorization and tenant access are revalidated inside the transaction before mutation and before commit; stale authorization returns **403**. Every non-success response rolls back the complete edit.
 
@@ -12982,7 +13280,7 @@ paths:
         '403':
           $ref: '#/components/responses/CustomerTransactionalEditForbidden'
         '404':
-          $ref: '#/components/responses/NotFound'
+          $ref: '#/components/responses/CustomerTransactionalEditNotFound'
         '409':
           $ref: '#/components/responses/CustomerTransactionalEditConflict'
         '412':

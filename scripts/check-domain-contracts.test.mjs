@@ -54,6 +54,54 @@ function acceptsFixedClosedError(schema, value) {
   )
 }
 
+const transactionalValidationErrorRules = [
+  [
+    /^customer\.(legal_entity_id|vat_id|name|billing_address(?:\.(?:street|city|postal_code|country|latitude|longitude))?|is_active)$/,
+    'The customer field is invalid.',
+  ],
+  [
+    /^customer_establishments$/,
+    'Each establishment may be assigned at most once.',
+  ],
+  [
+    /^customer_establishments\.[0-9]+\.establishment_id$/,
+    'The selected establishment is invalid.',
+  ],
+  [
+    /^customer_establishments\.[0-9]+\.customer_id$/,
+    'The selected customer is invalid.',
+  ],
+]
+
+function acceptsTransactionalValidationProblem(value) {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    Array.isArray(value) ||
+    JSON.stringify(Object.keys(value)) !==
+      JSON.stringify(['message', 'errors']) ||
+    value.message !== 'The given data was invalid.' ||
+    typeof value.errors !== 'object' ||
+    value.errors === null ||
+    Array.isArray(value.errors) ||
+    Object.keys(value.errors).length === 0
+  ) {
+    return false
+  }
+
+  return Object.entries(value.errors).every(([field, messages]) => {
+    const rule = transactionalValidationErrorRules.find(([pattern]) =>
+      pattern.test(field)
+    )
+    return (
+      rule !== undefined &&
+      Array.isArray(messages) &&
+      messages.length === 1 &&
+      messages[0] === rule[1]
+    )
+  })
+}
+
 function runGuard(candidate, candidateChangelog = changelogSource) {
   const directory = mkdtempSync(join(tmpdir(), 'domain-contracts-'))
   const candidatePath = join(directory, 'openapi.yaml')
@@ -112,8 +160,45 @@ test('defines one transactional customer edit aggregate contract', () => {
   assert.equal(
     schemas.CustomerTransactionalEditRequest.properties.customer_establishments
       .items.$ref,
-    '#/components/schemas/CustomerEstablishmentCreateRequest'
+    '#/components/schemas/CustomerTransactionalEditEstablishmentRequest'
   )
+  const transactionalItem =
+    schemas.CustomerTransactionalEditEstablishmentRequest
+  assert.deepEqual(transactionalItem.allOf, [
+    { $ref: '#/components/schemas/CustomerEstablishmentCreateRequest' },
+  ])
+  assert.deepEqual(transactionalItem['x-contact-field-semantics'], {
+    fields: ['contact_name', 'phone', 'email', 'comments'],
+    membership: {
+      present_existing_pair: 'retain',
+      present_new_pair: 'create',
+      absent_existing_pair: 'delete subject to conflict rules',
+    },
+    retained_pair: {
+      omitted: 'preserve stored value',
+      null: 'clear to null',
+      value: 'replace stored value',
+    },
+    new_pair: {
+      omitted: 'initialize null',
+      null: 'initialize null',
+      value: 'initialize supplied value',
+    },
+  })
+  for (const field of ['contact_name', 'phone', 'email', 'comments']) {
+    const retained = transactionalItem[
+      'x-contact-field-examples'
+    ].retained.find((example) => example.field === field)
+    const created = transactionalItem['x-contact-field-examples'].new.find(
+      (example) => example.field === field
+    )
+    assert.equal(retained.omitted_result, retained.stored_value)
+    assert.equal(retained.null_result, null)
+    assert.equal(retained.value_result, retained.value)
+    assert.equal(created.omitted_result, null)
+    assert.equal(created.null_result, null)
+    assert.equal(created.value_result, created.value)
+  }
   assert.deepEqual(
     schemas.CustomerTransactionalEditRequest.properties.customer_establishments[
       'x-unique-by'
@@ -240,7 +325,7 @@ test('defines one transactional customer edit aggregate contract', () => {
     ),
     [
       '#/components/responses/CustomerTransactionalEditForbidden',
-      '#/components/responses/NotFound',
+      '#/components/responses/CustomerTransactionalEditNotFound',
       '#/components/responses/CustomerTransactionalEditConflict',
       '#/components/responses/CustomerTransactionalEditStale',
       '#/components/responses/CustomerTransactionalEditValidationError',
@@ -279,6 +364,54 @@ test('defines one transactional customer edit aggregate contract', () => {
     mismatchResponse.errors['customer_establishments.0.customer_id'],
     ['The selected customer is invalid.']
   )
+  const validationResponse =
+    contract.components.responses.CustomerTransactionalEditValidationError
+  assert.equal(
+    validationResponse.content['application/json'].schema.$ref,
+    '#/components/schemas/CustomerTransactionalEditValidationProblem'
+  )
+  const validationExamples =
+    schemas.CustomerTransactionalEditValidationProblem['x-validation-examples']
+  assert.equal(validationExamples.accepted.length, 4)
+  for (const example of validationExamples.accepted) {
+    assert.equal(acceptsTransactionalValidationProblem(example.value), true)
+  }
+  for (const example of validationExamples.rejected) {
+    assert.equal(acceptsTransactionalValidationProblem(example.value), false)
+  }
+  assert.deepEqual(
+    validationExamples.rejected.map((example) => example.category),
+    [
+      'top-level-property',
+      'unexpected-error-key',
+      'arbitrary-string',
+      'cross-tenant-detail',
+      'wrong-legal-entity-detail',
+      'resource-existence-hint',
+    ]
+  )
+  const notFoundResponse =
+    contract.components.responses.CustomerTransactionalEditNotFound
+  const notFoundSchema = schemas.CustomerTransactionalEditNotFoundError
+  assert.equal(
+    notFoundResponse.content['application/json'].schema.$ref,
+    '#/components/schemas/CustomerTransactionalEditNotFoundError'
+  )
+  assert.deepEqual(notFoundResponse.content['application/json'].example, {
+    message: 'Resource not found',
+    code: 'NOT_FOUND',
+  })
+  const notFoundExamples = notFoundSchema['x-validation-examples']
+  assert.deepEqual(
+    notFoundExamples.accepted[0].value,
+    notFoundExamples.accepted[1].value
+  )
+  for (const example of notFoundExamples.accepted) {
+    assert.equal(acceptsFixedClosedError(notFoundSchema, example.value), true)
+  }
+  for (const example of notFoundExamples.rejected) {
+    assert.equal(acceptsFixedClosedError(notFoundSchema, example.value), false)
+  }
 })
 
 test('guard retains the aggregate edit baseline', () => {
@@ -401,6 +534,152 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
         ]
       },
     },
+    {
+      name: 'A rejects generic transactional validation response',
+      expected: /dedicated closed validation schema/,
+      mutate(candidate) {
+        candidate.paths[
+          '/customers/{customer}/transactional-edit'
+        ].put.responses['422'] = {
+          $ref: '#/components/responses/ValidationError',
+        }
+      },
+    },
+    {
+      name: 'A rejects transactional validation schema substitution',
+      expected: /dedicated closed validation schema/,
+      mutate(candidate) {
+        candidate.components.responses.CustomerTransactionalEditValidationError.content[
+          'application/json'
+        ].schema.$ref = '#/components/schemas/ValidationProblem'
+      },
+    },
+    {
+      name: 'A rejects an open transactional validation envelope',
+      expected: /dedicated closed validation schema/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditValidationProblem.additionalProperties = true
+      },
+    },
+    {
+      name: 'A rejects arbitrary transactional validation strings',
+      expected: /dedicated closed validation schema/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditInvalidEstablishmentErrors.items.enum =
+          ['Establishment 123 belongs to another tenant.']
+      },
+    },
+    ...[
+      'top-level-property',
+      'unexpected-error-key',
+      'arbitrary-string',
+      'cross-tenant-detail',
+      'wrong-legal-entity-detail',
+      'resource-existence-hint',
+    ].map((category) => ({
+      name: `A preserves rejected ${category} evidence`,
+      expected: /dedicated closed validation schema/,
+      mutate(candidate) {
+        const examples =
+          candidate.components.schemas
+            .CustomerTransactionalEditValidationProblem['x-validation-examples']
+            .rejected
+        examples.splice(
+          examples.findIndex((example) => example.category === category),
+          1
+        )
+      },
+    })),
+    {
+      name: 'B rejects generic transactional NotFound',
+      expected: /dedicated response\/schema references/,
+      mutate(candidate) {
+        candidate.paths[
+          '/customers/{customer}/transactional-edit'
+        ].put.responses['404'] = {
+          $ref: '#/components/responses/NotFound',
+        }
+      },
+    },
+    {
+      name: 'B rejects transactional 404 schema substitution',
+      expected: /dedicated response\/schema references/,
+      mutate(candidate) {
+        candidate.components.responses.CustomerTransactionalEditNotFound.content[
+          'application/json'
+        ].schema.$ref = '#/components/schemas/Error'
+      },
+    },
+    {
+      name: 'B rejects transactional 404 message drift',
+      expected: /dedicated response\/schema references/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditNotFoundError.properties.message.enum =
+          ['Customer exists in another tenant.']
+      },
+    },
+    {
+      name: 'B rejects transactional 404 code drift',
+      expected: /dedicated response\/schema references/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditNotFoundError.properties.code.enum =
+          ['CUSTOMER_NOT_FOUND']
+      },
+    },
+    ...[
+      'message-drift',
+      'code-drift',
+      'details',
+      'tenant-id',
+      'existence-hint',
+      'extra-property',
+    ].map((category) => ({
+      name: `B preserves rejected ${category} evidence`,
+      expected: /dedicated response\/schema references/,
+      mutate(candidate) {
+        const examples =
+          candidate.components.schemas.CustomerTransactionalEditNotFoundError[
+            'x-validation-examples'
+          ].rejected
+        examples.splice(
+          examples.findIndex((example) => example.category === category),
+          1
+        )
+      },
+    })),
+    {
+      name: 'C retains the create-contract overlay',
+      expected: /contact semantics/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditEstablishmentRequest.allOf =
+          []
+      },
+    },
+    {
+      name: 'C retains omission, null, and value semantics',
+      expected: /contact semantics/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditEstablishmentRequest[
+          'x-contact-field-semantics'
+        ].retained_pair.omitted = 'clear to null'
+      },
+    },
+    ...['contact_name', 'phone', 'email', 'comments'].map((field) => ({
+      name: `C preserves retained and new ${field} evidence`,
+      expected: /contact semantics/,
+      mutate(candidate) {
+        const examples =
+          candidate.components.schemas
+            .CustomerTransactionalEditEstablishmentRequest[
+            'x-contact-field-examples'
+          ]
+        examples.retained.find(
+          (example) => example.field === field
+        ).omitted_result = null
+        examples.new.find((example) => example.field === field).null_result =
+          'unexpected'
+      },
+    })),
   ]
 
   for (const mutation of mutations) {
