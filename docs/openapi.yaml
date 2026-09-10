@@ -61,6 +61,10 @@ tags:
     description: Tenant-isolated customer Contract management and terminal retirement.
   - name: Service Bookings
     description: Tenant-isolated billing records with immutable invoiced evidence and terminal retirement.
+  - name: Internal Cost Centers
+    description: Tenant-wide internal accounting classifications, distinct from Site-scoped Cost Centers.
+  - name: Cost Center Allocations
+    description: Atomic complete-snapshot allocation of Service Booking billing records.
   - name: Lookups
     description: Minimal authorized domain-assignment lookup endpoints.
   - name: Sites
@@ -1316,6 +1320,362 @@ components:
         message:
           type: string
           description: Stable state-conflict message without database or cross-tenant details.
+        code:
+          type: string
+          const: CONFLICT
+
+    InternalCostCenterStatus:
+      type: string
+      description: Closed tenant-wide Internal Cost Center lifecycle. Deactivation is terminal through this API.
+      enum: [active, inactive]
+      example: active
+
+    InternalCostCenter:
+      type: object
+      additionalProperties: false
+      description: >-
+        Tenant-wide internal accounting classification. This resource is distinct from the historical Site-scoped
+        CostCenter domain and never exposes tenant identity or allocation rows. `code` is stable and immutable.
+      required:
+        - id
+        - code
+        - name
+        - status
+        - inactive_at
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Stable public Internal Cost Center identifier.
+          example: '44444444-4444-4444-8444-444444444444'
+        code:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: '.*\S.*'
+          description: Stable nonblank business identifier, unique only within the active tenant.
+          example: KST-4711
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: '.*\S.*'
+          description: Mutable nonblank display label.
+          example: Operations North
+        status:
+          $ref: '#/components/schemas/InternalCostCenterStatus'
+          readOnly: true
+        inactive_at:
+          $ref: '#/components/schemas/NullableApiTimestamp'
+          readOnly: true
+          description: >-
+            Server-owned lifecycle evidence. This is `null` exactly while status is `active` and a server-generated
+            timestamp exactly while status is `inactive`.
+        created_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+          readOnly: true
+        updated_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+          readOnly: true
+      oneOf:
+        - title: ActiveInternalCostCenter
+          type: object
+          required: [status, inactive_at]
+          properties:
+            status:
+              type: string
+              const: active
+            inactive_at:
+              type: 'null'
+        - title: InactiveInternalCostCenter
+          type: object
+          required: [status, inactive_at]
+          properties:
+            status:
+              type: string
+              const: inactive
+            inactive_at:
+              $ref: '#/components/schemas/ApiTimestamp'
+      example:
+        id: '44444444-4444-4444-8444-444444444444'
+        code: KST-4711
+        name: Operations North
+        status: active
+        inactive_at: null
+        created_at: '2026-09-10T12:00:00Z'
+        updated_at: '2026-09-10T12:00:00Z'
+
+    InternalCostCenterCreateRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        Creates one active Internal Cost Center with null `inactive_at`. Code uniqueness is scoped to the active
+        tenant and code is not normalized or mutable through this API. Identity, tenant, lifecycle, and timestamps
+        are server-owned.
+      required: [code, name]
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: '.*\S.*'
+          description: Stable nonblank tenant-scoped business identifier.
+          example: KST-4711
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: '.*\S.*'
+          description: Nonblank display label.
+          example: Operations North
+
+    InternalCostCenterUpdateRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: >-
+        Partial non-empty update of an active Internal Cost Center. Only the display name is mutable; supplying
+        code, status, inactive_at, identity, tenant, or timestamps is invalid. Inactive resources return 409.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: '.*\S.*'
+          description: Replacement nonblank display label.
+          example: Operations North and East
+
+    InternalCostCenterResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/InternalCostCenter'
+
+    InternalCostCenterCollectionResponse:
+      type: object
+      additionalProperties: false
+      required: [data, links, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/InternalCostCenter'
+        links:
+          $ref: '#/components/schemas/PaginationLinks'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    InternalCostCenterNotFoundError:
+      type: object
+      additionalProperties: false
+      description: Neutral information-poor error for an unavailable active-tenant Internal Cost Center.
+      required: [message, code]
+      properties:
+        message:
+          type: string
+          const: Resource not found
+        code:
+          type: string
+          const: NOT_FOUND
+
+    InternalCostCenterConflictError:
+      type: object
+      additionalProperties: false
+      description: Closed conflict error without cross-tenant or persistence details.
+      required: [message, code]
+      properties:
+        message:
+          type: string
+          description: Stable state-conflict message without database identifiers or implementation details.
+        code:
+          type: string
+          const: CONFLICT
+
+    CostCenterAllocationItem:
+      type: object
+      additionalProperties: false
+      description: Business split data without allocation-row identity or copied Internal Cost Center labels.
+      required: [internal_cost_center_id, share_bps]
+      properties:
+        internal_cost_center_id:
+          type: string
+          format: uuid
+          description: Available active-tenant Internal Cost Center target.
+          example: '44444444-4444-4444-8444-444444444444'
+        share_bps:
+          type: integer
+          minimum: 1
+          maximum: 10000
+          description: Integer allocation share in basis points.
+          example: 6000
+
+    CostCenterAllocationReplacementRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        Complete desired allocation snapshot. Empty removes all allocations. A non-empty collection must contain
+        each Internal Cost Center at most once and total exactly 10000 share_bps. The route owns the Service Booking
+        identity; tenant, allocation-row identity, money, percentages, labels, timestamps, and Shift data are not
+        accepted. Invalid requests never change the committed snapshot.
+      required: [allocations]
+      properties:
+        allocations:
+          type: array
+          minItems: 0
+          x-secpal-unique-by: internal_cost_center_id
+          x-secpal-allocation-invariant: empty-or-sum-share-bps-exactly-10000
+          description: >-
+            Complete replacement collection. Empty is valid. When non-empty, target IDs are unique and share_bps
+            sums to exactly 10000.
+          items:
+            $ref: '#/components/schemas/CostCenterAllocationItem'
+      x-validation-examples:
+        accepted:
+          - name: Remove all allocation
+            value:
+              allocations: []
+          - name: One complete target
+            value:
+              allocations:
+                - internal_cost_center_id: '44444444-4444-4444-8444-444444444444'
+                  share_bps: 10000
+          - name: Exact equal split
+            value:
+              allocations:
+                - internal_cost_center_id: '44444444-4444-4444-8444-444444444444'
+                  share_bps: 5000
+                - internal_cost_center_id: '55555555-5555-4555-8555-555555555555'
+                  share_bps: 5000
+          - name: Exact three-way split
+            value:
+              allocations:
+                - internal_cost_center_id: '44444444-4444-4444-8444-444444444444'
+                  share_bps: 3333
+                - internal_cost_center_id: '55555555-5555-4555-8555-555555555555'
+                  share_bps: 3333
+                - internal_cost_center_id: '66666666-6666-4666-8666-666666666666'
+                  share_bps: 3334
+        rejected:
+          - name: Incomplete split
+            status: 422
+            value:
+              allocations:
+                - internal_cost_center_id: '44444444-4444-4444-8444-444444444444'
+                  share_bps: 5000
+          - name: Under-allocated split
+            status: 422
+            value:
+              allocations:
+                - internal_cost_center_id: '44444444-4444-4444-8444-444444444444'
+                  share_bps: 5000
+                - internal_cost_center_id: '55555555-5555-4555-8555-555555555555'
+                  share_bps: 4999
+          - name: Over-allocated split
+            status: 422
+            value:
+              allocations:
+                - internal_cost_center_id: '44444444-4444-4444-8444-444444444444'
+                  share_bps: 5000
+                - internal_cost_center_id: '55555555-5555-4555-8555-555555555555'
+                  share_bps: 5001
+                - internal_cost_center_id: '66666666-6666-4666-8666-666666666666'
+                  share_bps: 1
+          - name: Zero basis points
+            status: 422
+            value:
+              allocations:
+                - internal_cost_center_id: '44444444-4444-4444-8444-444444444444'
+                  share_bps: 0
+          - name: Negative basis points
+            status: 422
+            value:
+              allocations:
+                - internal_cost_center_id: '44444444-4444-4444-8444-444444444444'
+                  share_bps: -1
+          - name: Fractional basis points
+            status: 422
+            value:
+              allocations:
+                - internal_cost_center_id: '44444444-4444-4444-8444-444444444444'
+                  share_bps: 9999.5
+          - name: Basis points above maximum
+            status: 422
+            value:
+              allocations:
+                - internal_cost_center_id: '44444444-4444-4444-8444-444444444444'
+                  share_bps: 10001
+          - name: Duplicate target is not merged
+            status: 422
+            value:
+              allocations:
+                - internal_cost_center_id: '44444444-4444-4444-8444-444444444444'
+                  share_bps: 5000
+                - internal_cost_center_id: '44444444-4444-4444-8444-444444444444'
+                  share_bps: 5000
+
+    ServiceBookingCostCenterAllocationSnapshot:
+      type: object
+      additionalProperties: false
+      description: Complete committed business split for one active-tenant Service Booking.
+      required: [service_booking_id, allocations]
+      properties:
+        service_booking_id:
+          type: string
+          format: uuid
+          description: Parent Service Booking identity from the route.
+          example: '33333333-3333-4333-8333-333333333333'
+        allocations:
+          type: array
+          minItems: 0
+          x-secpal-unique-by: internal_cost_center_id
+          x-secpal-allocation-invariant: empty-or-sum-share-bps-exactly-10000
+          description: Complete committed split ordered deterministically by internal_cost_center_id ASC.
+          items:
+            $ref: '#/components/schemas/CostCenterAllocationItem'
+      example:
+        service_booking_id: '33333333-3333-4333-8333-333333333333'
+        allocations:
+          - internal_cost_center_id: '44444444-4444-4444-8444-444444444444'
+            share_bps: 6000
+          - internal_cost_center_id: '55555555-5555-4555-8555-555555555555'
+            share_bps: 4000
+
+    ServiceBookingCostCenterAllocationResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/ServiceBookingCostCenterAllocationSnapshot'
+
+    CostCenterAllocationNotFoundError:
+      type: object
+      additionalProperties: false
+      description: >-
+        Neutral information-poor error for an unavailable active-tenant Service Booking or Internal Cost Center.
+      required: [message, code]
+      properties:
+        message:
+          type: string
+          const: Resource not found
+        code:
+          type: string
+          const: NOT_FOUND
+
+    CostCenterAllocationConflictError:
+      type: object
+      additionalProperties: false
+      description: Closed allocation conflict without persistence or concurrency internals.
+      required: [message, code]
+      properties:
+        message:
+          type: string
+          description: Neutral state-conflict message without SQL, lock, constraint, row, or tenant details.
         code:
           type: string
           const: CONFLICT
@@ -7252,6 +7612,17 @@ components:
         type: string
         format: uuid
 
+    InternalCostCenterId:
+      name: internalCostCenter
+      in: path
+      required: true
+      description: >-
+        Internal Cost Center UUID. Malformed values fail validation with 422; valid but unavailable active-tenant
+        resources use the information-poor 404 response.
+      schema:
+        type: string
+        format: uuid
+
     EmployeePage:
       name: page
       in: query
@@ -7497,6 +7868,126 @@ components:
             concurrentTransition:
               value:
                 message: The Service Booking changed in a concurrent state transition.
+                code: CONFLICT
+
+    InternalCostCenterNotFound:
+      description: >-
+        Not Found - The selected Internal Cost Center is unavailable in the active tenant. Nonexistent and
+        tenant-inaccessible identities are indistinguishable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/InternalCostCenterNotFoundError'
+          example:
+            message: Resource not found
+            code: NOT_FOUND
+
+    InternalCostCenterValidationError:
+      description: >-
+        Unprocessable Entity - The payload, pagination input, query parameter, or Internal Cost Center identifier
+        is malformed. This includes unknown or server-owned fields, blank or out-of-range code or name, code on
+        PATCH, an empty PATCH document, and a request body on deactivation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+          examples:
+            immutableCode:
+              summary: Code is create-only
+              value:
+                message: The given data was invalid.
+                errors:
+                  code:
+                    - The code field is prohibited.
+            invalidIdentifier:
+              summary: Malformed Internal Cost Center identifier
+              value:
+                message: The given data was invalid.
+                errors:
+                  internal_cost_center:
+                    - The internal cost center field must be a valid UUID.
+
+    InternalCostCenterConflict:
+      description: >-
+        Conflict - The active tenant already uses the requested code, an inactive Internal Cost Center was
+        mutated or deactivated again, or a valid mutation lost a concurrent state transition. Persistence and
+        cross-tenant details are not exposed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/InternalCostCenterConflictError'
+          examples:
+            duplicateCode:
+              value:
+                message: An Internal Cost Center with this code already exists.
+                code: CONFLICT
+            inactive:
+              value:
+                message: The Internal Cost Center is inactive.
+                code: CONFLICT
+            concurrentTransition:
+              value:
+                message: The Internal Cost Center changed in a concurrent state transition.
+                code: CONFLICT
+
+    CostCenterAllocationNotFound:
+      description: >-
+        Not Found - The selected Service Booking or allocation target is unavailable in the active tenant.
+        Nonexistent and tenant-inaccessible identities are indistinguishable, including a cross-tenant target.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CostCenterAllocationNotFoundError'
+          example:
+            message: Resource not found
+            code: NOT_FOUND
+
+    CostCenterAllocationValidationError:
+      description: >-
+        Unprocessable Entity - The Service Booking identifier, unsupported query parameter, or closed request is
+        malformed. This includes an unknown or server-owned field, malformed target UUID, non-integer or
+        out-of-range share_bps, duplicate target, or a non-empty split whose share_bps do not total exactly 10000.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+          examples:
+            invalidSum:
+              value:
+                message: The given data was invalid.
+                errors:
+                  allocations:
+                    - Non-empty allocations must total exactly 10000 basis points.
+            duplicateTarget:
+              value:
+                message: The given data was invalid.
+                errors:
+                  allocations:
+                    - Each Internal Cost Center may occur at most once.
+            invalidIdentifier:
+              value:
+                message: The given data was invalid.
+                errors:
+                  service_booking:
+                    - The service booking field must be a valid UUID.
+
+    CostCenterAllocationConflict:
+      description: >-
+        Conflict - An allocation target is inactive or a valid complete replacement lost an authoritative state,
+        transaction, or concurrency race. The original committed snapshot remains unchanged. SQLSTATE, trigger,
+        constraint, row, and lock details are never exposed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CostCenterAllocationConflictError'
+          examples:
+            inactiveTarget:
+              value:
+                message: An allocation target is inactive.
+                code: CONFLICT
+            concurrentTransition:
+              value:
+                message: The allocation could not be replaced because authoritative state changed concurrently.
                 code: CONFLICT
 
     LegalHoldCreateConflict:
@@ -12015,6 +12506,330 @@ paths:
           $ref: '#/components/responses/ServiceBookingConflict'
         '422':
           $ref: '#/components/responses/ServiceBookingValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /service-bookings/{serviceBooking}/cost-center-allocations:
+    get:
+      summary: Inspect Service Booking Cost Center Allocations
+      description: >-
+        Returns the complete committed allocation snapshot for one Service Booking in the active tenant and
+        requires `cost_center_allocations.read`. A malformed route UUID returns 422; a valid nonexistent or
+        tenant-inaccessible booking returns the same information-poor 404. The snapshot is independent from invoice
+        and retirement state and does not expose Contract, Customer, tenant, allocation-row, persistence, or Shift
+        data. Allocation items are ordered by internal_cost_center_id ASC.
+      operationId: getServiceBookingCostCenterAllocations
+      tags:
+        - Cost Center Allocations
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ServiceBookingId'
+      responses:
+        '200':
+          description: Complete committed Service Booking allocation snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceBookingCostCenterAllocationResponse'
+              examples:
+                split:
+                  value:
+                    data:
+                      service_booking_id: '33333333-3333-4333-8333-333333333333'
+                      allocations:
+                        - internal_cost_center_id: '44444444-4444-4444-8444-444444444444'
+                          share_bps: 6000
+                        - internal_cost_center_id: '55555555-5555-4555-8555-555555555555'
+                          share_bps: 4000
+                unallocated:
+                  value:
+                    data:
+                      service_booking_id: '33333333-3333-4333-8333-333333333333'
+                      allocations: []
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/CostCenterAllocationNotFound'
+        '422':
+          $ref: '#/components/responses/CostCenterAllocationValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      summary: Replace Service Booking Cost Center Allocations
+      description: >-
+        Atomically replaces the complete allocation snapshot for one active-tenant Service Booking and requires
+        `cost_center_allocations.update`. PUT is idempotent by desired state: the committed result contains exactly
+        the requested split, while an empty collection removes every allocation. A non-empty collection must use
+        unique active Internal Cost Center targets from the active tenant and total exactly 10000 integer basis
+        points. Unavailable or cross-tenant booking and center identities return the same information-poor 404;
+        inactive targets return 409. Replacement remains permitted when the booking is invoiced or retired and does
+        not modify commercial facts, total, invoice evidence, or retirement state. PostgreSQL owns the final
+        transaction-complete invariant. The operation never exposes an intermediate split or promises
+        last-write-wins: a database conflict, concurrent target deactivation, or other valid losing state race
+        returns a neutral 409. Every failure leaves the original snapshot unchanged. Success returns committed
+        state ordered by internal_cost_center_id ASC, not an anticipated request echo.
+      operationId: replaceServiceBookingCostCenterAllocations
+      tags:
+        - Cost Center Allocations
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ServiceBookingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CostCenterAllocationReplacementRequest'
+            examples:
+              replaceSplit:
+                value:
+                  allocations:
+                    - internal_cost_center_id: '44444444-4444-4444-8444-444444444444'
+                      share_bps: 5000
+                    - internal_cost_center_id: '55555555-5555-4555-8555-555555555555'
+                      share_bps: 3000
+                    - internal_cost_center_id: '66666666-6666-4666-8666-666666666666'
+                      share_bps: 2000
+              removeAll:
+                value:
+                  allocations: []
+      responses:
+        '200':
+          description: Complete committed allocation snapshot after atomic replacement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceBookingCostCenterAllocationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/CostCenterAllocationNotFound'
+        '409':
+          $ref: '#/components/responses/CostCenterAllocationConflict'
+        '422':
+          $ref: '#/components/responses/CostCenterAllocationValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # =============================================================================
+  # Internal Cost Center Management
+  # =============================================================================
+
+  /internal-cost-centers:
+    get:
+      summary: List Internal Cost Centers
+      description: >-
+        Returns active and inactive Internal Cost Centers from the active tenant and requires
+        `internal_cost_centers.read`. Tenant context is server-authoritative. Results use deterministic created_at
+        DESC, then id DESC ordering. Only page and per_page are accepted; unsupported query parameters return 422.
+        No search, filter, or caller-selected sort is defined. This tenant-wide domain is separate from Site-scoped
+        CostCenter management.
+      operationId: listInternalCostCenters
+      tags:
+        - Internal Cost Centers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number for Internal Cost Center collection pagination.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          required: false
+          description: Number of Internal Cost Centers per page (max 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 15
+      responses:
+        '200':
+          description: Paginated active-tenant Internal Cost Centers.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalCostCenterCollectionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/InternalCostCenterValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      summary: Create Internal Cost Center
+      description: >-
+        Creates one active Internal Cost Center with null inactive_at in the active tenant and requires
+        `internal_cost_centers.create`. Both code and name are required. Code is preserved as supplied, stable after
+        creation, and unique within this tenant only; another tenant's matching code is neither relevant nor
+        exposed. A duplicate code in the active tenant returns 409. Identity, tenant, lifecycle, and timestamps are
+        server-owned. Success returns committed state.
+      operationId: createInternalCostCenter
+      tags:
+        - Internal Cost Centers
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InternalCostCenterCreateRequest'
+            example:
+              code: KST-4711
+              name: Operations North
+      responses:
+        '201':
+          description: Internal Cost Center created and committed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalCostCenterResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/InternalCostCenterConflict'
+        '422':
+          $ref: '#/components/responses/InternalCostCenterValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /internal-cost-centers/{internalCostCenter}:
+    get:
+      summary: Inspect Internal Cost Center
+      description: >-
+        Returns one active or inactive Internal Cost Center from the active tenant and requires
+        `internal_cost_centers.read`. A malformed UUID returns 422; a valid nonexistent or tenant-inaccessible
+        identity returns the same information-poor 404. Allocations, tenant identity, and persistence data are not
+        embedded.
+      operationId: getInternalCostCenter
+      tags:
+        - Internal Cost Centers
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/InternalCostCenterId'
+      responses:
+        '200':
+          description: Internal Cost Center retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalCostCenterResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/InternalCostCenterNotFound'
+        '422':
+          $ref: '#/components/responses/InternalCostCenterValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      summary: Update Internal Cost Center
+      description: >-
+        Partially updates only the name of one active Internal Cost Center and requires
+        `internal_cost_centers.update`. The closed body must contain name; empty input or any code, lifecycle,
+        identity, tenant, or timestamp field returns 422. Code is immutable. Inactive resources are historical and
+        readable but cannot be rewritten through this endpoint, returning 409. Success returns committed state.
+      operationId: updateInternalCostCenter
+      tags:
+        - Internal Cost Centers
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/InternalCostCenterId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InternalCostCenterUpdateRequest'
+            example:
+              name: Operations North and East
+      responses:
+        '200':
+          description: Internal Cost Center updated and committed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalCostCenterResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/InternalCostCenterNotFound'
+        '409':
+          $ref: '#/components/responses/InternalCostCenterConflict'
+        '422':
+          $ref: '#/components/responses/InternalCostCenterValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /internal-cost-centers/{internalCostCenter}/deactivate:
+    post:
+      summary: Deactivate Internal Cost Center
+      description: >-
+        Performs the terminal active-to-inactive transition and requires `internal_cost_centers.deactivate`. No
+        request body is accepted; supplying one returns 422. The server sets status to inactive and inactive_at to
+        its current timestamp. A second deactivation or a valid concurrent transition returns 409. Existing
+        historical allocations remain intact and are not removed or rewritten; the inactive center cannot receive
+        a new or reassigned allocation. There is no hard delete, archive, retire, reopen, or reactivate operation.
+        Success returns committed state.
+      operationId: deactivateInternalCostCenter
+      tags:
+        - Internal Cost Centers
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/InternalCostCenterId'
+      responses:
+        '200':
+          description: Internal Cost Center deactivated and committed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalCostCenterResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/InternalCostCenterNotFound'
+        '409':
+          $ref: '#/components/responses/InternalCostCenterConflict'
+        '422':
+          $ref: '#/components/responses/InternalCostCenterValidationError'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':

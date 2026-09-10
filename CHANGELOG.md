@@ -60,6 +60,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Defined the authoritative Internal Cost Center and complete Service Booking
+  allocation OpenAPI contract for `SecPal/api#383`; the API implementation has
+  not shipped yet.
 - Defined the authoritative Service Booking CRUD contract for
   `SecPal/api#382`; the API implementation has not shipped yet.
 - Defined the authoritative tenant-isolated Contract CRUD OpenAPI surface for

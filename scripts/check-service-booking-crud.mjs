@@ -46,6 +46,9 @@ const REQUIRED_PATHS = new Map([
   ['/service-bookings/{serviceBooking}', ['get', 'patch']],
   ['/service-bookings/{serviceBooking}/retire', ['post']],
 ])
+const ALLOWED_EXTENSION_PATHS = new Set([
+  '/service-bookings/{serviceBooking}/cost-center-allocations',
+])
 const EXACT_QUANTITY_PATTERN =
   '^(?!0(?:\\.0{1,4})?$)(?:0|[1-9][0-9]{0,9})(?:\\.[0-9]{1,4})?$'
 const EXACT_PRICE_PATTERN = '^(?:0|[1-9][0-9]{0,9})(?:\\.[0-9]{1,4})?$'
@@ -113,8 +116,11 @@ const bookingPaths = Object.keys(paths).filter((pathKey) =>
   pathKey.startsWith('/service-bookings')
 )
 rejectUnless(
-  isDeepStrictEqual(bookingPaths.sort(), [...REQUIRED_PATHS.keys()].sort()),
-  'Service Booking CRUD must expose only the three canonical paths and five operations.'
+  isDeepStrictEqual(
+    bookingPaths.sort(),
+    [...REQUIRED_PATHS.keys(), ...ALLOWED_EXTENSION_PATHS].sort()
+  ),
+  'Service Booking CRUD must expose only its three canonical paths plus the allocation extension.'
 )
 
 const operations = {

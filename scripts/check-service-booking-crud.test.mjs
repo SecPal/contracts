@@ -55,7 +55,8 @@ test('rejects drift across Service Booking trust boundaries', () => {
     },
     {
       label: 'invoice route',
-      diagnostic: /only the three canonical paths/,
+      diagnostic:
+        /only its three canonical paths plus the allocation extension/,
       mutate(candidate) {
         candidate.paths['/service-bookings/{serviceBooking}/invoice'] = {
           post: { responses: {} },
@@ -64,7 +65,8 @@ test('rejects drift across Service Booking trust boundaries', () => {
     },
     {
       label: 'allocation route',
-      diagnostic: /only the three canonical paths/,
+      diagnostic:
+        /only its three canonical paths plus the allocation extension/,
       mutate(candidate) {
         candidate.paths['/service-bookings/{serviceBooking}/allocations'] = {
           get: { responses: {} },
