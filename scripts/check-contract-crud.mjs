@@ -118,7 +118,7 @@ const forbiddenAdjacentPaths = Object.keys(paths).filter(
   (pathKey) =>
     pathKey.startsWith('/service-bookings') ||
     pathKey.startsWith('/internal-cost-centers') ||
-    /^\/contracts(?:\/|$).*\/(?:service-bookings|cost-centers)(?:\/|$)/.test(
+    /^\/contracts\/(?:.*\/)?(?:service-bookings|cost-centers)(?:\/|$)/.test(
       pathKey
     )
 )
