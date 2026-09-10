@@ -766,6 +766,8 @@ test('documents evidence for every relationship-writing workflow', () => {
   for (const schemaName of [
     'CustomerCreateRequest',
     'CustomerUpdateRequest',
+    'ContractCreateRequest',
+    'ContractUpdateRequest',
     'CustomerEstablishmentCreateRequest',
     'SiteCreateRequest',
     'SiteUpdateRequest',
@@ -779,6 +781,7 @@ test('documents evidence for every relationship-writing workflow', () => {
 
   for (const [schemaName, relationshipFields] of [
     ['CustomerUpdateRequest', ['legal_entity_id']],
+    ['ContractUpdateRequest', ['customer_id']],
     [
       'SiteUpdateRequest',
       ['customer_id', 'legal_entity_id', 'establishment_id'],
@@ -800,6 +803,15 @@ test('documents evidence for every relationship-writing workflow', () => {
       )
     }
   }
+})
+
+test('documents concealed Contract customer-association failures', () => {
+  const createExamples = schemas.ContractCreateRequest['x-validation-examples']
+  const updateExamples = schemas.ContractUpdateRequest['x-validation-examples']
+
+  assert.equal(createExamples.rejected[0].status, 404)
+  assert.equal(updateExamples.rejected[0].status, 404)
+  assert.equal(updateExamples.rejected[1].status, 409)
 })
 
 test('documents tenant-consistent customer establishment links', () => {
@@ -1579,13 +1591,21 @@ test('guard rejects unmodeled employee subresource operations', () => {
 })
 
 test('guard rejects missing assignment workflow evidence', () => {
-  const candidate = structuredClone(contract)
-  delete candidate.components.schemas.SiteUpdateRequest['x-validation-examples']
+  for (const [schemaName, diagnostic] of [
+    ['SiteUpdateRequest', /PATCH site assignments.*workflow evidence/],
+    [
+      'ContractUpdateRequest',
+      /PATCH Contract customer association.*workflow evidence/,
+    ],
+  ]) {
+    const candidate = structuredClone(contract)
+    delete candidate.components.schemas[schemaName]['x-validation-examples']
 
-  const result = runGuard(candidate)
+    const result = runGuard(candidate)
 
-  assert.notEqual(result.status, 0, result.stdout)
-  assert.match(result.stderr, /PATCH site assignments.*workflow evidence/)
+    assert.notEqual(result.status, 0, result.stdout)
+    assert.match(result.stderr, diagnostic)
+  }
 })
 
 test('guard rejects distinguishable duplicate responses', () => {

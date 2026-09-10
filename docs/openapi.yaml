@@ -57,6 +57,8 @@ tags:
     description: Qualification catalog and per-employee qualification assignments.
   - name: Customers
     description: Customer management and related customer-scoped resources.
+  - name: Contracts
+    description: Tenant-isolated customer Contract management and terminal retirement.
   - name: Lookups
     description: Minimal authorized domain-assignment lookup endpoints.
   - name: Sites
@@ -723,6 +725,261 @@ components:
       type: object
       additionalProperties: false
       description: Neutral information-poor error shared by nonexistent and tenant-inaccessible Legal Hold targets.
+      required:
+        - message
+        - code
+      properties:
+        message:
+          type: string
+          const: Resource not found
+        code:
+          type: string
+          const: NOT_FOUND
+
+    ContractType:
+      type: string
+      description: Closed-set commercial Contract type.
+      enum: [permanent, temporary, one_time, recurring]
+      example: recurring
+
+    ContractStatus:
+      type: string
+      description: Closed-set Contract lifecycle. Retirement is terminal through this HTTP contract.
+      enum: [active, retired]
+      example: active
+
+    BillingUnit:
+      type: string
+      description: Closed-set unit used to price the current/default Contract term.
+      enum: [hour, day, unit, flat]
+      example: hour
+
+    ContractUnitPrice:
+      type: string
+      minLength: 1
+      maxLength: 15
+      pattern: '^(?:0|[1-9][0-9]{0,9})(?:\.[0-9]{1,4})?$'
+      description: >-
+        Exact non-negative decimal string with at most ten integer digits and four fractional digits.
+        Exponent notation, non-finite values, signs, and binary floating-point representations are not accepted.
+      example: '42.5000'
+
+    ContractCurrencyCode:
+      type: string
+      minLength: 3
+      maxLength: 3
+      pattern: '^[A-Z]{3}$'
+      description: ISO-style uppercase three-letter ASCII currency code. No exchange-rate semantics are implied.
+      example: EUR
+
+    ContractDate:
+      type: string
+      format: date
+      description: Calendar date for a Contract business term.
+      example: '2026-10-01'
+
+    NullableContractDate:
+      type: [string, 'null']
+      format: date
+      description: Calendar date for a Contract business term, or `null` when the term has no end date.
+      example: null
+
+    Contract:
+      type: object
+      additionalProperties: false
+      description: >-
+        Current customer Contract business state. The stable Customer association is represented only by
+        `customer_id`; Customer data, tenant identity, Service Bookings, Cost Centers, audit evidence, and
+        persistence internals are not embedded.
+      required:
+        - id
+        - customer_id
+        - type
+        - status
+        - starts_on
+        - ends_on
+        - billing_unit
+        - unit_price
+        - currency_code
+        - retired_at
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Stable public Contract identifier.
+          example: '11111111-1111-4111-8111-111111111111'
+        customer_id:
+          type: string
+          format: uuid
+          description: Stable identifier of the associated Customer in the active tenant.
+          example: '22222222-2222-4222-8222-222222222222'
+        type:
+          $ref: '#/components/schemas/ContractType'
+        status:
+          $ref: '#/components/schemas/ContractStatus'
+        starts_on:
+          $ref: '#/components/schemas/ContractDate'
+        ends_on:
+          $ref: '#/components/schemas/NullableContractDate'
+        billing_unit:
+          $ref: '#/components/schemas/BillingUnit'
+        unit_price:
+          $ref: '#/components/schemas/ContractUnitPrice'
+        currency_code:
+          $ref: '#/components/schemas/ContractCurrencyCode'
+        retired_at:
+          $ref: '#/components/schemas/NullableApiTimestamp'
+          description: >-
+            Server-owned retirement evidence. This value is `null` exactly while `status` is `active`; it is a
+            server-generated timestamp exactly when `status` is `retired`.
+        created_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+        updated_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+      example:
+        id: '11111111-1111-4111-8111-111111111111'
+        customer_id: '22222222-2222-4222-8222-222222222222'
+        type: recurring
+        status: active
+        starts_on: '2026-10-01'
+        ends_on: null
+        billing_unit: hour
+        unit_price: '42.5000'
+        currency_code: EUR
+        retired_at: null
+        created_at: '2026-09-10T12:00:00Z'
+        updated_at: '2026-09-10T12:00:00Z'
+
+    ContractCreateRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        Creates one active Contract. The date invariant is `ends_on == null` or `ends_on >= starts_on`.
+        Omitted `ends_on` is stored as `null`; identity, tenant, lifecycle, retirement, and timestamps are
+        server-owned.
+      required:
+        - customer_id
+        - type
+        - starts_on
+        - billing_unit
+        - unit_price
+        - currency_code
+      properties:
+        customer_id:
+          type: string
+          format: uuid
+          description: Customer visible and available in the active tenant.
+        type:
+          $ref: '#/components/schemas/ContractType'
+        starts_on:
+          $ref: '#/components/schemas/ContractDate'
+        ends_on:
+          $ref: '#/components/schemas/NullableContractDate'
+        billing_unit:
+          $ref: '#/components/schemas/BillingUnit'
+        unit_price:
+          $ref: '#/components/schemas/ContractUnitPrice'
+        currency_code:
+          $ref: '#/components/schemas/ContractCurrencyCode'
+      x-validation-examples:
+        accepted:
+          - name: Customer is visible and available in the active tenant
+            value:
+              customer_id: '22222222-2222-4222-8222-222222222222'
+              type: recurring
+              starts_on: '2026-10-01'
+              billing_unit: hour
+              unit_price: '42.5000'
+              currency_code: EUR
+        rejected:
+          - name: Customer is unavailable in the active tenant
+            status: 404
+            value:
+              customer_id: '33333333-3333-4333-8333-333333333333'
+              type: recurring
+              starts_on: '2026-10-01'
+              billing_unit: hour
+              unit_price: '42.5000'
+              currency_code: EUR
+
+    ContractUpdateRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: >-
+        Partial update of one active Contract. Omitted fields remain unchanged. The date invariant is
+        `ends_on == null` or `ends_on >= starts_on` across the resulting state; explicit `ends_on: null`
+        clears the optional end date.
+      properties:
+        customer_id:
+          type: string
+          format: uuid
+          description: Customer visible and available in the active tenant.
+        type:
+          $ref: '#/components/schemas/ContractType'
+        starts_on:
+          $ref: '#/components/schemas/ContractDate'
+        ends_on:
+          $ref: '#/components/schemas/NullableContractDate'
+        billing_unit:
+          $ref: '#/components/schemas/BillingUnit'
+        unit_price:
+          $ref: '#/components/schemas/ContractUnitPrice'
+        currency_code:
+          $ref: '#/components/schemas/ContractCurrencyCode'
+      x-validation-examples:
+        accepted:
+          - name: Customer association can change before history exists
+            value:
+              customer_id: '33333333-3333-4333-8333-333333333333'
+            resulting:
+              customer_id: '33333333-3333-4333-8333-333333333333'
+        rejected:
+          - name: Customer is unavailable in the active tenant
+            status: 404
+            value:
+              customer_id: '44444444-4444-4444-8444-444444444444'
+            resulting:
+              customer_id: '22222222-2222-4222-8222-222222222222'
+          - name: Customer association is immutable after Service Booking history exists
+            status: 409
+            value:
+              customer_id: '33333333-3333-4333-8333-333333333333'
+            resulting:
+              customer_id: '22222222-2222-4222-8222-222222222222'
+
+    ContractResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Contract'
+
+    ContractCollectionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+        - links
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Contract'
+        links:
+          $ref: '#/components/schemas/PaginationLinks'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    ContractNotFoundError:
+      type: object
+      additionalProperties: false
+      description: Neutral information-poor error for unavailable active-tenant Contract or Customer resources.
       required:
         - message
         - code
@@ -6644,6 +6901,17 @@ components:
         type: string
         format: uuid
 
+    ContractId:
+      name: contract
+      in: path
+      required: true
+      description: >-
+        Contract UUID. Malformed values fail validation with 422; valid but unavailable active-tenant
+        resources use the information-poor 404 response.
+      schema:
+        type: string
+        format: uuid
+
     EmployeePage:
       name: page
       in: query
@@ -6780,6 +7048,41 @@ components:
                 errors:
                   legal_hold:
                     - The legal hold field must be a valid UUID.
+
+    ContractNotFound:
+      description: >-
+        Not Found - The selected Contract or Customer is unavailable in the active tenant. Nonexistent and
+        tenant-inaccessible identities are indistinguishable and use the same information-poor response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ContractNotFoundError'
+          example:
+            message: Resource not found
+            code: NOT_FOUND
+
+    ContractValidationError:
+      description: >-
+        Unprocessable Entity - The payload, pagination input, or Contract or Customer identifier is malformed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+          examples:
+            invalidRequest:
+              summary: Contract fields violate the closed request contract
+              value:
+                message: The given data was invalid.
+                errors:
+                  unit_price:
+                    - The unit price format is invalid.
+            invalidIdentifier:
+              summary: Malformed Contract identifier
+              value:
+                message: The given data was invalid.
+                errors:
+                  contract:
+                    - The contract field must be a valid UUID.
 
     LegalHoldCreateConflict:
       description: Conflict - The active tenant already contains a Legal Hold with the requested case reference.
@@ -10808,6 +11111,249 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # =============================================================================
+  # Contract Management
+  # =============================================================================
+
+  /contracts:
+    get:
+      summary: List Contracts
+      description: >-
+        Returns a paginated list of Contracts from the active tenant and requires `contracts.read`.
+        Tenant context is server-authoritative. Results use deterministic `created_at` descending, then `id`
+        descending ordering. No Contract search, filtering, or caller-selected sorting is defined.
+      operationId: listContracts
+      tags:
+        - Contracts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number for Contract collection pagination.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          required: false
+          description: Number of Contracts per page (max 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 15
+      responses:
+        '200':
+          description: Paginated active-tenant Contract resources.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractCollectionResponse'
+              example:
+                data:
+                  - id: '11111111-1111-4111-8111-111111111111'
+                    customer_id: '22222222-2222-4222-8222-222222222222'
+                    type: recurring
+                    status: active
+                    starts_on: '2026-10-01'
+                    ends_on: null
+                    billing_unit: hour
+                    unit_price: '42.5000'
+                    currency_code: EUR
+                    retired_at: null
+                    created_at: '2026-09-10T12:00:00Z'
+                    updated_at: '2026-09-10T12:00:00Z'
+                links:
+                  first: 'https://api.secpal.dev/v1/contracts?page=1'
+                  last: 'https://api.secpal.dev/v1/contracts?page=1'
+                  prev: null
+                  next: null
+                meta:
+                  current_page: 1
+                  per_page: 15
+                  last_page: 1
+                  total: 1
+                  from: 1
+                  to: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ContractValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      summary: Create Contract
+      description: >-
+        Creates one Contract in the active tenant and requires `contracts.create`. Tenant, identity, status,
+        retirement evidence, and timestamps are server-owned; every new Contract starts active with no retirement
+        timestamp. `customer_id` must identify a Customer visible and available in the active tenant. A valid but
+        unavailable Customer identity returns the same information-poor 404 used for nonexistent resources. A
+        successful response returns the committed Contract state. Audit storage is API-internal and is not exposed.
+      operationId: createContract
+      tags:
+        - Contracts
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractCreateRequest'
+            example:
+              customer_id: '22222222-2222-4222-8222-222222222222'
+              type: recurring
+              starts_on: '2026-10-01'
+              ends_on: null
+              billing_unit: hour
+              unit_price: '42.5000'
+              currency_code: EUR
+      responses:
+        '201':
+          description: Contract created and committed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ContractNotFound'
+        '422':
+          $ref: '#/components/responses/ContractValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /contracts/{contract}:
+    get:
+      summary: Inspect Contract
+      description: >-
+        Returns one Contract from the active tenant and requires `contracts.read`. Valid but nonexistent or
+        tenant-inaccessible Contract identities are indistinguishable. The response contains only current Contract
+        business state and does not embed Customer, Service Booking, Cost Center, tenant, audit, or persistence data.
+      operationId: getContract
+      tags:
+        - Contracts
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ContractId'
+      responses:
+        '200':
+          description: Contract retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ContractNotFound'
+        '422':
+          $ref: '#/components/responses/ContractValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      summary: Update Contract
+      description: >-
+        Partially updates one Contract and requires `contracts.update`. Only active Contracts can change through
+        PATCH; a retired Contract returns 409 and remains read-only. Omitted fields remain unchanged, while
+        `ends_on: null` explicitly clears the optional end date. Changing `customer_id` after Service Booking
+        history exists returns 409 without disclosing Booking details. Changing `currency_code` after Service
+        Booking history exists also returns 409. Changing `unit_price` is not retroactive: existing Service Bookings
+        retain their recorded commercial facts. A valid but unavailable Customer identity uses the information-poor
+        404 response. A successful response returns the committed current/default commercial term; audit storage
+        remains API-internal.
+      operationId: updateContract
+      tags:
+        - Contracts
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ContractId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractUpdateRequest'
+            example:
+              ends_on: null
+              unit_price: '45.0000'
+      responses:
+        '200':
+          description: Contract updated and committed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ContractNotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ContractValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /contracts/{contract}/retire:
+    post:
+      summary: Retire Contract
+      description: >-
+        Performs the explicit terminal retirement transition and requires `contracts.retire`. The server changes
+        status to retired and generates `retired_at`; no business justification or request body is accepted. An
+        already retired Contract returns 409. There is no reopen operation and no hard-delete behavior. A successful
+        response returns the committed retired Contract state; audit storage remains API-internal.
+      operationId: retireContract
+      tags:
+        - Contracts
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ContractId'
+      responses:
+        '200':
+          description: Contract retired and committed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ContractNotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ContractValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
 

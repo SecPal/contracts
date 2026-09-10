@@ -60,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Defined the authoritative tenant-isolated Contract CRUD OpenAPI surface for
+  adoption by `SecPal/api#381`; the API implementation has not shipped yet.
 - Added the authoritative tenant-isolated Legal Hold HTTP/OpenAPI contract for
   list, create, inspect, single-Activity attachment, justified detachment, and
   justified release operations. The contract is available for adoption by
