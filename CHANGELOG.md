@@ -67,7 +67,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `CustomerEstablishment` contracts; strong aggregate entity tags provide
   stale-update protection, while duplicate targets, invalid assignments,
   authorization changes, tenant-inaccessible resources, and dependent-resource
-  conflicts have deterministic information-poor failure semantics
+  conflicts have deterministic information-poor failure semantics. Aggregate
+  edits require complete assignment visibility, establishment keys are unique
+  across the submitted collection, path/body customer mismatches are rejected,
+  and committed responses exclude unrelated customer relationships
   (SecPal/contracts#477).
 - Added the authoritative tenant-isolated Legal Hold HTTP/OpenAPI contract for
   list, create, inspect, single-Activity attachment, justified detachment, and

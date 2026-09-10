@@ -1766,6 +1766,32 @@ if (
   )
 }
 
+const transactionalCollectionUniqueness =
+  transactionalCustomerEditAssignments?.['x-uniqueness-examples'] ?? {}
+const acceptedTransactionalCollection =
+  transactionalCollectionUniqueness.accepted?.[0]?.value ?? []
+const rejectedTransactionalCollection =
+  transactionalCollectionUniqueness.rejected?.[0] ?? {}
+if (
+  JSON.stringify(transactionalCustomerEditAssignments?.['x-unique-by']) !==
+    JSON.stringify(['establishment_id']) ||
+  acceptedTransactionalCollection.length !== 2 ||
+  acceptedTransactionalCollection[0]?.establishment_id ===
+    acceptedTransactionalCollection[1]?.establishment_id ||
+  acceptedTransactionalCollection[0]?.email !==
+    acceptedTransactionalCollection[1]?.email ||
+  rejectedTransactionalCollection.value?.length !== 2 ||
+  rejectedTransactionalCollection.value[0]?.establishment_id !==
+    rejectedTransactionalCollection.value[1]?.establishment_id ||
+  rejectedTransactionalCollection.value[0]?.email ===
+    rejectedTransactionalCollection.value[1]?.email ||
+  rejectedTransactionalCollection.status !== 422
+) {
+  errors.push(
+    'Transactional customer edit establishment-key uniqueness must remain machine-readable and prove distinct accepted keys plus a rejected duplicate with different local contact data.'
+  )
+}
+
 const transactionalCustomerEditRequiredRelationships =
   schemas.CustomerTransactionalEditRequiredRelationships ?? {}
 const transactionalCustomerEditResult =
@@ -1797,6 +1823,33 @@ if (
   )
 }
 
+const transactionalProjectionExamples =
+  transactionalCustomerEditRequiredRelationships['x-validation-examples'] ?? {}
+const acceptedTransactionalProjection =
+  transactionalProjectionExamples.accepted?.[0]?.value
+const rejectedTransactionalProjections =
+  transactionalProjectionExamples.rejected ?? []
+if (
+  transactionalCustomerEditRequiredRelationships.properties?.sites !== false ||
+  transactionalCustomerEditRequiredRelationships.properties?.assignments !==
+    false ||
+  transactionalCustomerEditRequiredRelationships.properties?.sites_count !==
+    false ||
+  JSON.stringify(Object.keys(acceptedTransactionalProjection ?? {})) !==
+    JSON.stringify(['customer_establishments']) ||
+  JSON.stringify(
+    rejectedTransactionalProjections.map((example) =>
+      Object.keys(example?.value ?? {}).find(
+        (property) => property !== 'customer_establishments'
+      )
+    )
+  ) !== JSON.stringify(['sites', 'assignments', 'sites_count'])
+) {
+  errors.push(
+    'The transactional customer edit committed response projection must require the complete relationship while rejecting sites, assignments, and sites_count.'
+  )
+}
+
 const transactionalCustomerEditDescription =
   transactionalCustomerEdit?.description ?? ''
 const transactionalCustomerEditIfMatch =
@@ -1823,6 +1876,42 @@ if (
   )
 }
 
+const customerGet = paths['/customers/{customer}']?.get
+const aggregateGetAuthorization =
+  customerGet?.['x-aggregate-etag-authorization-examples'] ?? {}
+const transactionalPutAuthorization =
+  transactionalCustomerEdit?.['x-authorization-examples'] ?? {}
+const acceptedAggregateGet = aggregateGetAuthorization.accepted?.[0]
+const rejectedAggregateGet = aggregateGetAuthorization.rejected?.[0]
+const acceptedTransactionalPut = transactionalPutAuthorization.accepted?.[0]
+const rejectedTransactionalPut = transactionalPutAuthorization.rejected?.[0]
+if (
+  acceptedAggregateGet?.complete_assignment_visibility !== true ||
+  acceptedAggregateGet?.aggregate_etag !== true ||
+  rejectedAggregateGet?.site_assignment_only !== true ||
+  rejectedAggregateGet?.complete_assignment_visibility !== false ||
+  rejectedAggregateGet?.aggregate_etag !== false ||
+  acceptedTransactionalPut?.customers_update !== true ||
+  acceptedTransactionalPut?.customers_read !== true ||
+  acceptedTransactionalPut?.complete_assignment_visibility !== true ||
+  rejectedTransactionalPut?.site_assignment_only !== true ||
+  rejectedTransactionalPut?.complete_assignment_visibility !== false ||
+  rejectedTransactionalPut?.status !== 403 ||
+  !/aggregate ETag.*only.*customers\.read.*without organizational scopes.*complete customer-establishment collection/is.test(
+    customerGet?.description ?? ''
+  ) ||
+  !/requires `customers\.update`, `customers\.read` without organizational scopes/is.test(
+    transactionalCustomerEditDescription
+  ) ||
+  !/assignment-only and site-only callers receive \*\*403\*\*/is.test(
+    transactionalCustomerEditDescription
+  )
+) {
+  errors.push(
+    'Transactional customer edit complete-snapshot authorization must gate the aggregate GET ETag and PUT on authority that guarantees complete assignment visibility, including a rejected site-only case.'
+  )
+}
+
 const transactionalCustomerEditResponseRefs = {
   400: '#/components/responses/BadRequest',
   401: '#/components/responses/Unauthorized',
@@ -1842,6 +1931,38 @@ if (
   errors.push(
     'The transactional customer edit must retain complete authentication, authorization, tenant-safe, conflict, stale, and validation responses.'
   )
+}
+
+for (const [responseName, schemaName, message, code] of [
+  [
+    'CustomerTransactionalEditConflict',
+    'CustomerTransactionalEditConflictError',
+    'The customer edit conflicts with the current resource state.',
+    'CUSTOMER_EDIT_CONFLICT',
+  ],
+  [
+    'CustomerTransactionalEditStale',
+    'CustomerTransactionalEditStaleError',
+    'The customer edit snapshot is stale.',
+    'CUSTOMER_EDIT_STALE',
+  ],
+]) {
+  const response = responses[responseName] ?? {}
+  const responseMedia = response.content?.['application/json'] ?? {}
+  const errorSchema = schemas[schemaName] ?? {}
+  if (
+    responseMedia.schema?.$ref !== `#/components/schemas/${schemaName}` ||
+    JSON.stringify(responseMedia.example) !==
+      JSON.stringify({ message, code }) ||
+    JSON.stringify(errorSchema.properties?.message?.enum) !==
+      JSON.stringify([message]) ||
+    JSON.stringify(errorSchema.properties?.code?.enum) !==
+      JSON.stringify([code])
+  ) {
+    errors.push(
+      'Transactional customer edit fixed conflict and stale payloads must retain their dedicated schema references and information-poor code/message values.'
+    )
+  }
 }
 
 const transactionalCustomerEditSemantics = [
@@ -1877,6 +1998,12 @@ const invalidAssignmentExample =
   responses.CustomerTransactionalEditValidationError?.content?.[
     'application/json'
   ]?.examples?.invalidAssignment?.value
+const customerMismatchRequest =
+  transactionalCustomerEditRequest['x-validation-examples']?.rejected?.[0]
+const customerMismatchResponse =
+  responses.CustomerTransactionalEditValidationError?.content?.[
+    'application/json'
+  ]?.examples?.customerMismatch?.value
 if (
   duplicateTargetExample?.errors?.customer_establishments?.[0] !==
     'Each establishment may be assigned at most once.' ||
@@ -1886,6 +2013,26 @@ if (
 ) {
   errors.push(
     'Transactional customer edit validation examples must distinguish duplicate targets from a neutral invalid assignment.'
+  )
+}
+
+if (
+  customerMismatchRequest?.status !== 422 ||
+  !uuidValue(customerMismatchRequest?.path_customer_id) ||
+  !uuidValue(
+    customerMismatchRequest?.value?.customer_establishments?.[0]?.customer_id
+  ) ||
+  customerMismatchRequest?.path_customer_id ===
+    customerMismatchRequest?.value?.customer_establishments?.[0]?.customer_id ||
+  customerMismatchResponse?.errors?.[
+    'customer_establishments.0.customer_id'
+  ]?.[0] !== 'The selected customer is invalid.' ||
+  !/different nested customer ID.*neutral \*\*422\*\*.*never used to select or mutate a customer/is.test(
+    transactionalCustomerEditDescription
+  )
+) {
+  errors.push(
+    'Transactional customer edit path and body customer identity must reject mismatches with deterministic neutral 422 evidence and never act on the nested ID.'
   )
 }
 

@@ -59,6 +59,7 @@ test('accepts the repository domain contract', () => {
 
 test('defines one transactional customer edit aggregate contract', () => {
   const operation = paths['/customers/{customer}/transactional-edit']?.put
+  const customerGet = paths['/customers/{customer}']?.get
 
   assert.ok(operation, 'transactional customer edit operation must exist')
   assert.equal(operation.operationId, 'transactionallyEditCustomer')
@@ -93,6 +94,33 @@ test('defines one transactional customer edit aggregate contract', () => {
     '#/components/schemas/CustomerEstablishmentCreateRequest'
   )
   assert.deepEqual(
+    schemas.CustomerTransactionalEditRequest.properties.customer_establishments[
+      'x-unique-by'
+    ],
+    ['establishment_id']
+  )
+  const collectionUniqueness =
+    schemas.CustomerTransactionalEditRequest.properties.customer_establishments[
+      'x-uniqueness-examples'
+    ]
+  assert.notEqual(
+    collectionUniqueness.accepted[0].value[0].establishment_id,
+    collectionUniqueness.accepted[0].value[1].establishment_id
+  )
+  assert.equal(
+    collectionUniqueness.accepted[0].value[0].email,
+    collectionUniqueness.accepted[0].value[1].email
+  )
+  assert.equal(
+    collectionUniqueness.rejected[0].value[0].establishment_id,
+    collectionUniqueness.rejected[0].value[1].establishment_id
+  )
+  assert.notEqual(
+    collectionUniqueness.rejected[0].value[0].email,
+    collectionUniqueness.rejected[0].value[1].email
+  )
+  assert.equal(collectionUniqueness.rejected[0].status, 422)
+  assert.deepEqual(
     schemas.CustomerTransactionalEditResult.allOf.map((schema) => schema.$ref),
     [
       '#/components/schemas/Customer',
@@ -109,6 +137,55 @@ test('defines one transactional customer edit aggregate contract', () => {
     '#/components/schemas/CustomerEstablishmentRelationship'
   )
   assert.deepEqual(
+    Object.entries(
+      schemas.CustomerTransactionalEditRequiredRelationships.properties
+    ).filter(([, schema]) => schema === false),
+    [
+      ['sites', false],
+      ['assignments', false],
+      ['sites_count', false],
+    ]
+  )
+  const projectionExamples =
+    schemas.CustomerTransactionalEditRequiredRelationships[
+      'x-validation-examples'
+    ]
+  assert.deepEqual(Object.keys(projectionExamples.accepted[0].value), [
+    'customer_establishments',
+  ])
+  assert.deepEqual(
+    projectionExamples.rejected.map((example) =>
+      Object.keys(example.value).find(
+        (property) => property !== 'customer_establishments'
+      )
+    ),
+    ['sites', 'assignments', 'sites_count']
+  )
+  const getAuthorization =
+    customerGet['x-aggregate-etag-authorization-examples']
+  assert.equal(
+    getAuthorization.accepted[0].complete_assignment_visibility,
+    true
+  )
+  assert.equal(getAuthorization.accepted[0].aggregate_etag, true)
+  assert.equal(getAuthorization.rejected[0].site_assignment_only, true)
+  assert.equal(getAuthorization.rejected[0].aggregate_etag, false)
+  const putAuthorization = operation['x-authorization-examples']
+  assert.equal(
+    putAuthorization.accepted[0].complete_assignment_visibility,
+    true
+  )
+  assert.equal(putAuthorization.rejected[0].site_assignment_only, true)
+  assert.equal(putAuthorization.rejected[0].status, 403)
+  const customerMismatch =
+    schemas.CustomerTransactionalEditRequest['x-validation-examples']
+      .rejected[0]
+  assert.notEqual(
+    customerMismatch.path_customer_id,
+    customerMismatch.value.customer_establishments[0].customer_id
+  )
+  assert.equal(customerMismatch.status, 422)
+  assert.deepEqual(
     ['403', '404', '409', '412', '422'].map(
       (status) => operation.responses[status].$ref
     ),
@@ -120,9 +197,42 @@ test('defines one transactional customer edit aggregate contract', () => {
       '#/components/responses/CustomerTransactionalEditValidationError',
     ]
   )
+  for (const [responseName, schemaName, message, code] of [
+    [
+      'CustomerTransactionalEditConflict',
+      'CustomerTransactionalEditConflictError',
+      'The customer edit conflicts with the current resource state.',
+      'CUSTOMER_EDIT_CONFLICT',
+    ],
+    [
+      'CustomerTransactionalEditStale',
+      'CustomerTransactionalEditStaleError',
+      'The customer edit snapshot is stale.',
+      'CUSTOMER_EDIT_STALE',
+    ],
+  ]) {
+    const response = contract.components.responses[responseName]
+    assert.equal(
+      response.content['application/json'].schema.$ref,
+      `#/components/schemas/${schemaName}`
+    )
+    assert.deepEqual(response.content['application/json'].example, {
+      message,
+      code,
+    })
+    assert.deepEqual(schemas[schemaName].properties.message.enum, [message])
+    assert.deepEqual(schemas[schemaName].properties.code.enum, [code])
+  }
+  const mismatchResponse =
+    contract.components.responses.CustomerTransactionalEditValidationError
+      .content['application/json'].examples.customerMismatch.value
+  assert.deepEqual(
+    mismatchResponse.errors['customer_establishments.0.customer_id'],
+    ['The selected customer is invalid.']
+  )
 })
 
-test('guard rejects weakened transactional customer edit semantics', () => {
+test('guard retains the aggregate edit baseline', () => {
   const candidate = structuredClone(contract)
   const operation =
     candidate.paths['/customers/{customer}/transactional-edit'].put
@@ -141,6 +251,68 @@ test('guard rejects weakened transactional customer edit semantics', () => {
   assert.match(result.stderr, /aggregate GET entity tag/)
   assert.match(result.stderr, /tenant-safe failures/)
   assert.match(result.stderr, /complete authentication.*responses/)
+})
+
+test('guard rejects weakened transactional customer edit semantics', async (t) => {
+  const mutations = [
+    {
+      name: 'F1 complete-snapshot authorization',
+      expected: /complete-snapshot authorization/,
+      mutate(candidate) {
+        delete candidate.paths['/customers/{customer}'].get[
+          'x-aggregate-etag-authorization-examples'
+        ]
+      },
+    },
+    {
+      name: 'F2 establishment-key uniqueness',
+      expected: /establishment-key uniqueness/,
+      mutate(candidate) {
+        delete candidate.components.schemas.CustomerTransactionalEditRequest
+          .properties.customer_establishments['x-unique-by']
+      },
+    },
+    {
+      name: 'F3 committed response projection',
+      expected: /committed response projection/,
+      mutate(candidate) {
+        delete candidate.components.schemas
+          .CustomerTransactionalEditRequiredRelationships.properties.sites
+      },
+    },
+    {
+      name: 'F4 fixed conflict and stale payloads',
+      expected: /fixed conflict and stale payloads/,
+      mutate(candidate) {
+        candidate.components.responses.CustomerTransactionalEditConflict.content[
+          'application/json'
+        ].schema.$ref = '#/components/schemas/Error'
+        candidate.components.schemas.CustomerTransactionalEditStaleError.properties.code.enum =
+          ['STALE']
+      },
+    },
+    {
+      name: 'F5 path and body customer identity',
+      expected: /path and body customer identity/,
+      mutate(candidate) {
+        delete candidate.components.schemas.CustomerTransactionalEditRequest[
+          'x-validation-examples'
+        ]
+      },
+    },
+  ]
+
+  for (const mutation of mutations) {
+    await t.test(mutation.name, () => {
+      const candidate = structuredClone(contract)
+      mutation.mutate(candidate)
+
+      const result = runGuard(candidate)
+
+      assert.notEqual(result.status, 0, result.stdout)
+      assert.match(result.stderr, mutation.expected)
+    })
+  }
 })
 
 test('defines OU-free customer, site, and employee domain relationships', () => {

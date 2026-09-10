@@ -6039,8 +6039,41 @@ components:
           type: array
           description: Complete desired customer-establishment assignment collection. Each establishment may occur at most once.
           uniqueItems: true
+          x-unique-by:
+            - establishment_id
           items:
             $ref: '#/components/schemas/CustomerEstablishmentCreateRequest'
+          x-uniqueness-examples:
+            accepted:
+              - name: Distinct establishments may reuse local contact data
+                value:
+                  - customer_id: '550e8400-e29b-41d4-a716-446655440000'
+                    establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+                    email: 'shared.contact@secpal.dev'
+                  - customer_id: '550e8400-e29b-41d4-a716-446655440000'
+                    establishment_id: '780e8400-e29b-41d4-a716-446655440001'
+                    email: 'shared.contact@secpal.dev'
+            rejected:
+              - name: Duplicate establishment with different local contact data
+                status: 422
+                value:
+                  - customer_id: '550e8400-e29b-41d4-a716-446655440000'
+                    establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+                    email: 'first.contact@secpal.dev'
+                  - customer_id: '550e8400-e29b-41d4-a716-446655440000'
+                    establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+                    email: 'replacement.contact@secpal.dev'
+      x-validation-examples:
+        rejected:
+          - name: Nested customer differs from the path customer
+            path_customer_id: '550e8400-e29b-41d4-a716-446655440000'
+            status: 422
+            value:
+              customer:
+                name: Transactional Example GmbH
+              customer_establishments:
+                - customer_id: '550e8400-e29b-41d4-a716-446655440001'
+                  establishment_id: '780e8400-e29b-41d4-a716-446655440000'
 
     CustomerTransactionalEditRequiredRelationships:
       type: object
@@ -6050,6 +6083,27 @@ components:
       properties:
         customer_establishments:
           $ref: '#/components/schemas/CustomerEstablishmentRelationship'
+        sites: false
+        assignments: false
+        sites_count: false
+      x-validation-examples:
+        accepted:
+          - name: Complete committed relationship without unrelated projections
+            value:
+              customer_establishments: []
+        rejected:
+          - name: Sites relationship is not part of the committed projection
+            value:
+              customer_establishments: []
+              sites: []
+          - name: Assignments relationship is not part of the committed projection
+            value:
+              customer_establishments: []
+              assignments: []
+          - name: Site count is not part of the committed projection
+            value:
+              customer_establishments: []
+              sites_count: 0
 
     CustomerTransactionalEditResult:
       description: Committed customer master data and complete customer-establishment assignment snapshot.
@@ -6859,6 +6913,13 @@ components:
                 errors:
                   customer_establishments.0.establishment_id:
                     - The selected establishment is invalid.
+            customerMismatch:
+              summary: A nested customer does not match the path customer
+              value:
+                message: The given data was invalid.
+                errors:
+                  customer_establishments.0.customer_id:
+                    - The selected customer is invalid.
 
     OrganizationalUnitHasChildrenConflict:
       description: Conflict - Non-deleted direct child units must be moved or deleted first, regardless of their `is_active` values
@@ -11393,7 +11454,19 @@ paths:
       summary: Get Customer
       description: |
         Retrieve a single customer's Legal-Entity-wide master data. The response eager loads caller-visible `sites`, `assignments`, and `customer_establishments`, and counts visible sites. Embedded relationships remain omitted on endpoints that do not eager load them.
-        Requires an active customer or site assignment, or `customers.read` without organizational scopes. OU scopes alone do not grant record access.
+        Requires an active customer or site assignment, or `customers.read` without organizational scopes. OU scopes alone do not grant record access. The aggregate ETag is emitted only for callers with `customers.read` without organizational scopes, whose authority guarantees visibility of the complete customer-establishment collection. Assignment-only and site-only callers receive their normal filtered representation without an aggregate ETag and cannot use the transactional edit operation.
+      x-aggregate-etag-authorization-examples:
+        accepted:
+          - name: Unrestricted customer reader receives the complete snapshot ETag
+            customers_read: true
+            organizational_scopes: false
+            complete_assignment_visibility: true
+            aggregate_etag: true
+        rejected:
+          - name: Site-assignment-only caller receives no aggregate ETag
+            site_assignment_only: true
+            complete_assignment_visibility: false
+            aggregate_etag: false
       operationId: getCustomer
       tags:
         - Customers
@@ -11412,7 +11485,7 @@ paths:
           description: Customer retrieved successfully
           headers:
             ETag:
-              description: Strong entity tag for this customer master-data and complete customer-establishment assignment snapshot. Callers must return it in `If-Match` when submitting the transactional edit operation.
+              description: Strong entity tag for this customer master-data and complete customer-establishment assignment snapshot. Emitted only when `customers.read` without organizational scopes guarantees complete assignment visibility; callers must return it in `If-Match` when submitting the transactional edit operation.
               schema:
                 type: string
               example: '"customer-edit-8f14e45fceea167a5a36dedd4bea2543"'
@@ -11573,11 +11646,25 @@ paths:
       description: |
         Applies customer master-data changes and reconciles the complete desired `customer_establishments` collection in one transaction. Existing pairs update their local contact data, new pairs are created, and omitted pairs are deleted. The `200` response is the committed customer with its complete committed customer-establishment assignment snapshot; it omits `sites`, `assignments`, and relationship counts.
 
-        Requires `customers.update`, view access to the customer, and a strong `If-Match` entity tag from `GET /customers/{customer}`. The tag represents both customer master data and the complete customer-establishment collection. A stale tag returns the neutral **412** response. Authorization and tenant access are revalidated inside the transaction before mutation and before commit; stale authorization returns **403**. Every non-success response rolls back the complete edit.
+        Requires `customers.update`, `customers.read` without organizational scopes, and a strong `If-Match` entity tag from `GET /customers/{customer}`. This unrestricted read authority guarantees visibility of the complete customer-establishment collection represented by the tag. Assignment-only and site-only callers receive **403** even when they may view a filtered customer representation. A stale tag returns the neutral **412** response. Authorization and tenant access are revalidated inside the transaction before mutation and before commit; stale authorization returns **403**. Every non-success response rolls back the complete edit.
 
-        **Assignment validation:** every item must repeat the path `customer` as `customer_id`; each `establishment_id` may occur at most once; and every target must be active, non-deleted, in the same tenant, in the customer's resulting Legal Entity, and authorized for the caller. Missing, inaccessible, cross-tenant, wrong-Legal-Entity, inactive, and deleted assignment targets use the same information-poor **422** field error. Duplicate establishment targets also return **422**. Removing a customer-establishment link used by a Site, or changing Legal Entity while a Site prevents reassignment, returns the neutral **409** response without identifying the dependent resource.
+        **Assignment validation:** every item must repeat the path `customer` as `customer_id`; a different nested customer ID returns the neutral **422** customer field error and is never used to select or mutate a customer. Each `establishment_id` may occur at most once, independent of local contact data; and every target must be active, non-deleted, in the same tenant, in the customer's resulting Legal Entity, and authorized for the caller. Missing, inaccessible, cross-tenant, wrong-Legal-Entity, inactive, and deleted assignment targets use the same information-poor **422** field error. Duplicate establishment targets also return **422**. Removing a customer-establishment link used by a Site, or changing Legal Entity while a Site prevents reassignment, returns the neutral **409** response without identifying the dependent resource.
 
-        **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive **403**; unscoped callers require `customers.update` and view access. A missing or tenant-inaccessible path customer uses the same information-poor **404** response. Legal Entity, Establishment, Site, and customer-establishment relationships remain tenant scoped and expose no organizational-unit relationship. The separate `CustomerEstablishment` CRUD operations remain available for intentional single-link changes; they are not a second transactional customer-edit path.
+        **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive **403**; unscoped callers require `customers.update` together with unrestricted `customers.read` authority. A missing or tenant-inaccessible path customer uses the same information-poor **404** response. Legal Entity, Establishment, Site, and customer-establishment relationships remain tenant scoped and expose no organizational-unit relationship. The separate `CustomerEstablishment` CRUD operations remain available for intentional single-link changes; they are not a second transactional customer-edit path.
+      x-authorization-examples:
+        accepted:
+          - name: Unrestricted customer updater can edit the complete snapshot
+            customers_update: true
+            customers_read: true
+            organizational_scopes: false
+            complete_assignment_visibility: true
+            status: 200
+        rejected:
+          - name: Site-assignment-only caller cannot replace the complete snapshot
+            customers_update: true
+            site_assignment_only: true
+            complete_assignment_visibility: false
+            status: 403
       operationId: transactionallyEditCustomer
       tags:
         - Customers
