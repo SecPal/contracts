@@ -145,6 +145,15 @@ test('rejects drift across Internal Cost Center and allocation trust boundaries'
       },
     },
     {
+      label: 'swapped lifecycle branch',
+      diagnostic:
+        /lifecycle must couple active to null and inactive to a timestamp/,
+      mutate(candidate) {
+        candidate.components.schemas.InternalCostCenter.oneOf[1].properties.status.const =
+          'active'
+      },
+    },
+    {
       label: 'duplicated path parameter',
       diagnostic: /must reuse the canonical InternalCostCenterId parameter/,
       mutate(candidate) {
@@ -162,6 +171,22 @@ test('rejects drift across Internal Cost Center and allocation trust boundaries'
       mutate(candidate) {
         delete candidate.components.schemas.InternalCostCenter.properties.status
           .readOnly
+      },
+    },
+    {
+      label: 'whitespace-only create code',
+      diagnostic: /required, nonblank, bounded code and name/,
+      mutate(candidate) {
+        delete candidate.components.schemas.InternalCostCenterCreateRequest
+          .properties.code.pattern
+      },
+    },
+    {
+      label: 'whitespace-only PATCH name',
+      diagnostic: /partial, non-empty, closed, and allow only name/,
+      mutate(candidate) {
+        delete candidate.components.schemas.InternalCostCenterUpdateRequest
+          .properties.name.pattern
       },
     },
     {
@@ -223,6 +248,16 @@ test('rejects drift across Internal Cost Center and allocation trust boundaries'
       mutate(candidate) {
         delete candidate.components.schemas
           .CostCenterAllocationReplacementRequest.properties.allocations[
+          'x-secpal-allocation-invariant'
+        ]
+      },
+    },
+    {
+      label: 'response sum invariant relaxation',
+      diagnostic: /complete zero-or-10000 unique-target split/,
+      mutate(candidate) {
+        delete candidate.components.schemas
+          .ServiceBookingCostCenterAllocationSnapshot.properties.allocations[
           'x-secpal-allocation-invariant'
         ]
       },

@@ -1632,6 +1632,8 @@ components:
         allocations:
           type: array
           minItems: 0
+          x-secpal-unique-by: internal_cost_center_id
+          x-secpal-allocation-invariant: empty-or-sum-share-bps-exactly-10000
           description: Complete committed split ordered deterministically by internal_cost_center_id ASC.
           items:
             $ref: '#/components/schemas/CostCenterAllocationItem'

@@ -54,6 +54,7 @@ const SITE_PATHS = [
 ]
 const SITE_COST_CENTER_BASELINE =
   '0419840fe205601716adcb961d27cd33417066754fc91478f7bc9726e2718be6'
+const NONBLANK_PATTERN = '.*\\S.*'
 
 function rejectUnless(condition, message) {
   if (!condition) errors.push(message)
@@ -386,7 +387,13 @@ rejectUnless(
   isDeepStrictEqual(schemas.InternalCostCenterStatus?.enum, [
     'active',
     'inactive',
-  ]) && center?.oneOf?.length === 2,
+  ]) &&
+    center?.oneOf?.length === 2 &&
+    center.oneOf[0]?.properties?.status?.const === 'active' &&
+    center.oneOf[0]?.properties?.inactive_at?.type === 'null' &&
+    center.oneOf[1]?.properties?.status?.const === 'inactive' &&
+    center.oneOf[1]?.properties?.inactive_at?.$ref ===
+      '#/components/schemas/ApiTimestamp',
   'InternalCostCenter lifecycle must couple active to null and inactive to a timestamp.'
 )
 rejectUnless(
@@ -408,10 +415,14 @@ rejectUnless(
   create?.additionalProperties === false &&
     exactKeys(create?.properties, ['code', 'name']) &&
     exactRequired(create, ['code', 'name']) &&
+    create?.properties?.code?.type === 'string' &&
     create?.properties?.code?.minLength === 1 &&
     create?.properties?.code?.maxLength === 64 &&
+    create?.properties?.code?.pattern === NONBLANK_PATTERN &&
+    create?.properties?.name?.type === 'string' &&
     create?.properties?.name?.minLength === 1 &&
-    create?.properties?.name?.maxLength === 255,
+    create?.properties?.name?.maxLength === 255 &&
+    create?.properties?.name?.pattern === NONBLANK_PATTERN,
   'Create must accept exactly required, nonblank, bounded code and name.'
 )
 const update = schemas.InternalCostCenterUpdateRequest
@@ -420,8 +431,10 @@ rejectUnless(
     update?.minProperties === 1 &&
     exactKeys(update?.properties, ['name']) &&
     exactRequired(update, []) &&
+    update?.properties?.name?.type === 'string' &&
     update?.properties?.name?.minLength === 1 &&
-    update?.properties?.name?.maxLength === 255,
+    update?.properties?.name?.maxLength === 255 &&
+    update?.properties?.name?.pattern === NONBLANK_PATTERN,
   'PATCH must be partial, non-empty, closed, and allow only name.'
 )
 rejectUnless(
@@ -481,10 +494,15 @@ rejectUnless(
     snapshot?.properties?.service_booking_id?.format === 'uuid' &&
     snapshot?.properties?.allocations?.items?.$ref ===
       '#/components/schemas/CostCenterAllocationItem' &&
+    snapshot?.properties?.allocations?.minItems === 0 &&
+    snapshot?.properties?.allocations?.['x-secpal-unique-by'] ===
+      'internal_cost_center_id' &&
+    snapshot?.properties?.allocations?.['x-secpal-allocation-invariant'] ===
+      'empty-or-sum-share-bps-exactly-10000' &&
     /internal_cost_center_id ASC/.test(
       snapshot?.properties?.allocations?.description ?? ''
     ),
-  'The response snapshot must identify its parent once and return deterministic business split data.'
+  'The response snapshot must identify its parent once and return a deterministic complete zero-or-10000 unique-target split.'
 )
 rejectUnless(
   schemas.ServiceBookingCostCenterAllocationResponse?.additionalProperties ===
