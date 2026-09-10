@@ -60,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Defined the authoritative Service Booking CRUD contract for
+  `SecPal/api#382`; the API implementation has not shipped yet.
 - Defined the authoritative tenant-isolated Contract CRUD OpenAPI surface for
   adoption by `SecPal/api#381`; the API implementation has not shipped yet.
 - Added the authoritative tenant-isolated Legal Hold HTTP/OpenAPI contract for

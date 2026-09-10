@@ -59,6 +59,8 @@ tags:
     description: Customer management and related customer-scoped resources.
   - name: Contracts
     description: Tenant-isolated customer Contract management and terminal retirement.
+  - name: Service Bookings
+    description: Tenant-isolated billing records with immutable invoiced evidence and terminal retirement.
   - name: Lookups
     description: Minimal authorized domain-assignment lookup endpoints.
   - name: Sites
@@ -750,7 +752,7 @@ components:
 
     BillingUnit:
       type: string
-      description: Closed-set unit used to price the current/default Contract term.
+      description: Closed-set unit used for a Contract price or Service Booking commercial snapshot.
       enum: [hour, day, unit, flat]
       example: hour
 
@@ -1025,6 +1027,295 @@ components:
         message:
           type: string
           description: Stable state-conflict message without Service Booking or persistence identifiers.
+        code:
+          type: string
+          const: CONFLICT
+
+    ServiceBookingStatus:
+      type: string
+      description: Closed-set Service Booking lifecycle. Retirement is terminal through this HTTP contract.
+      enum: [active, retired]
+      example: active
+
+    InvoiceState:
+      type: string
+      description: >-
+        Observable invoice lifecycle owned by a separate billing workflow. This CRUD API never accepts or changes
+        invoice state.
+      enum: [unbilled, invoiced]
+      example: unbilled
+
+    ServiceBookingDate:
+      type: string
+      format: date
+      description: Calendar date on which the billed service occurred.
+      example: '2026-09-09'
+
+    ServiceBookingQuantity:
+      type: string
+      minLength: 1
+      maxLength: 15
+      pattern: '^(?!0(?:\.0{1,4})?$)(?:0|[1-9][0-9]{0,9})(?:\.[0-9]{1,4})?$'
+      description: >-
+        Exact positive decimal string with at most ten integer digits and four fractional digits. Zero, signs,
+        exponent notation, non-finite values, and binary floating-point representations are not accepted.
+      example: '8.5000'
+
+    ServiceBookingTotal:
+      type: string
+      readOnly: true
+      minLength: 4
+      maxLength: 23
+      pattern: '^(?:0|[1-9][0-9]{0,19})\.[0-9]{2}$'
+      description: >-
+        Read-only authoritative committed value derived by PostgreSQL as `round(quantity * unit_price, 2)` and
+        serialized as an exact two-decimal string. Callers cannot submit or override it.
+      example: '361.25'
+
+    ServiceBooking:
+      type: object
+      additionalProperties: false
+      description: >-
+        One tenant-isolated billing record associated with a Contract. It contains only the commercial snapshot
+        and its independent invoice and retirement lifecycle evidence; Contract details, Customer data, tenant
+        identity, Shift state, Cost Center allocations, audit events, and persistence internals are not embedded.
+      required:
+        - id
+        - contract_id
+        - service_date
+        - quantity
+        - billing_unit
+        - unit_price
+        - currency_code
+        - total
+        - invoice_state
+        - invoiced_at
+        - status
+        - retired_at
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Stable public Service Booking identifier.
+          example: '33333333-3333-4333-8333-333333333333'
+        contract_id:
+          type: string
+          format: uuid
+          description: Stable identifier of the owning Contract in the active tenant; immutable after creation.
+          example: '11111111-1111-4111-8111-111111111111'
+        service_date:
+          $ref: '#/components/schemas/ServiceBookingDate'
+        quantity:
+          $ref: '#/components/schemas/ServiceBookingQuantity'
+        billing_unit:
+          $ref: '#/components/schemas/BillingUnit'
+        unit_price:
+          $ref: '#/components/schemas/ContractUnitPrice'
+        currency_code:
+          $ref: '#/components/schemas/ContractCurrencyCode'
+          readOnly: true
+          description: Server-owned snapshot derived from the owning Contract at creation.
+        total:
+          $ref: '#/components/schemas/ServiceBookingTotal'
+        invoice_state:
+          $ref: '#/components/schemas/InvoiceState'
+          readOnly: true
+        invoiced_at:
+          $ref: '#/components/schemas/NullableApiTimestamp'
+          readOnly: true
+          description: Server-owned evidence set by a separately owned invoice workflow; null while unbilled.
+        status:
+          $ref: '#/components/schemas/ServiceBookingStatus'
+          readOnly: true
+        retired_at:
+          $ref: '#/components/schemas/NullableApiTimestamp'
+          readOnly: true
+          description: Server-owned retirement evidence; null while active and set on terminal retirement.
+        created_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+          readOnly: true
+        updated_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+          readOnly: true
+      allOf:
+        - oneOf:
+            - title: ActiveServiceBooking
+              type: object
+              required:
+                - status
+                - retired_at
+              properties:
+                status:
+                  type: string
+                  const: active
+                retired_at:
+                  type: 'null'
+            - title: RetiredServiceBooking
+              type: object
+              required:
+                - status
+                - retired_at
+              properties:
+                status:
+                  type: string
+                  const: retired
+                retired_at:
+                  $ref: '#/components/schemas/ApiTimestamp'
+        - oneOf:
+            - title: UnbilledServiceBooking
+              type: object
+              required:
+                - invoice_state
+                - invoiced_at
+              properties:
+                invoice_state:
+                  type: string
+                  const: unbilled
+                invoiced_at:
+                  type: 'null'
+            - title: InvoicedServiceBooking
+              type: object
+              required:
+                - invoice_state
+                - invoiced_at
+              properties:
+                invoice_state:
+                  type: string
+                  const: invoiced
+                invoiced_at:
+                  $ref: '#/components/schemas/ApiTimestamp'
+      example:
+        id: '33333333-3333-4333-8333-333333333333'
+        contract_id: '11111111-1111-4111-8111-111111111111'
+        service_date: '2026-09-09'
+        quantity: '8.5000'
+        billing_unit: hour
+        unit_price: '42.5000'
+        currency_code: EUR
+        total: '361.25'
+        invoice_state: unbilled
+        invoiced_at: null
+        status: active
+        retired_at: null
+        created_at: '2026-09-10T12:00:00Z'
+        updated_at: '2026-09-10T12:00:00Z'
+
+    ServiceBookingCreateRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        Creates one active, unbilled Service Booking. Currency is derived from the owning Contract, total is
+        database-derived, and identity, invoice state, lifecycle evidence, and timestamps are server-owned.
+      required:
+        - contract_id
+        - service_date
+        - quantity
+        - billing_unit
+        - unit_price
+      properties:
+        contract_id:
+          type: string
+          format: uuid
+          description: Contract visible in the active tenant. The association is immutable after creation.
+        service_date:
+          $ref: '#/components/schemas/ServiceBookingDate'
+        quantity:
+          $ref: '#/components/schemas/ServiceBookingQuantity'
+        billing_unit:
+          $ref: '#/components/schemas/BillingUnit'
+        unit_price:
+          $ref: '#/components/schemas/ContractUnitPrice'
+      x-validation-examples:
+        accepted:
+          - name: Contract is visible in the active tenant
+            value:
+              contract_id: '11111111-1111-4111-8111-111111111111'
+              service_date: '2026-09-09'
+              quantity: '8.5000'
+              billing_unit: hour
+              unit_price: '42.5000'
+        rejected:
+          - name: Contract is unavailable in the active tenant
+            status: 404
+            value:
+              contract_id: '22222222-2222-4222-8222-222222222222'
+              service_date: '2026-09-09'
+              quantity: '8.5000'
+              billing_unit: hour
+              unit_price: '42.5000'
+
+    ServiceBookingUpdateRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: >-
+        Genuinely partial update of one active, unbilled Service Booking. Omitted fields remain unchanged.
+        Association, currency, total, invoice state, lifecycle state, and all server timestamps are excluded.
+      properties:
+        service_date:
+          $ref: '#/components/schemas/ServiceBookingDate'
+        quantity:
+          $ref: '#/components/schemas/ServiceBookingQuantity'
+        billing_unit:
+          $ref: '#/components/schemas/BillingUnit'
+        unit_price:
+          $ref: '#/components/schemas/ContractUnitPrice'
+
+    ServiceBookingResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/ServiceBooking'
+
+    ServiceBookingCollectionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+        - links
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceBooking'
+        links:
+          $ref: '#/components/schemas/PaginationLinks'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    ServiceBookingNotFoundError:
+      type: object
+      additionalProperties: false
+      description: Neutral information-poor error for an unavailable active-tenant Service Booking or Contract.
+      required:
+        - message
+        - code
+      properties:
+        message:
+          type: string
+          const: Resource not found
+        code:
+          type: string
+          const: NOT_FOUND
+
+    ServiceBookingConflictError:
+      type: object
+      additionalProperties: false
+      description: Closed conflict error that exposes neither financial history nor persistence details.
+      required:
+        - message
+        - code
+      properties:
+        message:
+          type: string
+          description: Stable state-conflict message without database or cross-tenant details.
         code:
           type: string
           const: CONFLICT
@@ -6950,6 +7241,17 @@ components:
         type: string
         format: uuid
 
+    ServiceBookingId:
+      name: serviceBooking
+      in: path
+      required: true
+      description: >-
+        Service Booking UUID. Malformed values fail validation with 422; valid but unavailable active-tenant
+        resources use the information-poor 404 response.
+      schema:
+        type: string
+        format: uuid
+
     EmployeePage:
       name: page
       in: query
@@ -7140,6 +7442,61 @@ components:
             currencyHistory:
               value:
                 message: The Contract currency cannot change after service booking history exists.
+                code: CONFLICT
+
+    ServiceBookingNotFound:
+      description: >-
+        Not Found - The selected Service Booking or Contract is unavailable in the active tenant. Nonexistent and
+        tenant-inaccessible identities are indistinguishable and use the same information-poor response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ServiceBookingNotFoundError'
+          example:
+            message: Resource not found
+            code: NOT_FOUND
+
+    ServiceBookingValidationError:
+      description: >-
+        Unprocessable Entity - Payload, pagination, Service Booking identity, or Contract identity validation
+        failed. This includes malformed UUIDs or dates, non-string or out-of-range exact decimals, invalid billing
+        units, unknown or server-owned properties, `contract_id` on PATCH, and an empty PATCH document.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+          examples:
+            invalidRequest:
+              summary: Caller attempts to supply a server-owned total
+              value:
+                message: The given data was invalid.
+                errors:
+                  total:
+                    - The total field is prohibited.
+            invalidIdentifier:
+              summary: Malformed Service Booking identifier
+              value:
+                message: The given data was invalid.
+                errors:
+                  service_booking:
+                    - The service booking field must be a valid UUID.
+
+    ServiceBookingConflict:
+      description: >-
+        Conflict - A valid Service Booking mutation conflicts with authoritative committed lifecycle or invoice
+        state, including a concurrent transition. Persistence names, SQL text, and stack details are never exposed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ServiceBookingConflictError'
+          examples:
+            retired:
+              value:
+                message: The Service Booking is retired.
+                code: CONFLICT
+            concurrentTransition:
+              value:
+                message: The Service Booking changed in a concurrent state transition.
                 code: CONFLICT
 
     LegalHoldCreateConflict:
@@ -11410,6 +11767,254 @@ paths:
           $ref: '#/components/responses/ContractConflict'
         '422':
           $ref: '#/components/responses/ContractValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # =============================================================================
+  # Service Booking Management
+  # =============================================================================
+
+  /service-bookings:
+    get:
+      summary: List Service Bookings
+      description: >-
+        Returns a paginated list of active and retired Service Booking billing records from the active tenant and
+        requires `service_bookings.read`. Tenant context is server-authoritative. Results use deterministic
+        `created_at` descending, then `id` descending ordering. No search, filtering, or caller-selected sorting is
+        defined.
+      operationId: listServiceBookings
+      tags:
+        - Service Bookings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number for Service Booking collection pagination.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          required: false
+          description: Number of Service Bookings per page (max 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 15
+      responses:
+        '200':
+          description: Paginated active-tenant Service Booking billing records.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceBookingCollectionResponse'
+              example:
+                data:
+                  - id: '33333333-3333-4333-8333-333333333333'
+                    contract_id: '11111111-1111-4111-8111-111111111111'
+                    service_date: '2026-09-09'
+                    quantity: '8.5000'
+                    billing_unit: hour
+                    unit_price: '42.5000'
+                    currency_code: EUR
+                    total: '361.25'
+                    invoice_state: unbilled
+                    invoiced_at: null
+                    status: active
+                    retired_at: null
+                    created_at: '2026-09-10T12:00:00Z'
+                    updated_at: '2026-09-10T12:00:00Z'
+                links:
+                  first: 'https://api.secpal.dev/v1/service-bookings?page=1'
+                  last: 'https://api.secpal.dev/v1/service-bookings?page=1'
+                  prev: null
+                  next: null
+                meta:
+                  current_page: 1
+                  per_page: 15
+                  last_page: 1
+                  total: 1
+                  from: 1
+                  to: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ServiceBookingValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      summary: Create Service Booking
+      description: >-
+        Creates one Service Booking billing record in the active tenant and requires `service_bookings.create`.
+        The Contract must be available in the active tenant; nonexistent and tenant-inaccessible identities use the
+        same information-poor 404. The server snapshots currency from the owning Contract without requiring the
+        booking unit or price to match the Contract defaults. Total is authoritatively generated by PostgreSQL from
+        quantity and unit price. Every new record is active and unbilled with null retirement and invoice
+        timestamps. A successful response reflects committed state; audit storage remains API-internal.
+      operationId: createServiceBooking
+      tags:
+        - Service Bookings
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceBookingCreateRequest'
+            example:
+              contract_id: '11111111-1111-4111-8111-111111111111'
+              service_date: '2026-09-09'
+              quantity: '8.5000'
+              billing_unit: hour
+              unit_price: '42.5000'
+      responses:
+        '201':
+          description: Service Booking created and committed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceBookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ServiceBookingNotFound'
+        '422':
+          $ref: '#/components/responses/ServiceBookingValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /service-bookings/{serviceBooking}:
+    get:
+      summary: Inspect Service Booking
+      description: >-
+        Returns one Service Booking from the active tenant and requires `service_bookings.read`. Valid but
+        nonexistent or tenant-inaccessible identities are indistinguishable. The response exposes the billing
+        record only and does not embed its Contract, Customer, tenant, Shift, Cost Center allocation, audit, or
+        persistence data.
+      operationId: getServiceBooking
+      tags:
+        - Service Bookings
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ServiceBookingId'
+      responses:
+        '200':
+          description: Service Booking retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceBookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ServiceBookingNotFound'
+        '422':
+          $ref: '#/components/responses/ServiceBookingValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      summary: Update Service Booking
+      description: >-
+        Partially updates one active and unbilled Service Booking and requires `service_bookings.update`. Omitted
+        fields remain unchanged. `contract_id` is immutable after creation and supplying it returns 422; correcting
+        an association requires retiring the incorrect record when appropriate and creating a new one. Currency,
+        total, invoice fields, lifecycle fields, and timestamps are also server-owned and rejected with 422.
+        Invoiced financial evidence is immutable, so an invoiced record returns 409 without an administrative
+        bypass. A retired record returns 409. A concurrent invoice or retirement transition that wins the commit
+        race also returns 409 instead of promising last-write-wins. A successful response reflects committed
+        state; audit storage remains API-internal.
+      operationId: updateServiceBooking
+      tags:
+        - Service Bookings
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ServiceBookingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceBookingUpdateRequest'
+            example:
+              service_date: '2026-09-10'
+              quantity: '9.0000'
+      responses:
+        '200':
+          description: Service Booking updated and committed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceBookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ServiceBookingNotFound'
+        '409':
+          $ref: '#/components/responses/ServiceBookingConflict'
+        '422':
+          $ref: '#/components/responses/ServiceBookingValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /service-bookings/{serviceBooking}/retire:
+    post:
+      summary: Retire Service Booking
+      description: >-
+        Performs the explicit terminal retirement transition and requires `service_bookings.retire`. The server
+        changes status to retired and generates `retired_at`; no request body is accepted. An already retired
+        Service Booking returns 409, including when a concurrent retirement wins. Retirement is independent from
+        invoice state: it may preserve an invoiced record and does not clear, rewrite, or create invoice evidence.
+        There is no reopen or delete operation. A successful response returns the complete committed retired
+        billing record; audit storage remains API-internal.
+      operationId: retireServiceBooking
+      tags:
+        - Service Bookings
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ServiceBookingId'
+      responses:
+        '200':
+          description: Service Booking retired and committed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceBookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ServiceBookingNotFound'
+        '409':
+          $ref: '#/components/responses/ServiceBookingConflict'
+        '422':
+          $ref: '#/components/responses/ServiceBookingValidationError'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':

@@ -282,6 +282,7 @@ function requireUniquenessRules(rules) {
 
 function requireAssignmentWorkflows(workflows, lookups) {
   const relationshipFields = new Set([
+    'contract_id',
     'customer_id',
     'legal_entity_id',
     'establishment_id',
@@ -1253,6 +1254,15 @@ requireAssignmentWorkflows(
       relationshipFields: ['customer_id'],
       permission: 'contracts.update',
       rejectedStatuses: [404, 409],
+      lookups: [],
+    },
+    {
+      label: 'POST Service Booking Contract association',
+      operation: paths['/service-bookings']?.post,
+      requestSchema: 'ServiceBookingCreateRequest',
+      relationshipFields: ['contract_id'],
+      permission: 'service_bookings.create',
+      rejectedStatuses: [404],
       lookups: [],
     },
     {
