@@ -197,6 +197,20 @@ test('rejects drift across Service Booking trust boundaries', () => {
       },
     },
     {
+      label: 'invoiced conflict applied to retirement',
+      diagnostic: /conflict examples must apply truthfully/,
+      mutate(candidate) {
+        candidate.components.responses.ServiceBookingConflict.content[
+          'application/json'
+        ].examples.invoiced = {
+          value: {
+            message: 'The Service Booking is invoiced.',
+            code: 'CONFLICT',
+          },
+        }
+      },
+    },
+    {
       label: 'retirement body',
       diagnostic: /Retirement must accept no request body/,
       mutate(candidate) {

@@ -7490,13 +7490,13 @@ components:
           schema:
             $ref: '#/components/schemas/ServiceBookingConflictError'
           examples:
-            invoiced:
-              value:
-                message: The Service Booking is invoiced and its financial evidence is immutable.
-                code: CONFLICT
             retired:
               value:
                 message: The Service Booking is retired.
+                code: CONFLICT
+            concurrentTransition:
+              value:
+                message: The Service Booking changed in a concurrent state transition.
                 code: CONFLICT
 
     LegalHoldCreateConflict:

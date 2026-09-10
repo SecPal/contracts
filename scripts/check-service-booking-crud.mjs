@@ -564,6 +564,13 @@ rejectUnless(
     conflict?.properties?.code?.const === 'CONFLICT',
   'Service Booking conflicts must use a closed neutral envelope.'
 )
+rejectUnless(
+  hasExactKeys(
+    responses.ServiceBookingConflict?.content?.['application/json']?.examples,
+    ['retired', 'concurrentTransition']
+  ),
+  'Shared Service Booking conflict examples must apply truthfully to both PATCH and retirement.'
+)
 
 rejectUnless(
   /active tenant/i.test(operations.list?.description ?? '') &&
