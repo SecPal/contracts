@@ -1348,6 +1348,7 @@ components:
         id:
           type: string
           format: uuid
+          readOnly: true
           description: Stable public Internal Cost Center identifier.
           example: '44444444-4444-4444-8444-444444444444'
         code:
@@ -1366,15 +1367,19 @@ components:
           example: Operations North
         status:
           $ref: '#/components/schemas/InternalCostCenterStatus'
+          readOnly: true
         inactive_at:
           $ref: '#/components/schemas/NullableApiTimestamp'
+          readOnly: true
           description: >-
             Server-owned lifecycle evidence. This is `null` exactly while status is `active` and a server-generated
             timestamp exactly while status is `inactive`.
         created_at:
           $ref: '#/components/schemas/ApiTimestamp'
+          readOnly: true
         updated_at:
           $ref: '#/components/schemas/ApiTimestamp'
+          readOnly: true
       oneOf:
         - title: ActiveInternalCostCenter
           type: object
@@ -7605,6 +7610,17 @@ components:
         type: string
         format: uuid
 
+    InternalCostCenterId:
+      name: internalCostCenter
+      in: path
+      required: true
+      description: >-
+        Internal Cost Center UUID. Malformed values fail validation with 422; valid but unavailable active-tenant
+        resources use the information-poor 404 response.
+      schema:
+        type: string
+        format: uuid
+
     EmployeePage:
       name: page
       in: query
@@ -7926,9 +7942,9 @@ components:
 
     CostCenterAllocationValidationError:
       description: >-
-        Unprocessable Entity - The Service Booking identifier or closed request is malformed. This includes an
-        unknown or server-owned field, malformed target UUID, non-integer or out-of-range share_bps, duplicate
-        target, or a non-empty split whose share_bps do not total exactly 10000.
+        Unprocessable Entity - The Service Booking identifier, unsupported query parameter, or closed request is
+        malformed. This includes an unknown or server-owned field, malformed target UUID, non-integer or
+        out-of-range share_bps, duplicate target, or a non-empty split whose share_bps do not total exactly 10000.
       content:
         application/json:
           schema:
@@ -12714,13 +12730,7 @@ paths:
       security:
         - BearerAuth: []
       parameters:
-        - name: internalCostCenter
-          in: path
-          required: true
-          description: Internal Cost Center UUID.
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/InternalCostCenterId'
       responses:
         '200':
           description: Internal Cost Center retrieved successfully.
@@ -12753,13 +12763,7 @@ paths:
       security:
         - BearerAuth: []
       parameters:
-        - name: internalCostCenter
-          in: path
-          required: true
-          description: Internal Cost Center UUID.
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/InternalCostCenterId'
       requestBody:
         required: true
         content:
@@ -12806,13 +12810,7 @@ paths:
       security:
         - BearerAuth: []
       parameters:
-        - name: internalCostCenter
-          in: path
-          required: true
-          description: Internal Cost Center UUID.
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/InternalCostCenterId'
       responses:
         '200':
           description: Internal Cost Center deactivated and committed successfully.

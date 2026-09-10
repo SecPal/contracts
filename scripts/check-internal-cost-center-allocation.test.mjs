@@ -145,6 +145,26 @@ test('rejects drift across Internal Cost Center and allocation trust boundaries'
       },
     },
     {
+      label: 'duplicated path parameter',
+      diagnostic: /must reuse the canonical InternalCostCenterId parameter/,
+      mutate(candidate) {
+        candidate.paths[
+          '/internal-cost-centers/{internalCostCenter}'
+        ].patch.parameters = [
+          structuredClone(candidate.components.parameters.InternalCostCenterId),
+        ]
+      },
+    },
+    {
+      label: 'caller-owned response lifecycle',
+      diagnostic:
+        /identity, lifecycle, and timestamps must be explicitly read-only/,
+      mutate(candidate) {
+        delete candidate.components.schemas.InternalCostCenter.properties.status
+          .readOnly
+      },
+    },
+    {
       label: 'allocation row POST',
       diagnostic: /exactly complete-snapshot GET and PUT/,
       mutate(candidate) {

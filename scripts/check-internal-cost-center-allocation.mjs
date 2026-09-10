@@ -29,6 +29,7 @@ try {
 
 const paths = document?.paths ?? {}
 const schemas = document?.components?.schemas ?? {}
+const parameters = document?.components?.parameters ?? {}
 const errors = []
 const HTTP_METHODS = new Set([
   'get',
@@ -294,6 +295,20 @@ rejectUnless(
 )
 
 rejectUnless(
+  parameters.InternalCostCenterId?.name === 'internalCostCenter' &&
+    parameters.InternalCostCenterId?.in === 'path' &&
+    parameters.InternalCostCenterId?.required === true &&
+    parameters.InternalCostCenterId?.schema?.type === 'string' &&
+    parameters.InternalCostCenterId?.schema?.format === 'uuid' &&
+    ['inspect', 'update', 'deactivate'].every((name) =>
+      isDeepStrictEqual(operations[name]?.parameters, [
+        { $ref: '#/components/parameters/InternalCostCenterId' },
+      ])
+    ),
+  'Internal Cost Center item operations must reuse the canonical InternalCostCenterId parameter.'
+)
+
+rejectUnless(
   requestRef(operations.create, 'InternalCostCenterCreateRequest'),
   'Create must use InternalCostCenterCreateRequest.'
 )
@@ -373,6 +388,12 @@ rejectUnless(
     'inactive',
   ]) && center?.oneOf?.length === 2,
   'InternalCostCenter lifecycle must couple active to null and inactive to a timestamp.'
+)
+rejectUnless(
+  ['id', 'status', 'inactive_at', 'created_at', 'updated_at'].every(
+    (field) => center?.properties?.[field]?.readOnly === true
+  ),
+  'Internal Cost Center identity, lifecycle, and timestamps must be explicitly read-only.'
 )
 rejectUnless(
   /stable and immutable/.test(center?.description ?? '') &&
