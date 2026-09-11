@@ -7286,6 +7286,15 @@ components:
         enum:
           - The selected customer is invalid.
 
+    CustomerTransactionalEditInvalidContactFieldErrors:
+      type: array
+      minItems: 1
+      maxItems: 1
+      items:
+        type: string
+        enum:
+          - The contact field is invalid.
+
     CustomerTransactionalEditValidationProblem:
       type: object
       additionalProperties: false
@@ -7311,6 +7320,8 @@ components:
               $ref: '#/components/schemas/CustomerTransactionalEditInvalidEstablishmentErrors'
             '^customer_establishments\.[0-9]+\.customer_id$':
               $ref: '#/components/schemas/CustomerTransactionalEditInvalidCustomerErrors'
+            '^customer_establishments\.[0-9]+\.(contact_name|phone|email|comments)$':
+              $ref: '#/components/schemas/CustomerTransactionalEditInvalidContactFieldErrors'
       x-validation-examples:
         accepted:
           - name: Customer master-data validation
@@ -7337,6 +7348,30 @@ components:
               errors:
                 customer_establishments.0.customer_id:
                   - The selected customer is invalid.
+          - name: Overlong assignment contact name
+            value:
+              message: The given data was invalid.
+              errors:
+                customer_establishments.0.contact_name:
+                  - The contact field is invalid.
+          - name: Overlong assignment phone
+            value:
+              message: The given data was invalid.
+              errors:
+                customer_establishments.0.phone:
+                  - The contact field is invalid.
+          - name: Invalid assignment email
+            value:
+              message: The given data was invalid.
+              errors:
+                customer_establishments.0.email:
+                  - The contact field is invalid.
+          - name: Overlong assignment comments
+            value:
+              message: The given data was invalid.
+              errors:
+                customer_establishments.0.comments:
+                  - The contact field is invalid.
         rejected:
           - name: Arbitrary top-level property
             category: top-level-property
@@ -7381,6 +7416,41 @@ components:
               errors:
                 customer_establishments.0.establishment_id:
                   - The establishment exists but is inaccessible.
+          - name: Unexpected assignment field
+            category: unexpected-assignment-field
+            value:
+              message: The given data was invalid.
+              errors:
+                customer_establishments.0.tenant_id:
+                  - The contact field is invalid.
+          - name: Arbitrary contact validation message
+            category: contact-arbitrary-string
+            value:
+              message: The given data was invalid.
+              errors:
+                customer_establishments.0.email:
+                  - The supplied email is malformed.
+          - name: Contact validation tenant disclosure
+            category: contact-tenant-disclosure
+            value:
+              message: The given data was invalid.
+              errors:
+                customer_establishments.0.contact_name:
+                  - The contact belongs to another tenant.
+          - name: Contact validation resource disclosure
+            category: contact-resource-disclosure
+            value:
+              message: The given data was invalid.
+              errors:
+                customer_establishments.0.phone:
+                  - The hidden establishment exists.
+          - name: Contact validation internal disclosure
+            category: contact-database-internal-text
+            value:
+              message: The given data was invalid.
+              errors:
+                customer_establishments.0.comments:
+                  - Database constraint customer_establishment_comments_check failed.
 
     CustomerTransactionalEditConflictError:
       type: object
@@ -13821,7 +13891,7 @@ paths:
       summary: Get Customer
       description: |
         Retrieve a single customer's Legal-Entity-wide master data. The response eager loads caller-visible `sites`, `assignments`, and `customer_establishments`, and counts visible sites. Embedded relationships remain omitted on endpoints that do not eager load them.
-        Requires an active customer or site assignment, or `customers.read` without organizational scopes. OU scopes alone do not grant record access. The aggregate ETag is emitted only for callers with `customers.read` without organizational scopes, whose authority guarantees visibility of the complete customer-establishment collection. Assignment-only and site-only callers receive their normal filtered representation without an aggregate ETag and cannot use the transactional edit operation.
+        Requires an active customer or site assignment, or `customers.read` without organizational scopes. OU scopes alone do not grant record access. The aggregate ETag is emitted only for callers with `customers.read` without organizational scopes, whose authority guarantees visibility of the complete customer-establishment collection. For an eligible caller, the strong ETag represents the entire actual `200` response representation emitted to that caller. Any observable change to any emitted data member invalidates it, including customer master data, `customer_establishments`, `sites`, `assignments`, `sites_count`, and every other emitted field. Using this full-representation validator for the transactional PUT may conservatively return `412` after an unrelated emitted relationship changes; that conservative precondition is intentional. Assignment-only and site-only callers receive their normal filtered representation without an aggregate ETag and cannot use the transactional edit operation.
       x-aggregate-etag-authorization-examples:
         accepted:
           - name: Unrestricted customer reader receives the complete snapshot ETag
@@ -13834,6 +13904,17 @@ paths:
             site_assignment_only: true
             complete_assignment_visibility: false
             aggregate_etag: false
+      x-strong-etag-semantics:
+        representation_scope: entire actual 200 response representation
+        invalidated_by: any observable change to any emitted data member
+        includes:
+          - customer master data
+          - customer_establishments
+          - sites
+          - assignments
+          - sites_count
+          - every other emitted field
+        put_precondition: conservative 412 is intentional
       operationId: getCustomer
       tags:
         - Customers
@@ -13852,7 +13933,7 @@ paths:
           description: Customer retrieved successfully
           headers:
             ETag:
-              description: Strong entity tag for this customer master-data and complete customer-establishment assignment snapshot. Emitted only when `customers.read` without organizational scopes guarantees complete assignment visibility; callers must return it in `If-Match` when submitting the transactional edit operation.
+              description: Strong entity tag for the entire actual `200` response representation emitted to this caller. Every observable change to any emitted member invalidates it. Emitted only when `customers.read` without organizational scopes guarantees complete assignment visibility; callers must return it in `If-Match` when submitting the transactional edit operation.
               schema:
                 type: string
               example: '"customer-edit-8f14e45fceea167a5a36dedd4bea2543"'

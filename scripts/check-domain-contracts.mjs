@@ -1985,6 +1985,8 @@ const aggregateGetAuthorization =
   customerGet?.['x-aggregate-etag-authorization-examples'] ?? {}
 const transactionalPutAuthorization =
   transactionalCustomerEdit?.['x-authorization-examples'] ?? {}
+const strongCustomerGetEtagSemantics =
+  customerGet?.['x-strong-etag-semantics'] ?? {}
 const acceptedAggregateGet = aggregateGetAuthorization.accepted?.[0]
 const rejectedAggregateGet = aggregateGetAuthorization.rejected?.[0]
 const acceptedTransactionalPut = transactionalPutAuthorization.accepted?.[0]
@@ -2013,6 +2015,33 @@ if (
 ) {
   errors.push(
     'Transactional customer edit complete-snapshot authorization must gate the aggregate GET ETag and PUT on authority that guarantees complete assignment visibility, including a rejected site-only case.'
+  )
+}
+
+if (
+  JSON.stringify(strongCustomerGetEtagSemantics) !==
+    JSON.stringify({
+      representation_scope: 'entire actual 200 response representation',
+      invalidated_by: 'any observable change to any emitted data member',
+      includes: [
+        'customer master data',
+        'customer_establishments',
+        'sites',
+        'assignments',
+        'sites_count',
+        'every other emitted field',
+      ],
+      put_precondition: 'conservative 412 is intentional',
+    }) ||
+  !/strong ETag represents the entire actual .*200.* response representation.*any observable change to any emitted data member invalidates it.*customer master data.*customer_establishments.*sites.*assignments.*sites_count.*every other emitted field.*conservatively return .*412/is.test(
+    customerGet?.description ?? ''
+  ) ||
+  !/strong entity tag for the entire actual .*200.* response representation.*every observable change to any emitted member invalidates it/is.test(
+    customerGetEtag?.description ?? ''
+  )
+) {
+  errors.push(
+    'The strong customer GET ETag must cover the entire GET representation and invalidate on every observable emitted-data change.'
   )
 }
 
@@ -2076,6 +2105,11 @@ const transactionalValidationErrorRules = [
   {
     pattern: /^customer_establishments\.[0-9]+\.customer_id$/,
     message: 'The selected customer is invalid.',
+  },
+  {
+    pattern:
+      /^customer_establishments\.[0-9]+\.(contact_name|phone|email|comments)$/,
+    message: 'The contact field is invalid.',
   },
 ]
 
@@ -2177,6 +2211,8 @@ const transactionalValidationPatterns = {
     '#/components/schemas/CustomerTransactionalEditInvalidEstablishmentErrors',
   '^customer_establishments\\.[0-9]+\\.customer_id$':
     '#/components/schemas/CustomerTransactionalEditInvalidCustomerErrors',
+  '^customer_establishments\\.[0-9]+\\.(contact_name|phone|email|comments)$':
+    '#/components/schemas/CustomerTransactionalEditInvalidContactFieldErrors',
 }
 const transactionalValidationFieldSchemas = {
   CustomerTransactionalEditCustomerFieldErrors:
@@ -2187,6 +2223,8 @@ const transactionalValidationFieldSchemas = {
     'The selected establishment is invalid.',
   CustomerTransactionalEditInvalidCustomerErrors:
     'The selected customer is invalid.',
+  CustomerTransactionalEditInvalidContactFieldErrors:
+    'The contact field is invalid.',
 }
 if (
   transactionalCustomerEdit?.responses?.['422']?.$ref !==
@@ -2227,11 +2265,26 @@ if (
       )
     }
   ) ||
-  transactionalValidationExamples.accepted?.length !== 4 ||
+  transactionalValidationExamples.accepted?.length !== 8 ||
   transactionalValidationExamples.accepted.some(
     (example) => !acceptsTransactionalValidationProblem(example?.value)
   ) ||
-  transactionalValidationExamples.rejected?.length !== 6 ||
+  JSON.stringify(
+    transactionalValidationExamples.accepted.flatMap((example) =>
+      Object.keys(example?.value?.errors ?? {})
+    )
+  ) !==
+    JSON.stringify([
+      'customer.name',
+      'customer_establishments',
+      'customer_establishments.0.establishment_id',
+      'customer_establishments.0.customer_id',
+      'customer_establishments.0.contact_name',
+      'customer_establishments.0.phone',
+      'customer_establishments.0.email',
+      'customer_establishments.0.comments',
+    ]) ||
+  transactionalValidationExamples.rejected?.length !== 11 ||
   transactionalValidationExamples.rejected.some((example) =>
     acceptsTransactionalValidationProblem(example?.value)
   ) ||
@@ -2245,6 +2298,11 @@ if (
       'cross-tenant-detail',
       'wrong-legal-entity-detail',
       'resource-existence-hint',
+      'unexpected-assignment-field',
+      'contact-arbitrary-string',
+      'contact-tenant-disclosure',
+      'contact-resource-disclosure',
+      'contact-database-internal-text',
     ])
 ) {
   errors.push(
@@ -2323,13 +2381,14 @@ for (const [responseName, schemaName, message, code] of [
     responseMedia.schema?.$ref !== `#/components/schemas/${schemaName}` ||
     JSON.stringify(responseMedia.example) !==
       JSON.stringify({ message, code }) ||
+    !acceptsFixedClosedError(errorSchema, { message, code }) ||
     JSON.stringify(errorSchema.properties?.message?.enum) !==
       JSON.stringify([message]) ||
     JSON.stringify(errorSchema.properties?.code?.enum) !==
       JSON.stringify([code])
   ) {
     errors.push(
-      'Transactional customer edit fixed conflict and stale payloads must retain their dedicated schema references and information-poor code/message values.'
+      'Transactional customer edit fixed closed conflict and stale payloads must retain their dedicated response schema references, exact examples and enums, and required code/message-only object shapes.'
     )
   }
 }

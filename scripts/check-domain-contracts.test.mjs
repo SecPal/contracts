@@ -71,6 +71,10 @@ const transactionalValidationErrorRules = [
     /^customer_establishments\.[0-9]+\.customer_id$/,
     'The selected customer is invalid.',
   ],
+  [
+    /^customer_establishments\.[0-9]+\.(contact_name|phone|email|comments)$/,
+    'The contact field is invalid.',
+  ],
 ]
 
 function acceptsTransactionalValidationProblem(value) {
@@ -276,6 +280,19 @@ test('defines one transactional customer edit aggregate contract', () => {
   assert.equal(getAuthorization.accepted[0].aggregate_etag, true)
   assert.equal(getAuthorization.rejected[0].site_assignment_only, true)
   assert.equal(getAuthorization.rejected[0].aggregate_etag, false)
+  assert.deepEqual(customerGet['x-strong-etag-semantics'], {
+    representation_scope: 'entire actual 200 response representation',
+    invalidated_by: 'any observable change to any emitted data member',
+    includes: [
+      'customer master data',
+      'customer_establishments',
+      'sites',
+      'assignments',
+      'sites_count',
+      'every other emitted field',
+    ],
+    put_precondition: 'conservative 412 is intentional',
+  })
   const putAuthorization = operation['x-authorization-examples']
   assert.equal(
     putAuthorization.accepted[0].complete_assignment_visibility,
@@ -356,6 +373,10 @@ test('defines one transactional customer edit aggregate contract', () => {
     })
     assert.deepEqual(schemas[schemaName].properties.message.enum, [message])
     assert.deepEqual(schemas[schemaName].properties.code.enum, [code])
+    assert.equal(
+      acceptsFixedClosedError(schemas[schemaName], { message, code }),
+      true
+    )
   }
   const mismatchResponse =
     contract.components.responses.CustomerTransactionalEditValidationError
@@ -372,7 +393,7 @@ test('defines one transactional customer edit aggregate contract', () => {
   )
   const validationExamples =
     schemas.CustomerTransactionalEditValidationProblem['x-validation-examples']
-  assert.equal(validationExamples.accepted.length, 4)
+  assert.equal(validationExamples.accepted.length, 8)
   for (const example of validationExamples.accepted) {
     assert.equal(acceptsTransactionalValidationProblem(example.value), true)
   }
@@ -388,6 +409,11 @@ test('defines one transactional customer edit aggregate contract', () => {
       'cross-tenant-detail',
       'wrong-legal-entity-detail',
       'resource-existence-hint',
+      'unexpected-assignment-field',
+      'contact-arbitrary-string',
+      'contact-tenant-disclosure',
+      'contact-resource-disclosure',
+      'contact-database-internal-text',
     ]
   )
   const notFoundResponse =
@@ -444,6 +470,16 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
         delete candidate.paths['/customers/{customer}'].get[
           'x-aggregate-etag-authorization-examples'
         ]
+      },
+    },
+    {
+      name: 'F1 strong ETag rejects subset-only coverage',
+      expected: /entire GET representation/,
+      mutate(candidate) {
+        candidate.paths['/customers/{customer}'].get[
+          'x-strong-etag-semantics'
+        ].representation_scope =
+          'customer master data and customer_establishments only'
       },
     },
     {
@@ -514,17 +550,75 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
           .CustomerTransactionalEditRequiredRelationships.properties.sites
       },
     },
-    {
-      name: 'F4 fixed conflict and stale payloads',
-      expected: /fixed conflict and stale payloads/,
-      mutate(candidate) {
-        candidate.components.responses.CustomerTransactionalEditConflict.content[
-          'application/json'
-        ].schema.$ref = '#/components/schemas/Error'
-        candidate.components.schemas.CustomerTransactionalEditStaleError.properties.code.enum =
-          ['STALE']
+    ...[
+      {
+        name: 'F4 rejects response schema-ref drift',
+        mutate(candidate) {
+          candidate.components.responses.CustomerTransactionalEditConflict.content[
+            'application/json'
+          ].schema.$ref = '#/components/schemas/Error'
+        },
       },
-    },
+      {
+        name: 'F4 rejects response example drift',
+        mutate(candidate) {
+          candidate.components.responses.CustomerTransactionalEditStale.content[
+            'application/json'
+          ].example.code = 'STALE'
+        },
+      },
+      {
+        name: 'F4 rejects enum drift',
+        mutate(candidate) {
+          candidate.components.schemas.CustomerTransactionalEditStaleError.properties.code.enum =
+            ['STALE']
+        },
+      },
+      {
+        name: 'F4 rejects additionalProperties true',
+        mutate(candidate) {
+          candidate.components.schemas.CustomerTransactionalEditConflictError.additionalProperties = true
+        },
+      },
+      {
+        name: 'F4 rejects absent additionalProperties',
+        mutate(candidate) {
+          delete candidate.components.schemas
+            .CustomerTransactionalEditStaleError.additionalProperties
+        },
+      },
+      {
+        name: 'F4 rejects a third property',
+        mutate(candidate) {
+          candidate.components.schemas.CustomerTransactionalEditConflictError.properties.details =
+            { type: 'object' }
+        },
+      },
+      {
+        name: 'F4 rejects missing required message',
+        mutate(candidate) {
+          candidate.components.schemas.CustomerTransactionalEditConflictError.required =
+            ['code']
+        },
+      },
+      {
+        name: 'F4 rejects missing required code',
+        mutate(candidate) {
+          candidate.components.schemas.CustomerTransactionalEditStaleError.required =
+            ['message']
+        },
+      },
+      {
+        name: 'F4 rejects a non-object schema',
+        mutate(candidate) {
+          candidate.components.schemas.CustomerTransactionalEditConflictError.type =
+            'array'
+        },
+      },
+    ].map((mutation) => ({
+      ...mutation,
+      expected: /fixed closed conflict and stale payloads/,
+    })),
     {
       name: 'F5 path and body customer identity',
       expected: /path and body customer identity/,
@@ -569,6 +663,25 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
           ['Establishment 123 belongs to another tenant.']
       },
     },
+    {
+      name: 'A rejects missing contact-field validation variants',
+      expected: /dedicated closed validation schema/,
+      mutate(candidate) {
+        delete candidate.components.schemas
+          .CustomerTransactionalEditValidationProblem.properties.errors
+          .patternProperties[
+          '^customer_establishments\\.[0-9]+\\.(contact_name|phone|email|comments)$'
+        ]
+      },
+    },
+    {
+      name: 'A rejects contact-field message drift',
+      expected: /dedicated closed validation schema/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditInvalidContactFieldErrors.items.enum =
+          ['The contact field failed an internal database constraint.']
+      },
+    },
     ...[
       'top-level-property',
       'unexpected-error-key',
@@ -576,6 +689,11 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
       'cross-tenant-detail',
       'wrong-legal-entity-detail',
       'resource-existence-hint',
+      'unexpected-assignment-field',
+      'contact-arbitrary-string',
+      'contact-tenant-disclosure',
+      'contact-resource-disclosure',
+      'contact-database-internal-text',
     ].map((category) => ({
       name: `A preserves rejected ${category} evidence`,
       expected: /dedicated closed validation schema/,
