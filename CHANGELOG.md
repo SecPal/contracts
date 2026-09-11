@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** Removed the abandoned Work Instruction lifecycle and
+  content-library API contracts because this domain is no longer a SecPal
+  product responsibility (closes #490).
 - Updated `@redocly/cli` from `2.46.0` to `2.46.1` in the local contract
   validation toolchain and reproducible lockfile; the upstream patch refreshes
   its AJV, OpenAPI Core, Respect Core, and client-generator dependencies
@@ -60,12 +63,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Defined the authoritative Work Instruction content-library API for
-  `SecPal/api#1438`, covering tenant Templates, immutable system Standard Blocks,
-  and deterministic `de`/`en` localization and fallback; this does not claim the
-  API implementation has shipped.
-- Defined the Work Instruction lifecycle OpenAPI contract for
-  `SecPal/api#1437`; the API implementation has not shipped yet.
 - Defined the authoritative Internal Cost Center and complete Service Booking
   allocation OpenAPI contract for `SecPal/api#383`; the API implementation has
   not shipped yet.
