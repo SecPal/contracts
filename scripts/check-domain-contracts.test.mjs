@@ -293,6 +293,19 @@ test('defines one transactional customer edit aggregate contract', () => {
     ],
     put_precondition: 'conservative 412 is intentional',
   })
+  assert.deepEqual(operation['x-etag-precondition-semantics'], {
+    source_operation: 'GET /customers/{customer}',
+    source_header: 'ETag',
+    validator_strength: 'strong',
+    representation_scope: 'entire actual 200 response representation',
+    invalidated_by: 'any observable change to any emitted data member',
+    stale_response: '412 CustomerTransactionalEditStale',
+    conservative_rejection:
+      'represented changes unrelated to the mutation are stale',
+    success_etag: 'absent',
+    next_validator: 'refetch GET /customers/{customer} and use its fresh ETag',
+  })
+  assert.equal(operation.responses['200'].headers?.ETag, undefined)
   const putAuthorization = operation['x-authorization-examples']
   assert.equal(
     putAuthorization.accepted[0].complete_assignment_visibility,
@@ -456,7 +469,7 @@ test('guard retains the aggregate edit baseline', () => {
   const result = runGuard(candidate)
 
   assert.notEqual(result.status, 0, result.stdout)
-  assert.match(result.stderr, /aggregate GET entity tag/)
+  assert.match(result.stderr, /same full-representation GET validator/)
   assert.match(result.stderr, /tenant-safe failures/)
   assert.match(result.stderr, /complete authentication.*responses/)
 })
@@ -480,6 +493,64 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
           'x-strong-etag-semantics'
         ].representation_scope =
           'customer master data and customer_establishments only'
+      },
+    },
+    {
+      name: 'F1 PUT rejects narrowed validator scope',
+      expected: /same full-representation GET validator/,
+      mutate(candidate) {
+        candidate.paths['/customers/{customer}/transactional-edit'].put[
+          'x-etag-precondition-semantics'
+        ].representation_scope =
+          'customer master data and customer_establishments only'
+      },
+    },
+    {
+      name: 'F1 PUT rejects a separate transactional aggregate ETag',
+      expected: /same full-representation GET validator/,
+      mutate(candidate) {
+        candidate.paths['/customers/{customer}/transactional-edit'].put[
+          'x-etag-precondition-semantics'
+        ].source_operation = 'transactional aggregate validator'
+      },
+    },
+    {
+      name: 'F1 PUT success rejects a reintroduced ETag',
+      expected: /same full-representation GET validator/,
+      mutate(candidate) {
+        candidate.paths[
+          '/customers/{customer}/transactional-edit'
+        ].put.responses['200'].headers = {
+          ETag: { schema: { type: 'string' } },
+        }
+      },
+    },
+    {
+      name: 'F1 PUT rejects reduced response as the next GET validator',
+      expected: /same full-representation GET validator/,
+      mutate(candidate) {
+        candidate.paths['/customers/{customer}/transactional-edit'].put[
+          'x-etag-precondition-semantics'
+        ].next_validator =
+          'use the reduced PUT 200 response ETag as the next GET validator'
+      },
+    },
+    {
+      name: 'F1 PUT requires fresh GET refetch semantics',
+      expected: /same full-representation GET validator/,
+      mutate(candidate) {
+        delete candidate.paths['/customers/{customer}/transactional-edit'].put[
+          'x-etag-precondition-semantics'
+        ].next_validator
+      },
+    },
+    {
+      name: 'F1 GET and PUT scopes must agree',
+      expected: /same full-representation GET validator/,
+      mutate(candidate) {
+        candidate.paths['/customers/{customer}'].get[
+          'x-strong-etag-semantics'
+        ].representation_scope = 'full customer aggregate representation'
       },
     },
     {

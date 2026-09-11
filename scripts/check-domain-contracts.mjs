@@ -1962,6 +1962,11 @@ const transactionalCustomerEditIfMatch =
   )
 const customerGetEtag =
   paths['/customers/{customer}']?.get?.responses?.['200']?.headers?.ETag
+const customerGet = paths['/customers/{customer}']?.get
+const strongCustomerGetEtagSemantics =
+  customerGet?.['x-strong-etag-semantics'] ?? {}
+const transactionalCustomerEditEtagSemantics =
+  transactionalCustomerEdit?.['x-etag-precondition-semantics'] ?? {}
 if (
   transactionalCustomerEditIfMatch?.in !== 'header' ||
   transactionalCustomerEditIfMatch.required !== true ||
@@ -1973,20 +1978,44 @@ if (
   transactionalCustomerEdit?.responses?.['200']?.content?.['application/json']
     ?.schema?.$ref !==
     '#/components/schemas/CustomerTransactionalEditResponse' ||
-  !transactionalCustomerEdit?.responses?.['200']?.headers?.ETag
+  transactionalCustomerEdit?.responses?.['200']?.headers?.ETag !== undefined ||
+  JSON.stringify(transactionalCustomerEditEtagSemantics) !==
+    JSON.stringify({
+      source_operation: 'GET /customers/{customer}',
+      source_header: 'ETag',
+      validator_strength: 'strong',
+      representation_scope: 'entire actual 200 response representation',
+      invalidated_by: 'any observable change to any emitted data member',
+      stale_response: '412 CustomerTransactionalEditStale',
+      conservative_rejection:
+        'represented changes unrelated to the mutation are stale',
+      success_etag: 'absent',
+      next_validator:
+        'refetch GET /customers/{customer} and use its fresh ETag',
+    }) ||
+  transactionalCustomerEditEtagSemantics.representation_scope !==
+    strongCustomerGetEtagSemantics.representation_scope ||
+  transactionalCustomerEditEtagSemantics.invalidated_by !==
+    strongCustomerGetEtagSemantics.invalidated_by ||
+  !/exact strong .*ETag.*GET \/customers\/\{customer\}.*entire actual GET .*200.* representation.*any observable change to any emitted member.*stale.*412/is.test(
+    transactionalCustomerEditIfMatch?.description ?? ''
+  ) ||
+  !/entire actual GET .*200.* response.*any observable change to any member.*stale.*412.*represented change unrelated to the requested mutation.*successful transactional PUT does not return an .*ETag.*refetch .*GET \/customers\/\{customer\}.*fresh strong .*ETag/is.test(
+    transactionalCustomerEditDescription
+  ) ||
+  !/reduced response does not provide an ETag.*refetch GET \/customers\/\{customer\}.*next conditional validator/is.test(
+    transactionalCustomerEdit?.responses?.['200']?.description ?? ''
+  )
 ) {
   errors.push(
-    'The transactional customer edit must require the aggregate GET entity tag and return the committed response with its successor ETag.'
+    'The transactional customer edit must consume the same full-representation GET validator, return 412 when it is stale, omit a PUT-success ETag, and require a fresh GET for the next validator.'
   )
 }
 
-const customerGet = paths['/customers/{customer}']?.get
 const aggregateGetAuthorization =
   customerGet?.['x-aggregate-etag-authorization-examples'] ?? {}
 const transactionalPutAuthorization =
   transactionalCustomerEdit?.['x-authorization-examples'] ?? {}
-const strongCustomerGetEtagSemantics =
-  customerGet?.['x-strong-etag-semantics'] ?? {}
 const acceptedAggregateGet = aggregateGetAuthorization.accepted?.[0]
 const rejectedAggregateGet = aggregateGetAuthorization.rejected?.[0]
 const acceptedTransactionalPut = transactionalPutAuthorization.accepted?.[0]
@@ -2400,7 +2429,7 @@ const transactionalCustomerEditSemantics = [
   /each `establishment_id` may occur at most once/i,
   /duplicate establishment targets.*422/is,
   /missing, inaccessible, cross-tenant, wrong-Legal-Entity, inactive, and deleted assignment targets.*same information-poor.*422/is,
-  /stale tag.*412/is,
+  /stale.*412/is,
   /authorization.*revalidated inside the transaction.*before commit/is,
   /stale authorization.*403/is,
   /non-success response rolls back the complete edit/is,

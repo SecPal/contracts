@@ -14094,11 +14094,21 @@ paths:
       description: |
         Applies customer master-data changes and reconciles the complete desired `customer_establishments` collection in one transaction. A present existing pair is retained, a present new pair is created, and an absent existing pair is deleted subject to the documented conflicts. For `contact_name`, `phone`, `email`, and `comments` on a retained pair, an omitted field preserves its stored value, explicit `null` clears it, and a value replaces it. On a new pair, omission and explicit `null` initialize the field to null, while a value initializes the supplied value. The `200` response is the committed customer with its complete committed customer-establishment assignment snapshot; it omits `sites`, `assignments`, and relationship counts.
 
-        Requires `customers.update`, `customers.read` without organizational scopes, and a strong `If-Match` entity tag from `GET /customers/{customer}`. This unrestricted read authority guarantees visibility of the complete customer-establishment collection represented by the tag. Assignment-only and site-only callers receive **403** even when they may view a filtered customer representation. A stale tag returns the neutral **412** response. Authorization and tenant access are revalidated inside the transaction before mutation and before commit; stale authorization returns **403**. Every non-success response rolls back the complete edit.
+        Requires `customers.update`, `customers.read` without organizational scopes, and the exact strong `ETag` from `GET /customers/{customer}` in `If-Match`. That validator represents the entire actual GET `200` response emitted to the eligible caller. Any observable change to any member of that GET representation makes the validator stale and returns the neutral **412** response, including a represented change unrelated to the requested mutation. This unrestricted read authority guarantees visibility of the complete customer-establishment collection represented by the tag. Assignment-only and site-only callers receive **403** even when they may view a filtered customer representation. Authorization and tenant access are revalidated inside the transaction before mutation and before commit; stale authorization returns **403**. Every non-success response rolls back the complete edit. A successful transactional PUT does not return an `ETag` because its reduced committed response is not the complete GET representation. A client needing the next conditional validator must refetch `GET /customers/{customer}` and use that response's fresh strong `ETag`.
 
         **Assignment validation:** every item must repeat the path `customer` as `customer_id`; a different nested customer ID returns the neutral **422** customer field error and is never used to select or mutate a customer. Each `establishment_id` may occur at most once, independent of local contact data; and every target must be active, non-deleted, in the same tenant, in the customer's resulting Legal Entity, and authorized for the caller. Missing, inaccessible, cross-tenant, wrong-Legal-Entity, inactive, and deleted assignment targets use the same information-poor **422** field error. Duplicate establishment targets also return **422**. Removing a customer-establishment link used by a Site, or changing Legal Entity while a Site prevents reassignment, returns the neutral **409** response without identifying the dependent resource.
 
         **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive **403**; unscoped callers require `customers.update` together with unrestricted `customers.read` authority. A missing or tenant-inaccessible path customer uses the same information-poor **404** response. Legal Entity, Establishment, Site, and customer-establishment relationships remain tenant scoped and expose no organizational-unit relationship. The separate `CustomerEstablishment` CRUD operations remain available for intentional single-link changes; they are not a second transactional customer-edit path.
+      x-etag-precondition-semantics:
+        source_operation: GET /customers/{customer}
+        source_header: ETag
+        validator_strength: strong
+        representation_scope: entire actual 200 response representation
+        invalidated_by: any observable change to any emitted data member
+        stale_response: 412 CustomerTransactionalEditStale
+        conservative_rejection: represented changes unrelated to the mutation are stale
+        success_etag: absent
+        next_validator: refetch GET /customers/{customer} and use its fresh ETag
       x-authorization-examples:
         accepted:
           - name: Unrestricted customer updater can edit the complete snapshot
@@ -14129,7 +14139,7 @@ paths:
         - name: If-Match
           in: header
           required: true
-          description: Strong entity tag returned by `GET /customers/{customer}` for the exact customer and complete assignment snapshot being edited.
+          description: Exact strong `ETag` returned by `GET /customers/{customer}` for the entire actual GET `200` representation emitted to the eligible caller. Any observable change to any emitted member makes it stale and produces the neutral `412` response.
           schema:
             type: string
             minLength: 3
@@ -14158,13 +14168,7 @@ paths:
                   comments: Use the service entrance after 18:00.
       responses:
         '200':
-          description: Customer and complete customer-establishment assignment collection committed successfully
-          headers:
-            ETag:
-              description: Strong entity tag for the committed customer master-data and complete assignment snapshot.
-              schema:
-                type: string
-              example: '"customer-edit-c9f0f895fb98ab9159f51fd0297e236d"'
+          description: Customer and complete customer-establishment assignment collection committed successfully. This reduced response does not provide an ETag; refetch GET /customers/{customer} for the next conditional validator.
           content:
             application/json:
               schema:
