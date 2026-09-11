@@ -60,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Defined the Work Instruction lifecycle OpenAPI contract for
+  `SecPal/api#1437`; the API implementation has not shipped yet.
 - Defined the authoritative Internal Cost Center and complete Service Booking
   allocation OpenAPI contract for `SecPal/api#383`; the API implementation has
   not shipped yet.
