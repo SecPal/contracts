@@ -45,6 +45,13 @@ test('accepts the authoritative Work Instruction lifecycle contract', () => {
 test('rejects drift across Work Instruction lifecycle trust boundaries', () => {
   const cases = [
     {
+      label: 'missing collection path',
+      diagnostic: /Missing Work Instruction path: \/work-instructions/,
+      mutate(candidate) {
+        delete candidate.paths['/work-instructions']
+      },
+    },
+    {
       label: 'missing lifecycle operation',
       diagnostic: /Missing Work Instruction path.*submit-for-review/,
       mutate(candidate) {
@@ -184,6 +191,90 @@ test('rejects drift across Work Instruction lifecycle trust boundaries', () => {
         candidate.components.schemas.WorkInstruction.properties.version = {
           type: 'integer',
         }
+      },
+    },
+    {
+      label: 'unsupported singular effective date field',
+      diagnostic: /scope, version, effective-date/,
+      mutate(candidate) {
+        candidate.components.schemas.WorkInstruction.properties.effective_date =
+          { type: 'string', format: 'date' }
+      },
+    },
+    {
+      label: 'response identifier is not a UUID',
+      diagnostic: /response fields must preserve their authoritative schemas/,
+      mutate(candidate) {
+        candidate.components.schemas.WorkInstruction.properties.id = {
+          type: 'integer',
+          readOnly: true,
+        }
+      },
+    },
+    {
+      label: 'response locale is no longer closed',
+      diagnostic: /response fields must preserve their authoritative schemas/,
+      mutate(candidate) {
+        candidate.components.schemas.WorkInstruction.properties.locale = {
+          type: 'string',
+        }
+      },
+    },
+    {
+      label: 'response publication timestamp loses nullability',
+      diagnostic: /response fields must preserve their authoritative schemas/,
+      mutate(candidate) {
+        candidate.components.schemas.WorkInstruction.properties.published_at[
+          '$ref'
+        ] = '#/components/schemas/ApiTimestamp'
+      },
+    },
+    {
+      label: 'response archive actor is not a tenant-scoped UUID reference',
+      diagnostic: /response fields must preserve their authoritative schemas/,
+      mutate(candidate) {
+        candidate.components.schemas.WorkInstruction.properties.archived_by_user_id[
+          '$ref'
+        ] = '#/components/schemas/NullableApiTimestamp'
+      },
+    },
+    {
+      label: 'submit transition source drifts',
+      diagnostic: /lifecycle actions must preserve exactly draft-to-in_review/,
+      mutate(candidate) {
+        candidate.paths[
+          '/work-instructions/{workInstruction}/submit-for-review'
+        ].post.description = candidate.paths[
+          '/work-instructions/{workInstruction}/submit-for-review'
+        ].post.description.replace('draft-to-in_review', 'in_review-to-draft')
+      },
+    },
+    {
+      label: 'publish transition source drifts',
+      diagnostic: /lifecycle actions must preserve exactly draft-to-in_review/,
+      mutate(candidate) {
+        candidate.paths[
+          '/work-instructions/{workInstruction}/publish'
+        ].post.description = candidate.paths[
+          '/work-instructions/{workInstruction}/publish'
+        ].post.description.replace(
+          'in_review-to-published',
+          'draft-to-published'
+        )
+      },
+    },
+    {
+      label: 'archive transition source drifts',
+      diagnostic: /lifecycle actions must preserve exactly draft-to-in_review/,
+      mutate(candidate) {
+        candidate.paths[
+          '/work-instructions/{workInstruction}/archive'
+        ].post.description = candidate.paths[
+          '/work-instructions/{workInstruction}/archive'
+        ].post.description.replace(
+          'published-to-archived',
+          'in_review-to-archived'
+        )
       },
     },
     {

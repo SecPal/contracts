@@ -77,6 +77,7 @@ const UNSUPPORTED_FIELDS = new Set([
   'tenant_id',
   'valid_from',
   'valid_until',
+  'effective_date',
   'version',
   'scope',
   'scope_criteria',
@@ -293,11 +294,11 @@ rejectUnless(
     (operations.list?.parameters ?? []).map((parameter) => parameter?.name),
     ['page', 'per_page']
   ) &&
-    operations.list.parameters[0]?.schema?.minimum === 1 &&
-    operations.list.parameters[0]?.schema?.default === 1 &&
-    operations.list.parameters[1]?.schema?.minimum === 1 &&
-    operations.list.parameters[1]?.schema?.maximum === 100 &&
-    operations.list.parameters[1]?.schema?.default === 15,
+    operations.list?.parameters?.[0]?.schema?.minimum === 1 &&
+    operations.list?.parameters?.[0]?.schema?.default === 1 &&
+    operations.list?.parameters?.[1]?.schema?.minimum === 1 &&
+    operations.list?.parameters?.[1]?.schema?.maximum === 100 &&
+    operations.list?.parameters?.[1]?.schema?.default === 15,
   'Work Instruction list must expose only page=1 and per_page=15 pagination with a maximum of 100.'
 )
 rejectUnless(
@@ -410,6 +411,43 @@ rejectUnless(
     !resourceSchema?.properties?.instruction_number?.readOnly &&
     !updateSchema?.properties?.instruction_number,
   'Identity, lifecycle evidence, and timestamps must be read-only while instruction_number remains create-only and immutable.'
+)
+rejectUnless(
+  resourceSchema?.properties?.id?.type === 'string' &&
+    resourceSchema.properties.id.format === 'uuid' &&
+    resourceSchema?.properties?.instruction_number?.type === 'string' &&
+    resourceSchema.properties.instruction_number.minLength === 1 &&
+    resourceSchema.properties.instruction_number.maxLength === 64 &&
+    resourceSchema.properties.instruction_number.pattern === NONBLANK_PATTERN &&
+    resourceSchema?.properties?.title?.type === 'string' &&
+    resourceSchema.properties.title.minLength === 1 &&
+    resourceSchema.properties.title.maxLength === 255 &&
+    resourceSchema.properties.title.pattern === NONBLANK_PATTERN &&
+    resourceSchema?.properties?.body?.type === 'string' &&
+    resourceSchema.properties.body.minLength === 1 &&
+    resourceSchema.properties.body.pattern === NONBLANK_PATTERN &&
+    resourceSchema?.properties?.locale?.$ref ===
+      '#/components/schemas/WorkInstructionLocale' &&
+    resourceSchema?.properties?.status?.$ref ===
+      '#/components/schemas/WorkInstructionStatus' &&
+    resourceSchema?.properties?.published_at?.$ref ===
+      '#/components/schemas/NullableApiTimestamp' &&
+    resourceSchema?.properties?.published_by_user_id?.$ref ===
+      '#/components/schemas/NullableWorkInstructionActorId' &&
+    resourceSchema?.properties?.archived_at?.$ref ===
+      '#/components/schemas/NullableApiTimestamp' &&
+    resourceSchema?.properties?.archived_by_user_id?.$ref ===
+      '#/components/schemas/NullableWorkInstructionActorId' &&
+    resourceSchema?.properties?.created_at?.$ref ===
+      '#/components/schemas/ApiTimestamp' &&
+    resourceSchema?.properties?.updated_at?.$ref ===
+      '#/components/schemas/ApiTimestamp' &&
+    isDeepStrictEqual(schemas.NullableWorkInstructionActorId?.type, [
+      'string',
+      'null',
+    ]) &&
+    schemas.NullableWorkInstructionActorId?.format === 'uuid',
+  'Work Instruction response fields must preserve their authoritative schemas.'
 )
 rejectUnless(
   !containsPropertyName(
@@ -547,6 +585,19 @@ for (const [name, operation] of Object.entries(operations)) {
     )
   }
 }
+
+rejectUnless(
+  /performs only the draft-to-in_review transition.*any non-draft state\s+returns 409/is.test(
+    operations.submit?.description ?? ''
+  ) &&
+    /performs only the in_review-to-published transition.*draft, published, and\s+archived states return 409.*no direct draft-to-published shortcut/is.test(
+      operations.publish?.description ?? ''
+    ) &&
+    /performs only the published-to-archived terminal transition.*draft, in_review, and archived states return 409/is.test(
+      operations.archive?.description ?? ''
+    ),
+  'Work Instruction lifecycle actions must preserve exactly draft-to-in_review, in_review-to-published, and published-to-archived with every other source state rejected.'
+)
 
 rejectUnless(
   /transactionally revalidates authoritative state/i.test(
