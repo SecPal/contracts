@@ -1805,6 +1805,215 @@ components:
           type: string
           const: CONFLICT
 
+    WorkInstructionContentLocale:
+      type: string
+      description: Supported locale for reusable Work Instruction content.
+      enum: [de, en]
+      example: de
+
+    WorkInstructionTranslation:
+      type: object
+      additionalProperties: false
+      description: Stored content for one locale without persistence-row identity or timestamps.
+      required: [title, body]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: '.*\S.*'
+          description: Nonblank localized title.
+          example: Brandschutz
+        body:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Nonblank localized text payload.
+          example: Prüfen Sie vor Arbeitsbeginn die Fluchtwege.
+
+    WorkInstructionTemplateTranslations:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      maxProperties: 2
+      description: >-
+        Complete stored translation snapshot. Locale identity comes from the object key; a missing supported
+        locale is absent rather than serialized as null. At least one of de or en must exist.
+      properties:
+        de:
+          $ref: '#/components/schemas/WorkInstructionTranslation'
+        en:
+          $ref: '#/components/schemas/WorkInstructionTranslation'
+      example:
+        de:
+          title: Brandschutz
+          body: Prüfen Sie vor Arbeitsbeginn die Fluchtwege.
+        en:
+          title: Fire safety
+          body: Check the escape routes before starting work.
+
+    WorkInstructionLocalizedContent:
+      type: object
+      additionalProperties: false
+      description: >-
+        Uses the resolved or explicitly requested locale when that translation exists. Otherwise, it uses the
+        other supported locale and sets fallback_used to true. If no fallback is needed, fallback_used is false.
+        A persisted resource with no usable translation fails closed with a neutral 500 response; content is
+        never fabricated.
+      required: [locale, title, body, fallback_used]
+      properties:
+        locale:
+          $ref: '#/components/schemas/WorkInstructionContentLocale'
+          description: Actual returned content locale, which may differ from the requested locale after fallback.
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: '.*\S.*'
+          description: Nonblank returned title.
+          example: Brandschutz
+        body:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Nonblank returned text payload.
+          example: Prüfen Sie vor Arbeitsbeginn die Fluchtwege.
+        fallback_used:
+          type: boolean
+          description: True only when content from the other supported locale was returned.
+          example: false
+
+    WorkInstructionTemplateTranslationsRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        Exact desired translation snapshot for atomic template creation or complete replacement. Identity,
+        tenant ownership, locale fields inside values, translation-row identifiers, and timestamps are not
+        accepted from callers.
+      required: [translations]
+      properties:
+        translations:
+          $ref: '#/components/schemas/WorkInstructionTemplateTranslations'
+
+    WorkInstructionTemplate:
+      type: object
+      additionalProperties: false
+      description: >-
+        Tenant-owned reusable content. The complete stored translation snapshot is available to editors while
+        localized contains the deterministic server projection. Tenant and translation persistence internals are
+        not exposed.
+      required: [id, translations, localized, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Stable public template identifier.
+          example: '77777777-7777-4777-8777-777777777777'
+        translations:
+          $ref: '#/components/schemas/WorkInstructionTemplateTranslations'
+        localized:
+          $ref: '#/components/schemas/WorkInstructionLocalizedContent'
+        created_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+          readOnly: true
+        updated_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+          readOnly: true
+
+    WorkInstructionStandardBlock:
+      type: object
+      additionalProperties: false
+      description: >-
+        System-owned, globally reusable, immutable content. The absence of mutation routes is the authoritative
+        lock boundary; locked is a derived constant and is never caller-controlled persistence.
+      required: [id, key, locked, localized, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Stable public Standard Block identifier.
+          example: '88888888-8888-4888-8888-888888888888'
+        key:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: '.*\S.*'
+          readOnly: true
+          description: Globally unique stable system identifier.
+          example: fire-safety
+        locked:
+          type: boolean
+          const: true
+          readOnly: true
+          description: Derived immutable-content marker. Callers cannot set or change this value.
+        localized:
+          $ref: '#/components/schemas/WorkInstructionLocalizedContent'
+        created_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+          readOnly: true
+        updated_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+          readOnly: true
+
+    WorkInstructionTemplateResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/WorkInstructionTemplate'
+
+    WorkInstructionTemplateCollectionResponse:
+      type: object
+      additionalProperties: false
+      required: [data, links, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkInstructionTemplate'
+        links:
+          $ref: '#/components/schemas/PaginationLinks'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    WorkInstructionStandardBlockResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/WorkInstructionStandardBlock'
+
+    WorkInstructionStandardBlockCollectionResponse:
+      type: object
+      additionalProperties: false
+      required: [data, links, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkInstructionStandardBlock'
+        links:
+          $ref: '#/components/schemas/PaginationLinks'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    WorkInstructionContentNotFoundError:
+      type: object
+      additionalProperties: false
+      description: Neutral information-poor error for an unavailable content-library resource.
+      required: [message, code]
+      properties:
+        message:
+          type: string
+          const: Resource not found
+        code:
+          type: string
+          const: NOT_FOUND
+
     CostCenterAllocationItem:
       type: object
       additionalProperties: false
@@ -7943,6 +8152,39 @@ components:
         type: string
         format: uuid
 
+    WorkInstructionTemplateId:
+      name: workInstructionTemplate
+      in: path
+      required: true
+      description: >-
+        Work Instruction Template UUID. Malformed values fail with 422; valid but unavailable active-tenant
+        resources, including cross-tenant identities, use the neutral information-poor 404 response.
+      schema:
+        type: string
+        format: uuid
+
+    WorkInstructionStandardBlockId:
+      name: standardBlock
+      in: path
+      required: true
+      description: >-
+        Standard Block UUID. Malformed values fail with 422; valid but unavailable system resources use the
+        neutral information-poor 404 response.
+      schema:
+        type: string
+        format: uuid
+
+    WorkInstructionContentLocaleQuery:
+      name: locale
+      in: query
+      required: false
+      description: >-
+        Requested content locale. When omitted, the API uses the locale already resolved by existing middleware:
+        the authenticated user's preferred_locale, then the best supported Accept-Language value, then the
+        configured application default. This parameter does not create an independent language hierarchy.
+      schema:
+        $ref: '#/components/schemas/WorkInstructionContentLocale'
+
     EmployeePage:
       name: page
       in: query
@@ -8318,6 +8560,52 @@ components:
               value:
                 message: The Work Instruction changed in a concurrent state transition.
                 code: CONFLICT
+
+    WorkInstructionContentNotFound:
+      description: >-
+        Not Found - The selected content-library resource is unavailable. A valid nonexistent Standard Block and
+        a valid nonexistent or tenant-inaccessible Template are indistinguishable information-poor failures.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/WorkInstructionContentNotFoundError'
+          example:
+            message: Resource not found
+            code: NOT_FOUND
+
+    WorkInstructionContentValidationError:
+      description: >-
+        Unprocessable Entity - A path identifier, locale, pagination value, query parameter, or closed Template
+        body is malformed. This includes an unknown query parameter; malformed UUID; unsupported locale; missing,
+        empty, or unknown-locale translations; blank title or body; unknown top-level or translation property;
+        caller-supplied identity, tenant, timestamp, locale value field, translation-row identifier, or locked
+        field; and any malformed complete replacement. Validation failure leaves existing content unchanged.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+          examples:
+            invalidLocale:
+              summary: Unsupported content locale
+              value:
+                message: The given data was invalid.
+                errors:
+                  locale:
+                    - The selected locale is invalid.
+            missingTranslations:
+              summary: Required translation snapshot omitted
+              value:
+                message: The given data was invalid.
+                errors:
+                  translations:
+                    - The translations field is required.
+            invalidIdentifier:
+              summary: Malformed content-library identifier
+              value:
+                message: The given data was invalid.
+                errors:
+                  work_instruction_template:
+                    - The work instruction template field must be a valid UUID.
 
     CostCenterAllocationNotFound:
       description: >-
@@ -13542,6 +13830,368 @@ paths:
           $ref: '#/components/responses/WorkInstructionConflict'
         '422':
           $ref: '#/components/responses/WorkInstructionValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /work-instruction-templates:
+    get:
+      summary: List Work Instruction Templates
+      description: >-
+        Returns reusable Templates from the active tenant and requires `work_instructions.read`. Results use
+        deterministic created_at DESC, then id DESC ordering. Only page, per_page, and locale are accepted;
+        unsupported query parameters return 422. The optional locale selects the localized projection, while an
+        omitted locale uses the API's existing resolved locale. Each item also contains its complete stored
+        translation snapshot. A persisted Template with no usable translation fails closed with a neutral 500
+        response without database details.
+      operationId: listWorkInstructionTemplates
+      tags:
+        - Work Instructions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number for Work Instruction Template collection pagination.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          required: false
+          description: Number of Work Instruction Templates per page (max 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 15
+        - $ref: '#/components/parameters/WorkInstructionContentLocaleQuery'
+      responses:
+        '200':
+          description: Paginated active-tenant Work Instruction Templates.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkInstructionTemplateCollectionResponse'
+              example:
+                data:
+                  - id: '77777777-7777-4777-8777-777777777777'
+                    translations:
+                      de:
+                        title: Brandschutz
+                        body: Prüfen Sie vor Arbeitsbeginn die Fluchtwege.
+                      en:
+                        title: Fire safety
+                        body: Check the escape routes before starting work.
+                    localized:
+                      locale: de
+                      title: Brandschutz
+                      body: Prüfen Sie vor Arbeitsbeginn die Fluchtwege.
+                      fallback_used: false
+                    created_at: '2026-09-11T12:00:00Z'
+                    updated_at: '2026-09-11T12:00:00Z'
+                links:
+                  first: 'https://api.secpal.dev/v1/work-instruction-templates?page=1'
+                  last: 'https://api.secpal.dev/v1/work-instruction-templates?page=1'
+                  prev: null
+                  next: null
+                meta:
+                  current_page: 1
+                  per_page: 15
+                  last_page: 1
+                  total: 1
+                  from: 1
+                  to: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/WorkInstructionContentValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      summary: Create Work Instruction Template
+      description: >-
+        Creates one Template for the server-derived tenant atomically and requires `work_instructions.create`.
+        The body contains exactly the complete initial translations snapshot with at least one of de or en;
+        unknown, server-owned, blank, or malformed fields return 422. Query parameters are not accepted. The new
+        tenant-owned Template and its translations commit together. The response localized projection uses the
+        locale already resolved by existing middleware. If the persisted parent unexpectedly has no usable
+        translation, the request fails closed with a neutral 500 response without database details.
+      operationId: createWorkInstructionTemplate
+      tags:
+        - Work Instructions
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkInstructionTemplateTranslationsRequest'
+            example:
+              translations:
+                de:
+                  title: Brandschutz
+                  body: Prüfen Sie vor Arbeitsbeginn die Fluchtwege.
+                en:
+                  title: Fire safety
+                  body: Check the escape routes before starting work.
+      responses:
+        '201':
+          description: Work Instruction Template and its translation snapshot committed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkInstructionTemplateResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/WorkInstructionContentValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /work-instruction-templates/{workInstructionTemplate}:
+    get:
+      summary: Inspect Work Instruction Template
+      description: >-
+        Returns one Template from the active tenant and requires `work_instructions.read`. A malformed UUID or
+        unsupported query parameter returns 422. A valid nonexistent or cross-tenant Template UUID returns the
+        same neutral 404 without revealing whether another tenant owns it. The optional locale selects the
+        localized projection; omission uses the API's existing resolved locale. The complete stored translation
+        snapshot is also returned. A persisted Template with no usable translation fails closed with a neutral
+        500 response without database details.
+      operationId: getWorkInstructionTemplate
+      tags:
+        - Work Instructions
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkInstructionTemplateId'
+        - $ref: '#/components/parameters/WorkInstructionContentLocaleQuery'
+      responses:
+        '200':
+          description: Active-tenant Work Instruction Template retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkInstructionTemplateResponse'
+              examples:
+                germanRequestedEnglishFallback:
+                  summary: German requested when only English is stored
+                  value:
+                    data:
+                      id: '77777777-7777-4777-8777-777777777777'
+                      translations:
+                        en:
+                          title: Fire safety
+                          body: Check the escape routes before starting work.
+                      localized:
+                        locale: en
+                        title: Fire safety
+                        body: Check the escape routes before starting work.
+                        fallback_used: true
+                      created_at: '2026-09-11T12:00:00Z'
+                      updated_at: '2026-09-11T12:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/WorkInstructionContentNotFound'
+        '422':
+          $ref: '#/components/responses/WorkInstructionContentValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      summary: Replace Work Instruction Template Translations
+      description: >-
+        Replaces the active-tenant Template's complete desired translation snapshot and requires
+        `work_instructions.update`. An existing locale omitted from the request is removed, while at least one
+        de or en translation must remain. A PostgreSQL transaction commits the complete replacement atomically;
+        validation or persistence failure leaves the previous translation snapshot unchanged, and there is no
+        client-visible intermediate state with zero translations. Concurrent complete replacements serialize
+        into one complete requested snapshot and never merge half of each request. No ETag, version, or revision
+        mechanism is defined. Query parameters, unknown properties, persistence identities, and server-owned
+        fields return 422. A malformed UUID returns 422; a valid nonexistent or cross-tenant UUID returns the
+        neutral 404. Success returns the complete committed snapshot with the localized projection based on the
+        locale already resolved by existing middleware. If the persisted parent has no usable translation, the
+        operation fails closed with a neutral 500 response without database details.
+      operationId: replaceWorkInstructionTemplateTranslations
+      tags:
+        - Work Instructions
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkInstructionTemplateId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkInstructionTemplateTranslationsRequest'
+            example:
+              translations:
+                de:
+                  title: Aktualisierter Brandschutz
+                  body: Prüfen und dokumentieren Sie die Fluchtwege vor Arbeitsbeginn.
+      responses:
+        '200':
+          description: Complete Template translation snapshot replaced and committed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkInstructionTemplateResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/WorkInstructionContentNotFound'
+        '422':
+          $ref: '#/components/responses/WorkInstructionContentValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /standard-blocks:
+    get:
+      summary: List Work Instruction Standard Blocks
+      description: >-
+        Returns system-global reusable Standard Blocks to an authenticated caller in a valid active tenant context
+        and requires `work_instructions.read`. Results use deterministic created_at DESC, then id DESC ordering.
+        Only page, per_page, and locale are accepted; search, category, filtering, caller-selected sorting, and
+        locked filters are not defined, and unsupported query parameters return 422. The optional locale selects
+        the localized projection; omission uses the API's existing resolved locale. Standard Blocks are not
+        duplicated per tenant and one tenant cannot hide or mutate them. A persisted Standard Block with no usable
+        translation fails closed with a neutral 500 response without database details.
+      operationId: listWorkInstructionStandardBlocks
+      tags:
+        - Work Instructions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number for Standard Block collection pagination.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          required: false
+          description: Number of Standard Blocks per page (max 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 15
+        - $ref: '#/components/parameters/WorkInstructionContentLocaleQuery'
+      responses:
+        '200':
+          description: Paginated system-global immutable Standard Blocks.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkInstructionStandardBlockCollectionResponse'
+              example:
+                data:
+                  - id: '88888888-8888-4888-8888-888888888888'
+                    key: fire-safety
+                    locked: true
+                    localized:
+                      locale: en
+                      title: Fire safety
+                      body: Check the escape routes before starting work.
+                      fallback_used: false
+                    created_at: '2026-09-11T12:00:00Z'
+                    updated_at: '2026-09-11T12:00:00Z'
+                links:
+                  first: 'https://api.secpal.dev/v1/standard-blocks?page=1'
+                  last: 'https://api.secpal.dev/v1/standard-blocks?page=1'
+                  prev: null
+                  next: null
+                meta:
+                  current_page: 1
+                  per_page: 15
+                  last_page: 1
+                  total: 1
+                  from: 1
+                  to: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/WorkInstructionContentValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /standard-blocks/{standardBlock}:
+    get:
+      summary: Inspect Work Instruction Standard Block
+      description: >-
+        Returns one system-global immutable Standard Block with derived `locked: true` and requires
+        `work_instructions.read` in a valid active tenant context. A malformed UUID, invalid locale, or unsupported
+        query parameter returns 422; a valid nonexistent UUID returns the neutral 404. The optional locale selects
+        the localized projection; omission uses the API's existing resolved locale. A persisted Standard Block
+        with no usable translation fails closed with a neutral 500 response without database details. No tenant
+        owns, hides, or mutates this resource.
+      operationId: getWorkInstructionStandardBlock
+      tags:
+        - Work Instructions
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkInstructionStandardBlockId'
+        - $ref: '#/components/parameters/WorkInstructionContentLocaleQuery'
+      responses:
+        '200':
+          description: System-global immutable Standard Block retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkInstructionStandardBlockResponse'
+              examples:
+                englishRequestedGermanFallback:
+                  summary: English requested when only German is stored
+                  value:
+                    data:
+                      id: '88888888-8888-4888-8888-888888888888'
+                      key: fire-safety
+                      locked: true
+                      localized:
+                        locale: de
+                        title: Brandschutz
+                        body: Prüfen Sie vor Arbeitsbeginn die Fluchtwege.
+                        fallback_used: true
+                      created_at: '2026-09-11T12:00:00Z'
+                      updated_at: '2026-09-11T12:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/WorkInstructionContentNotFound'
+        '422':
+          $ref: '#/components/responses/WorkInstructionContentValidationError'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':

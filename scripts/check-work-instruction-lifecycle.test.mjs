@@ -42,6 +42,17 @@ test('accepts the authoritative Work Instruction lifecycle contract', () => {
   assert.match(result.stdout, /Work Instruction lifecycle OpenAPI guard passed/)
 })
 
+test('leaves the separately guarded content-library surface outside lifecycle validation', () => {
+  const candidate = structuredClone(contract)
+  candidate.paths['/work-instruction-templates'].get.operationId =
+    'separatelyOwnedTemplateOperation'
+  candidate.paths['/standard-blocks'].post = { responses: {} }
+
+  const result = runGuard(candidate)
+
+  assert.equal(result.status, 0, result.stderr)
+})
+
 test('rejects drift across Work Instruction lifecycle trust boundaries', () => {
   const cases = [
     {
@@ -167,17 +178,8 @@ test('rejects drift across Work Instruction lifecycle trust boundaries', () => {
       },
     },
     {
-      label: 'template surface absorption',
-      diagnostic: /belong to separate contracts/,
-      mutate(candidate) {
-        candidate.paths['/work-instruction-templates'] = {
-          get: { responses: {} },
-        }
-      },
-    },
-    {
       label: 'acknowledgment surface absorption',
-      diagnostic: /belong to separate contracts/,
+      diagnostic: /belong to a separate contract/,
       mutate(candidate) {
         candidate.paths['/work-instructions/{workInstruction}/acknowledge'] = {
           post: { responses: {} },
