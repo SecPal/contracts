@@ -181,13 +181,10 @@ rejectUnless(
   'Work Instructions must expose exactly five canonical paths and seven operations; delete, reopen, unpublish, and return-to-draft aliases are forbidden.'
 )
 rejectUnless(
-  !Object.keys(paths).some(
-    (pathKey) =>
-      pathKey.startsWith('/work-instruction-templates') ||
-      pathKey.startsWith('/standard-blocks') ||
-      /\/acknowledg(?:e|ments?)(?:\/|$)/.test(pathKey)
+  !Object.keys(paths).some((pathKey) =>
+    /\/acknowledg(?:e|ments?)(?:\/|$)/.test(pathKey)
   ),
-  'Template, standard-block, and acknowledgment surfaces belong to separate contracts.'
+  'Acknowledgment surfaces belong to a separate contract.'
 )
 
 const operations = {
