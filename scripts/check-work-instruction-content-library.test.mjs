@@ -80,6 +80,24 @@ test('rejects drift across content-library ownership and localization boundaries
       },
     },
     {
+      label: 'plural translation-row route alias',
+      diagnostic: /translation-row and mutation aliases are forbidden/,
+      mutate(candidate) {
+        candidate.paths['/work-instruction-templates-translations'] = {
+          get: { responses: {} },
+        }
+      },
+    },
+    {
+      label: 'singular Standard Block route alias',
+      diagnostic: /translation-row and mutation aliases are forbidden/,
+      mutate(candidate) {
+        candidate.paths['/standard-block/{standardBlock}'] = {
+          get: { responses: {} },
+        }
+      },
+    },
+    {
       label: 'operation identifier drift',
       diagnostic: /must use operationId listWorkInstructionTemplates/,
       mutate(candidate) {
@@ -112,6 +130,27 @@ test('rejects drift across content-library ownership and localization boundaries
           in: 'query',
           schema: { type: 'string' },
         })
+      },
+    },
+    {
+      label: 'non-integer pagination parameter',
+      diagnostic: /expose only page=1, per_page=15/,
+      mutate(candidate) {
+        candidate.paths['/standard-blocks'].get.parameters[0].schema.type =
+          'number'
+      },
+    },
+    {
+      label: 'inherited path-level parameter',
+      diagnostic: /Path Items must not define inherited parameters/,
+      mutate(candidate) {
+        candidate.paths['/work-instruction-templates'].parameters = [
+          {
+            name: 'tenant_id',
+            in: 'query',
+            schema: { type: 'integer' },
+          },
+        ]
       },
     },
     {
@@ -153,6 +192,16 @@ test('rejects drift across content-library ownership and localization boundaries
       diagnostic: /closed de\/en snapshot/,
       mutate(candidate) {
         candidate.components.schemas.WorkInstructionTemplateTranslations.additionalProperties = true
+      },
+    },
+    {
+      label: 'pattern-based schema widening',
+      diagnostic: /must not use patternProperties/,
+      mutate(candidate) {
+        candidate.components.schemas.WorkInstructionTemplate.patternProperties =
+          {
+            '^tenant_': { type: 'integer' },
+          }
       },
     },
     {
@@ -257,6 +306,17 @@ test('rejects drift across content-library ownership and localization boundaries
       },
     },
     {
+      label: 'alternate request media type',
+      diagnostic: /same closed translations request/,
+      mutate(candidate) {
+        candidate.paths[
+          '/work-instruction-templates/{workInstructionTemplate}'
+        ].put.requestBody.content['text/plain'] = {
+          schema: { type: 'string' },
+        }
+      },
+    },
+    {
       label: 'unlocked Standard Block',
       diagnostic: /derived read-only locked=true/,
       mutate(candidate) {
@@ -324,6 +384,26 @@ test('rejects drift across content-library ownership and localization boundaries
       mutate(candidate) {
         candidate.components.schemas.WorkInstructionContentNotFoundError.properties.tenant_id =
           { type: 'integer' }
+      },
+    },
+    {
+      label: 'rewired not-found response payload',
+      diagnostic: /response components must bind closed payloads/,
+      mutate(candidate) {
+        candidate.components.responses.WorkInstructionContentNotFound.content[
+          'application/json'
+        ].schema.$ref = '#/components/schemas/Error'
+      },
+    },
+    {
+      label: 'open-ended server error payload',
+      diagnostic: /500 must be closed, neutral/,
+      mutate(candidate) {
+        candidate.components.schemas.WorkInstructionContentServerError.properties.details =
+          {
+            type: 'object',
+            additionalProperties: true,
+          }
       },
     },
     {

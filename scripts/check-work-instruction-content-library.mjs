@@ -29,6 +29,7 @@ try {
 const paths = document?.paths ?? {}
 const schemas = document?.components?.schemas ?? {}
 const parameters = document?.components?.parameters ?? {}
+const responses = document?.components?.responses ?? {}
 const errors = []
 const HTTP_METHODS = new Set([
   'get',
@@ -119,6 +120,7 @@ function schemaRef(operation, status, component) {
 function requestRef(operation, component) {
   return (
     operation?.requestBody?.required === true &&
+    exactKeys(operation?.requestBody?.content, ['application/json']) &&
     operation?.requestBody?.content?.['application/json']?.schema?.$ref ===
       `#/components/schemas/${component}`
   )
@@ -128,6 +130,15 @@ function responseRef(operation, status, component) {
   return (
     operation?.responses?.[status]?.$ref ===
     `#/components/responses/${component}`
+  )
+}
+
+function responseComponentSchemaRef(component, schema) {
+  const response = responses[component]
+  return (
+    exactKeys(response?.content, ['application/json']) &&
+    response?.content?.['application/json']?.schema?.$ref ===
+      `#/components/schemas/${schema}`
   )
 }
 
@@ -153,11 +164,19 @@ function containsPropertyName(value, forbidden) {
   ].some((child) => containsPropertyName(child, forbidden))
 }
 
+function containsPatternProperties(value) {
+  if (!value || typeof value !== 'object') return false
+  if (Object.hasOwn(value, 'patternProperties')) return true
+  return Object.values(value).some(containsPatternProperties)
+}
+
 function isContentLibraryPath(pathKey) {
   return (
-    /^\/work-instruction-template(?:s|-translations)(?:\/|$)/.test(pathKey) ||
-    /^\/standard-block(?:s|-translations)(?:\/|$)/.test(pathKey) ||
-    /^\/work-instruction-standard-blocks(?:\/|$)/.test(pathKey)
+    /^\/work-instruction-templates?(?:-translations)?(?:\/|$)/.test(pathKey) ||
+    /^\/standard-blocks?(?:-translations)?(?:\/|$)/.test(pathKey) ||
+    /^\/work-instruction-standard-blocks?(?:-translations)?(?:\/|$)/.test(
+      pathKey
+    )
   )
 }
 
@@ -169,6 +188,10 @@ for (const [pathKey, methods] of CONTENT_PATHS) {
       [...methods].sort()
     ),
     `${pathKey} must expose exactly: ${methods.join(', ')}`
+  )
+  rejectUnless(
+    !Object.hasOwn(paths[pathKey] ?? {}, 'parameters'),
+    'Content-library Path Items must not define inherited parameters.'
   )
 }
 
@@ -284,10 +307,12 @@ for (const name of ['listTemplates', 'listStandardBlocks']) {
       operation.parameters?.length === 3 &&
       operation.parameters[0]?.in === 'query' &&
       operation.parameters[0]?.required === false &&
+      operation.parameters[0]?.schema?.type === 'integer' &&
       operation.parameters[0]?.schema?.minimum === 1 &&
       operation.parameters[0]?.schema?.default === 1 &&
       operation.parameters[1]?.in === 'query' &&
       operation.parameters[1]?.required === false &&
+      operation.parameters[1]?.schema?.type === 'integer' &&
       operation.parameters[1]?.schema?.minimum === 1 &&
       operation.parameters[1]?.schema?.maximum === 100 &&
       operation.parameters[1]?.schema?.default === 15 &&
@@ -536,6 +561,10 @@ rejectUnless(
   ),
   'Content schemas must exclude tenant, translation-row, category, system-template, lifecycle, acknowledgment, version, scope, and section fields.'
 )
+rejectUnless(
+  !containsPatternProperties(contentSchemas),
+  'Closed content schemas must not use patternProperties to widen accepted or returned fields.'
+)
 
 for (const [schemaName, resourceName] of [
   ['WorkInstructionTemplateResponse', 'WorkInstructionTemplate'],
@@ -587,6 +616,33 @@ rejectUnless(
   'Content-library 404 must be closed, neutral, and information-poor.'
 )
 
+const serverErrorSchema = schemas.WorkInstructionContentServerError
+rejectUnless(
+  serverErrorSchema?.type === 'object' &&
+    serverErrorSchema?.additionalProperties === false &&
+    exactRequired(serverErrorSchema, ['message', 'code']) &&
+    exactKeys(serverErrorSchema?.properties, ['message', 'code']) &&
+    serverErrorSchema.properties.message?.const === 'Internal server error' &&
+    serverErrorSchema.properties.code?.const === 'INTERNAL_SERVER_ERROR',
+  'Content-library 500 must be closed, neutral, and information-poor.'
+)
+
+rejectUnless(
+  responseComponentSchemaRef(
+    'WorkInstructionContentNotFound',
+    'WorkInstructionContentNotFoundError'
+  ) &&
+    responseComponentSchemaRef(
+      'WorkInstructionContentValidationError',
+      'ValidationProblem'
+    ) &&
+    responseComponentSchemaRef(
+      'WorkInstructionContentServerFailure',
+      'WorkInstructionContentServerError'
+    ),
+  'Content-library response components must bind closed payloads for 404, 422, and 500.'
+)
+
 for (const [name, operation] of Object.entries(operations)) {
   const expectedResponses = new Set(['401', '403', '422', '429', '500'])
   if (
@@ -608,8 +664,8 @@ for (const [name, operation] of Object.entries(operations)) {
       responseRef(operation, '403', 'Forbidden') &&
       responseRef(operation, '422', 'WorkInstructionContentValidationError') &&
       responseRef(operation, '429', 'TooManyRequests') &&
-      responseRef(operation, '500', 'InternalServerError'),
-    `${name} must reuse shared authentication, authorization, validation, throttling, and neutral server-error responses.`
+      responseRef(operation, '500', 'WorkInstructionContentServerFailure'),
+    `${name} must reuse shared authentication, authorization, validation, throttling, and the closed neutral content server-error response.`
   )
   if (expectedResponses.has('404')) {
     rejectUnless(

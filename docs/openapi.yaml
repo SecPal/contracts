@@ -2014,6 +2014,19 @@ components:
           type: string
           const: NOT_FOUND
 
+    WorkInstructionContentServerError:
+      type: object
+      additionalProperties: false
+      description: Neutral information-poor error for an unexpected content-library or translation-integrity failure.
+      required: [message, code]
+      properties:
+        message:
+          type: string
+          const: Internal server error
+        code:
+          type: string
+          const: INTERNAL_SERVER_ERROR
+
     CostCenterAllocationItem:
       type: object
       additionalProperties: false
@@ -8607,6 +8620,18 @@ components:
                   work_instruction_template:
                     - The work instruction template field must be a valid UUID.
 
+    WorkInstructionContentServerFailure:
+      description: >-
+        Internal Server Error - An unexpected content-library or persisted translation-integrity failure occurred.
+        The response is neutral and never exposes database, tenant, translation-row, constraint, or stack details.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/WorkInstructionContentServerError'
+          example:
+            message: Internal server error
+            code: INTERNAL_SERVER_ERROR
+
     CostCenterAllocationNotFound:
       description: >-
         Not Found - The selected Service Booking or allocation target is unavailable in the active tenant.
@@ -13914,7 +13939,7 @@ paths:
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
-          $ref: '#/components/responses/InternalServerError'
+          $ref: '#/components/responses/WorkInstructionContentServerFailure'
     post:
       summary: Create Work Instruction Template
       description: >-
@@ -13959,7 +13984,7 @@ paths:
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
-          $ref: '#/components/responses/InternalServerError'
+          $ref: '#/components/responses/WorkInstructionContentServerFailure'
 
   /work-instruction-templates/{workInstructionTemplate}:
     get:
@@ -14014,7 +14039,7 @@ paths:
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
-          $ref: '#/components/responses/InternalServerError'
+          $ref: '#/components/responses/WorkInstructionContentServerFailure'
     put:
       summary: Replace Work Instruction Template Translations
       description: >-
@@ -14065,7 +14090,7 @@ paths:
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
-          $ref: '#/components/responses/InternalServerError'
+          $ref: '#/components/responses/WorkInstructionContentServerFailure'
 
   /standard-blocks:
     get:
@@ -14142,7 +14167,7 @@ paths:
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
-          $ref: '#/components/responses/InternalServerError'
+          $ref: '#/components/responses/WorkInstructionContentServerFailure'
 
   /standard-blocks/{standardBlock}:
     get:
@@ -14195,7 +14220,7 @@ paths:
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
-          $ref: '#/components/responses/InternalServerError'
+          $ref: '#/components/responses/WorkInstructionContentServerFailure'
 
   # =============================================================================
   # Customer Management Endpoints (Epic #210, Phase 5)
