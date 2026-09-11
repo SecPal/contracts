@@ -63,6 +63,8 @@ tags:
     description: Tenant-isolated billing records with immutable invoiced evidence and terminal retirement.
   - name: Internal Cost Centers
     description: Tenant-wide internal accounting classifications, distinct from Site-scoped Cost Centers.
+  - name: Work Instructions
+    description: Tenant-isolated Work Instruction authoring and forward-only publication lifecycle.
   - name: Cost Center Allocations
     description: Atomic complete-snapshot allocation of Service Booking billing records.
   - name: Lookups
@@ -1492,6 +1494,313 @@ components:
         message:
           type: string
           description: Stable state-conflict message without database identifiers or implementation details.
+        code:
+          type: string
+          const: CONFLICT
+
+    WorkInstructionStatus:
+      type: string
+      description: Closed, forward-only Work Instruction lifecycle. Archived is terminal through this API.
+      enum: [draft, in_review, published, archived]
+      example: draft
+
+    WorkInstructionLocale:
+      type: string
+      description: Persisted locale of this single Work Instruction. No fallback is performed on this resource.
+      enum: [de, en]
+      example: de
+
+    NullableWorkInstructionActorId:
+      type: [string, 'null']
+      format: uuid
+      description: >-
+        Tenant-scoped user attribution identifier, or null when the persisted actor reference was cleared after
+        that user was removed. The historical lifecycle timestamp remains unchanged.
+      example: '55555555-5555-4555-8555-555555555555'
+
+    WorkInstruction:
+      type: object
+      additionalProperties: false
+      description: >-
+        Complete current Work Instruction state for the active tenant. Tenant identity, User objects, templates,
+        standard blocks, acknowledgments, recipient scope, audit rows, and persistence internals are not exposed.
+        `instruction_number` is immutable after creation and unique only within the active tenant. Publication
+        atomically freezes the final committed editable content state; published and archived content cannot be
+        changed through ordinary PATCH.
+      required:
+        - id
+        - instruction_number
+        - title
+        - body
+        - locale
+        - status
+        - published_at
+        - published_by_user_id
+        - archived_at
+        - archived_by_user_id
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Stable public Work Instruction identifier.
+          example: '66666666-6666-4666-8666-666666666666'
+        instruction_number:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: '.*\S.*'
+          description: >-
+            Stable nonblank business identifier, accepted explicitly on creation, preserved as supplied, and
+            unique only within the active tenant. It cannot be changed after creation.
+          example: WI-2026-0042
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: '.*\S.*'
+          description: Nonblank Work Instruction title.
+          example: Emergency evacuation procedure
+        body:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Authoritative persisted application text payload for this Work Instruction.
+          example: Follow the posted evacuation route and report to the assembly point.
+        locale:
+          $ref: '#/components/schemas/WorkInstructionLocale'
+        status:
+          $ref: '#/components/schemas/WorkInstructionStatus'
+          readOnly: true
+        published_at:
+          $ref: '#/components/schemas/NullableApiTimestamp'
+          readOnly: true
+          description: Server-owned publication timestamp; never accepted from callers or rewritten later.
+        published_by_user_id:
+          $ref: '#/components/schemas/NullableWorkInstructionActorId'
+          readOnly: true
+          description: Server-owned publication actor attribution; never accepted from callers.
+        archived_at:
+          $ref: '#/components/schemas/NullableApiTimestamp'
+          readOnly: true
+          description: Server-owned archival timestamp; never accepted from callers or rewritten later.
+        archived_by_user_id:
+          $ref: '#/components/schemas/NullableWorkInstructionActorId'
+          readOnly: true
+          description: Server-owned archival actor attribution; never accepted from callers.
+        created_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+          readOnly: true
+        updated_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+          readOnly: true
+      oneOf:
+        - title: DraftWorkInstruction
+          type: object
+          required:
+            [
+              status,
+              published_at,
+              published_by_user_id,
+              archived_at,
+              archived_by_user_id,
+            ]
+          properties:
+            status:
+              type: string
+              const: draft
+            published_at:
+              type: 'null'
+            published_by_user_id:
+              type: 'null'
+            archived_at:
+              type: 'null'
+            archived_by_user_id:
+              type: 'null'
+        - title: InReviewWorkInstruction
+          type: object
+          required:
+            [
+              status,
+              published_at,
+              published_by_user_id,
+              archived_at,
+              archived_by_user_id,
+            ]
+          properties:
+            status:
+              type: string
+              const: in_review
+            published_at:
+              type: 'null'
+            published_by_user_id:
+              type: 'null'
+            archived_at:
+              type: 'null'
+            archived_by_user_id:
+              type: 'null'
+        - title: PublishedWorkInstruction
+          type: object
+          required:
+            [
+              status,
+              published_at,
+              published_by_user_id,
+              archived_at,
+              archived_by_user_id,
+            ]
+          properties:
+            status:
+              type: string
+              const: published
+            published_at:
+              $ref: '#/components/schemas/ApiTimestamp'
+            published_by_user_id:
+              $ref: '#/components/schemas/NullableWorkInstructionActorId'
+            archived_at:
+              type: 'null'
+            archived_by_user_id:
+              type: 'null'
+        - title: ArchivedWorkInstruction
+          type: object
+          description: Publication evidence remains unchanged and archival cannot predate publication.
+          x-secpal-temporal-invariant: archived_at >= published_at
+          required:
+            [
+              status,
+              published_at,
+              published_by_user_id,
+              archived_at,
+              archived_by_user_id,
+            ]
+          properties:
+            status:
+              type: string
+              const: archived
+            published_at:
+              $ref: '#/components/schemas/ApiTimestamp'
+            published_by_user_id:
+              $ref: '#/components/schemas/NullableWorkInstructionActorId'
+            archived_at:
+              $ref: '#/components/schemas/ApiTimestamp'
+            archived_by_user_id:
+              $ref: '#/components/schemas/NullableWorkInstructionActorId'
+      example:
+        id: '66666666-6666-4666-8666-666666666666'
+        instruction_number: WI-2026-0042
+        title: Emergency evacuation procedure
+        body: Follow the posted evacuation route and report to the assembly point.
+        locale: de
+        status: draft
+        published_at: null
+        published_by_user_id: null
+        archived_at: null
+        archived_by_user_id: null
+        created_at: '2026-09-11T12:00:00Z'
+        updated_at: '2026-09-11T12:00:00Z'
+
+    WorkInstructionCreateRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        Creates one draft in the active tenant. The instruction number is preserved as supplied and is unique
+        only within that tenant. Identity, tenant, lifecycle state and evidence, and timestamps are server-owned.
+      required: [instruction_number, title, body, locale]
+      properties:
+        instruction_number:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: '.*\S.*'
+          description: Stable nonblank tenant-scoped business identifier. No normalization or generation is defined.
+          example: WI-2026-0042
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: '.*\S.*'
+          description: Nonblank Work Instruction title.
+          example: Emergency evacuation procedure
+        body:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Authoritative persisted application text payload.
+          example: Follow the posted evacuation route and report to the assembly point.
+        locale:
+          $ref: '#/components/schemas/WorkInstructionLocale'
+
+    WorkInstructionUpdateRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: >-
+        Partial non-empty update of a draft or in-review Work Instruction. Omitted fields remain unchanged.
+        Instruction number, identity, tenant, status, publication and archive evidence, and timestamps are
+        excluded. Published and archived resources return 409.
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: '.*\S.*'
+          description: Replacement nonblank title.
+          example: Updated emergency evacuation procedure
+        body:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Replacement authoritative application text payload.
+          example: Follow the revised evacuation route and report to the assembly point.
+        locale:
+          $ref: '#/components/schemas/WorkInstructionLocale'
+
+    WorkInstructionResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/WorkInstruction'
+
+    WorkInstructionCollectionResponse:
+      type: object
+      additionalProperties: false
+      required: [data, links, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkInstruction'
+        links:
+          $ref: '#/components/schemas/PaginationLinks'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    WorkInstructionNotFoundError:
+      type: object
+      additionalProperties: false
+      description: Neutral information-poor error for an unavailable active-tenant Work Instruction.
+      required: [message, code]
+      properties:
+        message:
+          type: string
+          const: Resource not found
+        code:
+          type: string
+          const: NOT_FOUND
+
+    WorkInstructionConflictError:
+      type: object
+      additionalProperties: false
+      description: Closed conflict error without cross-tenant, database, constraint, trigger, or race internals.
+      required: [message, code]
+      properties:
+        message:
+          type: string
+          description: Stable lifecycle or uniqueness conflict message without persistence details.
         code:
           type: string
           const: CONFLICT
@@ -8142,6 +8451,17 @@ components:
         type: string
         format: uuid
 
+    WorkInstructionId:
+      name: workInstruction
+      in: path
+      required: true
+      description: >-
+        Work Instruction UUID. Malformed values fail validation with 422; valid but unavailable active-tenant
+        resources, including cross-tenant identities, use the information-poor 404 response.
+      schema:
+        type: string
+        format: uuid
+
     EmployeePage:
       name: page
       in: query
@@ -8523,6 +8843,75 @@ components:
             concurrentTransition:
               value:
                 message: The Internal Cost Center changed in a concurrent state transition.
+                code: CONFLICT
+
+    WorkInstructionNotFound:
+      description: >-
+        Not Found - The selected Work Instruction is unavailable in the active tenant. Nonexistent and
+        tenant-inaccessible identities are indistinguishable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/WorkInstructionNotFoundError'
+          example:
+            message: Resource not found
+            code: NOT_FOUND
+
+    WorkInstructionValidationError:
+      description: >-
+        Unprocessable Entity - The payload, pagination input, unsupported query parameter, or Work Instruction
+        identifier is malformed. This includes unknown or server-owned fields, blank or out-of-range text, an
+        invalid locale, instruction_number on PATCH, an empty PATCH document, and a request body on a lifecycle
+        action.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+          examples:
+            immutableInstructionNumber:
+              summary: Instruction number is create-only
+              value:
+                message: The given data was invalid.
+                errors:
+                  instruction_number:
+                    - The instruction number field is prohibited.
+            invalidIdentifier:
+              summary: Malformed Work Instruction identifier
+              value:
+                message: The given data was invalid.
+                errors:
+                  work_instruction:
+                    - The work instruction field must be a valid UUID.
+
+    WorkInstructionConflict:
+      description: >-
+        Conflict - A duplicate active-tenant instruction number, incompatible lifecycle state, or valid
+        concurrent mutation prevents the requested operation. Persistence and cross-tenant details are not
+        exposed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/WorkInstructionConflictError'
+          examples:
+            notEditable:
+              value:
+                message: The Work Instruction is not editable.
+                code: CONFLICT
+            notInReview:
+              value:
+                message: The Work Instruction is not in review.
+                code: CONFLICT
+            notPublished:
+              value:
+                message: The Work Instruction is not published.
+                code: CONFLICT
+            duplicateInstructionNumber:
+              value:
+                message: The instruction number is already in use.
+                code: CONFLICT
+            concurrentTransition:
+              value:
+                message: The Work Instruction changed in a concurrent state transition.
                 code: CONFLICT
 
     CostCenterAllocationNotFound:
@@ -13425,6 +13814,329 @@ paths:
           $ref: '#/components/responses/InternalCostCenterConflict'
         '422':
           $ref: '#/components/responses/InternalCostCenterValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # =============================================================================
+  # Work Instruction Management
+  # =============================================================================
+
+  /work-instructions:
+    get:
+      summary: List Work Instructions
+      description: >-
+        Returns draft, in-review, published, and archived Work Instructions from the active tenant and requires
+        `work_instructions.read`. Tenant context is server-authoritative. Results use deterministic created_at DESC,
+        then id DESC ordering. Only page and per_page are accepted; unsupported query parameters return 422. No
+        search, filtering, or caller-selected sorting is defined.
+      operationId: listWorkInstructions
+      tags:
+        - Work Instructions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number for Work Instruction collection pagination.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          required: false
+          description: Number of Work Instructions per page (max 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 15
+      responses:
+        '200':
+          description: Paginated active-tenant Work Instructions across all four lifecycle states.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkInstructionCollectionResponse'
+              example:
+                data:
+                  - id: '66666666-6666-4666-8666-666666666666'
+                    instruction_number: WI-2026-0042
+                    title: Emergency evacuation procedure
+                    body: Follow the posted evacuation route and report to the assembly point.
+                    locale: de
+                    status: draft
+                    published_at: null
+                    published_by_user_id: null
+                    archived_at: null
+                    archived_by_user_id: null
+                    created_at: '2026-09-11T12:00:00Z'
+                    updated_at: '2026-09-11T12:00:00Z'
+                links:
+                  first: 'https://api.secpal.dev/v1/work-instructions?page=1'
+                  last: 'https://api.secpal.dev/v1/work-instructions?page=1'
+                  prev: null
+                  next: null
+                meta:
+                  current_page: 1
+                  per_page: 15
+                  last_page: 1
+                  total: 1
+                  from: 1
+                  to: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/WorkInstructionValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      summary: Create Work Instruction
+      description: >-
+        Creates one draft in the active tenant and requires `work_instructions.create`. The caller supplies the
+        nonblank instruction number, title, body, and locale. The instruction number is preserved as supplied,
+        stable after creation, and unique within this tenant only; another tenant's matching value is irrelevant
+        and undisclosed. A duplicate in the active tenant returns 409. Identity, tenant, status, publication and
+        archival evidence, and timestamps are server-owned. The committed resource starts in draft with all
+        lifecycle evidence fields null.
+      operationId: createWorkInstruction
+      tags:
+        - Work Instructions
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkInstructionCreateRequest'
+            example:
+              instruction_number: WI-2026-0042
+              title: Emergency evacuation procedure
+              body: Follow the posted evacuation route and report to the assembly point.
+              locale: de
+      responses:
+        '201':
+          description: Draft Work Instruction created and committed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkInstructionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/WorkInstructionConflict'
+        '422':
+          $ref: '#/components/responses/WorkInstructionValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /work-instructions/{workInstruction}:
+    get:
+      summary: Inspect Work Instruction
+      description: >-
+        Returns one Work Instruction from the active tenant and requires `work_instructions.read`. A malformed UUID
+        returns 422. A valid nonexistent or tenant-inaccessible identity returns the same information-poor 404.
+        The complete current resource does not embed tenant, User, acknowledgment, template, standard-block,
+        recipient-scope, audit, or persistence data.
+      operationId: getWorkInstruction
+      tags:
+        - Work Instructions
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkInstructionId'
+      responses:
+        '200':
+          description: Work Instruction retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkInstructionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/WorkInstructionNotFound'
+        '422':
+          $ref: '#/components/responses/WorkInstructionValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      summary: Update Work Instruction
+      description: >-
+        Partially updates title, body, or locale and requires `work_instructions.update`. PATCH is permitted only
+        while status is draft or in_review; publication freezes the final committed content, so PATCH of published
+        or archived state returns 409. Instruction number is immutable, and supplying it or any identity, tenant,
+        status, lifecycle-evidence, or timestamp field returns 422. Empty input and unknown properties also return
+        422. The implementation transactionally revalidates authoritative state before mutation. If publish wins
+        before PATCH's mutation, PATCH returns 409 and cannot rewrite the newly published content. Success returns
+        complete committed state; no version, revision, or last-write-wins behavior is defined.
+      operationId: updateWorkInstruction
+      tags:
+        - Work Instructions
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkInstructionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkInstructionUpdateRequest'
+            example:
+              title: Updated emergency evacuation procedure
+              body: Follow the revised evacuation route and report to the assembly point.
+      responses:
+        '200':
+          description: Editable Work Instruction updated and committed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkInstructionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/WorkInstructionNotFound'
+        '409':
+          $ref: '#/components/responses/WorkInstructionConflict'
+        '422':
+          $ref: '#/components/responses/WorkInstructionValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /work-instructions/{workInstruction}/submit-for-review:
+    post:
+      summary: Submit Work Instruction for Review
+      description: >-
+        Performs only the draft-to-in_review transition and requires `work_instructions.update`. No request body,
+        submission timestamp, actor, reviewer, or review comment is accepted or created. Any non-draft state
+        returns 409. The implementation transactionally revalidates authoritative state, so a valid losing
+        lifecycle race also returns 409. Success returns the complete committed in-review resource.
+      operationId: submitWorkInstructionForReview
+      tags:
+        - Work Instructions
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkInstructionId'
+      responses:
+        '200':
+          description: Draft submitted for review and committed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkInstructionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/WorkInstructionNotFound'
+        '409':
+          $ref: '#/components/responses/WorkInstructionConflict'
+        '422':
+          $ref: '#/components/responses/WorkInstructionValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /work-instructions/{workInstruction}/publish:
+    post:
+      summary: Publish Work Instruction
+      description: >-
+        Performs only the in_review-to-published transition and requires `work_instructions.publish`. No request
+        body is accepted. The server atomically freezes the committed content, changes status to published, and
+        records its timestamp and authenticated actor; archive evidence remains null. Draft, published, and
+        archived states return 409, with no direct draft-to-published shortcut. The implementation transactionally
+        revalidates authoritative state. Under publish-versus-publish concurrency, exactly one publish succeeds and
+        the losing transition returns 409. Archive cannot proceed before publication commits; an authorized later
+        archive may proceed. Success returns the complete committed published resource. No caller-supplied evidence,
+        version, ETag, unpublish, or reverse transition is defined.
+      operationId: publishWorkInstruction
+      tags:
+        - Work Instructions
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkInstructionId'
+      responses:
+        '200':
+          description: In-review Work Instruction published and committed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkInstructionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/WorkInstructionNotFound'
+        '409':
+          $ref: '#/components/responses/WorkInstructionConflict'
+        '422':
+          $ref: '#/components/responses/WorkInstructionValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /work-instructions/{workInstruction}/archive:
+    post:
+      summary: Archive Work Instruction
+      description: >-
+        Performs only the published-to-archived terminal transition and requires `work_instructions.archive`. No
+        request body is accepted. The server atomically changes status to archived and records its timestamp and
+        authenticated actor while preserving publication evidence unchanged; archive time cannot predate
+        publication. Draft, in_review, and archived states return 409. The implementation transactionally
+        revalidates authoritative state. Under archive-versus-archive concurrency, exactly one archive succeeds and
+        the losing transition returns 409. Success returns the complete committed archived resource. No hard
+        delete, restore, reopen, version, ETag, or reverse transition is defined.
+      operationId: archiveWorkInstruction
+      tags:
+        - Work Instructions
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkInstructionId'
+      responses:
+        '200':
+          description: Published Work Instruction archived and committed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkInstructionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/WorkInstructionNotFound'
+        '409':
+          $ref: '#/components/responses/WorkInstructionConflict'
+        '422':
+          $ref: '#/components/responses/WorkInstructionValidationError'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
