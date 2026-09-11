@@ -2054,10 +2054,19 @@ const transactionalCustomerEditEtagSemantics =
   transactionalCustomerEdit?.['x-etag-precondition-semantics'] ?? {}
 const strongEntityTag = schemas.StrongEntityTag ?? {}
 const strongEntityTagRef = '#/components/schemas/StrongEntityTag'
+const expectedStrongEntityTag = {
+  type: 'string',
+  description:
+    'Canonical strong HTTP entity-tag syntax: a quoted opaque tag without the weak `W/` prefix or control characters.',
+  pattern: '^"[!#-~\\u0080-\\u00FF]*"$',
+  example: '"customer-edit-8f14e45fceea167a5a36dedd4bea2543"',
+}
 if (
   customerGetEtag?.schema?.$ref !== strongEntityTagRef ||
   transactionalCustomerEditIfMatch?.schema?.$ref !== strongEntityTagRef ||
+  JSON.stringify(strongEntityTag) !== JSON.stringify(expectedStrongEntityTag) ||
   !matchesSchemaPattern(strongEntityTag, '"opaque-tag"') ||
+  matchesSchemaPattern(strongEntityTag, 'W/"accepted-weak"') ||
   ['W/"opaque-tag"', 'opaque-tag', '"unterminated', '"bad\u0001tag"'].some(
     (value) => matchesSchemaPattern(strongEntityTag, value)
   )
@@ -2107,6 +2116,95 @@ if (
 ) {
   errors.push(
     'The transactional customer edit must consume the same full-representation GET validator, return 412 when it is stale, omit a PUT-success ETag, and require a fresh GET for the next validator.'
+  )
+}
+
+const transactionalEditSemantics =
+  transactionalCustomerEdit?.['x-transactional-edit-semantics'] ?? {}
+const expectedTransactionalEditSemantics = {
+  atomicity: {
+    scope: ['customer', 'customer_establishments'],
+    commit: 'success-only',
+    non_success: 'rollback-complete-edit',
+  },
+  authorization_revalidation: {
+    before_mutation: true,
+    before_commit: true,
+    failure: {
+      status: 403,
+      response: '#/components/responses/CustomerTransactionalEditForbidden',
+      closed: true,
+    },
+  },
+  assignment_eligibility: {
+    required: {
+      active: true,
+      non_deleted: true,
+      same_tenant: true,
+      resulting_legal_entity: true,
+      caller_authorized: true,
+    },
+    indistinguishable_invalid_states: [
+      'missing',
+      'inaccessible',
+      'cross_tenant',
+      'wrong_legal_entity',
+      'inactive',
+      'deleted',
+    ],
+    failure: {
+      status: 422,
+      response:
+        '#/components/responses/CustomerTransactionalEditValidationError',
+      field: 'customer_establishments.<index>.establishment_id',
+      message: 'The selected establishment is invalid.',
+      distinguish_states: false,
+      disclosure: 'none',
+    },
+  },
+  dependency_conflicts: {
+    remove_link_used_by_site: 'rejected',
+    change_legal_entity_while_site_blocks_reassignment: 'rejected',
+    failure: {
+      status: 409,
+      response: '#/components/responses/CustomerTransactionalEditConflict',
+      dependent_resource_disclosure: false,
+    },
+  },
+  contract_runtime_boundary: {
+    contract_proof:
+      'normative contract cannot weaken while maintained validation passes',
+    runtime_proof_owner: 'SecPal/api#1332',
+    runtime_obligations: [
+      'transaction rollback',
+      'authorization revalidation',
+      'assignment eligibility',
+      'dependency conflicts',
+    ],
+  },
+  authority_classification: {
+    machine_readable_material_groups: [
+      'atomicity',
+      'authorization_revalidation',
+      'assignment_eligibility',
+      'dependency_conflicts',
+    ],
+    prose_only_material_invariants: 0,
+    guard_false_confidence: 0,
+  },
+}
+if (
+  JSON.stringify(transactionalEditSemantics) !==
+    JSON.stringify(expectedTransactionalEditSemantics) ||
+  transactionalEditSemantics.authorization_revalidation?.failure?.response !==
+    transactionalCustomerEdit?.responses?.['403']?.$ref ||
+  transactionalEditSemantics.assignment_eligibility?.failure?.response !==
+    transactionalCustomerEdit?.responses?.['422']?.$ref ||
+  transactionalEditSemantics.dependency_conflicts?.failure?.response !==
+    transactionalCustomerEdit?.responses?.['409']?.$ref
+) {
+  errors.push(
+    'Transactional customer edit machine-readable transactional semantics must exactly preserve atomic success-only commit and rollback, authorization revalidation with closed 403, neutral assignment eligibility with dedicated field-level 422, Site dependency conflicts with dedicated 409, the contract/runtime boundary, PROSE_ONLY_MATERIAL_INVARIANTS=0, and guard false-confidence=0.'
   )
 }
 

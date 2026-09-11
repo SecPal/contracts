@@ -381,6 +381,13 @@ test('defines one transactional customer edit aggregate contract', () => {
   assert.deepEqual(ifMatchSchema, {
     $ref: '#/components/schemas/StrongEntityTag',
   })
+  assert.deepEqual(strongEntityTag, {
+    type: 'string',
+    description:
+      'Canonical strong HTTP entity-tag syntax: a quoted opaque tag without the weak `W/` prefix or control characters.',
+    pattern: '^"[!#-~\\u0080-\\u00FF]*"$',
+    example: '"customer-edit-8f14e45fceea167a5a36dedd4bea2543"',
+  })
   assert.equal(matchesSchemaPattern(strongEntityTag, '"opaque-tag"'), true)
   for (const invalid of [
     'W/"opaque-tag"',
@@ -391,6 +398,78 @@ test('defines one transactional customer edit aggregate contract', () => {
     assert.equal(matchesSchemaPattern(strongEntityTag, invalid), false)
   }
   assert.equal(operation.responses['200'].headers?.ETag, undefined)
+  assert.deepEqual(operation['x-transactional-edit-semantics'], {
+    atomicity: {
+      scope: ['customer', 'customer_establishments'],
+      commit: 'success-only',
+      non_success: 'rollback-complete-edit',
+    },
+    authorization_revalidation: {
+      before_mutation: true,
+      before_commit: true,
+      failure: {
+        status: 403,
+        response: '#/components/responses/CustomerTransactionalEditForbidden',
+        closed: true,
+      },
+    },
+    assignment_eligibility: {
+      required: {
+        active: true,
+        non_deleted: true,
+        same_tenant: true,
+        resulting_legal_entity: true,
+        caller_authorized: true,
+      },
+      indistinguishable_invalid_states: [
+        'missing',
+        'inaccessible',
+        'cross_tenant',
+        'wrong_legal_entity',
+        'inactive',
+        'deleted',
+      ],
+      failure: {
+        status: 422,
+        response:
+          '#/components/responses/CustomerTransactionalEditValidationError',
+        field: 'customer_establishments.<index>.establishment_id',
+        message: 'The selected establishment is invalid.',
+        distinguish_states: false,
+        disclosure: 'none',
+      },
+    },
+    dependency_conflicts: {
+      remove_link_used_by_site: 'rejected',
+      change_legal_entity_while_site_blocks_reassignment: 'rejected',
+      failure: {
+        status: 409,
+        response: '#/components/responses/CustomerTransactionalEditConflict',
+        dependent_resource_disclosure: false,
+      },
+    },
+    contract_runtime_boundary: {
+      contract_proof:
+        'normative contract cannot weaken while maintained validation passes',
+      runtime_proof_owner: 'SecPal/api#1332',
+      runtime_obligations: [
+        'transaction rollback',
+        'authorization revalidation',
+        'assignment eligibility',
+        'dependency conflicts',
+      ],
+    },
+    authority_classification: {
+      machine_readable_material_groups: [
+        'atomicity',
+        'authorization_revalidation',
+        'assignment_eligibility',
+        'dependency_conflicts',
+      ],
+      prose_only_material_invariants: 0,
+      guard_false_confidence: 0,
+    },
+  })
   const putAuthorization = operation['x-authorization-examples']
   assert.equal(
     putAuthorization.accepted[0].complete_assignment_visibility,
@@ -665,10 +744,49 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
       },
     },
     {
-      name: 'ETag rejects weak entity-tag acceptance',
+      name: 'ETag rejects unrestricted behavior',
       expected: /canonical strong entity-tag schema/,
       mutate(candidate) {
         candidate.components.schemas.StrongEntityTag.pattern = '^.*$'
+      },
+    },
+    {
+      name: 'ETag rejects targeted accepted-weak widening',
+      expected: /canonical strong entity-tag schema/,
+      mutate(candidate) {
+        candidate.components.schemas.StrongEntityTag.pattern =
+          '^(?:"[!#-~\\u0080-\\u00FF]*"|W/"accepted-weak")$'
+      },
+    },
+    {
+      name: 'ETag rejects generic weak entity-tag acceptance',
+      expected: /canonical strong entity-tag schema/,
+      mutate(candidate) {
+        candidate.components.schemas.StrongEntityTag.pattern =
+          '^(?:W/)?"[!#-~\\u0080-\\u00FF]*"$'
+      },
+    },
+    {
+      name: 'ETag rejects unquoted acceptance',
+      expected: /canonical strong entity-tag schema/,
+      mutate(candidate) {
+        candidate.components.schemas.StrongEntityTag.pattern =
+          '^(?:"[!#-~\\u0080-\\u00FF]*"|unquoted)$'
+      },
+    },
+    {
+      name: 'ETag rejects unterminated acceptance',
+      expected: /canonical strong entity-tag schema/,
+      mutate(candidate) {
+        candidate.components.schemas.StrongEntityTag.pattern =
+          '^(?:"[!#-~\\u0080-\\u00FF]*"|"unterminated)$'
+      },
+    },
+    {
+      name: 'ETag rejects control-character acceptance',
+      expected: /canonical strong entity-tag schema/,
+      mutate(candidate) {
+        candidate.components.schemas.StrongEntityTag.pattern = '^"[\\s\\S]*"$'
       },
     },
     {
@@ -684,6 +802,217 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
         }
       },
     },
+    ...[
+      {
+        name: 'atomic partial commit',
+        mutate(semantics) {
+          semantics.atomicity.commit = 'partial'
+        },
+      },
+      {
+        name: 'atomic unspecified commit',
+        mutate(semantics) {
+          delete semantics.atomicity.commit
+        },
+      },
+      {
+        name: 'atomic 4xx commit',
+        mutate(semantics) {
+          semantics.atomicity.commit = '4xx-commits'
+        },
+      },
+      {
+        name: 'atomic 5xx commit',
+        mutate(semantics) {
+          semantics.atomicity.commit = '5xx-commits'
+        },
+      },
+      {
+        name: 'atomic scope excludes relationships',
+        mutate(semantics) {
+          semantics.atomicity.scope = ['customer']
+        },
+      },
+      {
+        name: 'authorization before-mutation revalidation false',
+        mutate(semantics) {
+          semantics.authorization_revalidation.before_mutation = false
+        },
+      },
+      {
+        name: 'authorization before-commit revalidation false',
+        mutate(semantics) {
+          semantics.authorization_revalidation.before_commit = false
+        },
+      },
+      {
+        name: 'authorization revalidation removed',
+        mutate(semantics) {
+          delete semantics.authorization_revalidation
+        },
+      },
+      {
+        name: 'authorization failure ceases to be 403',
+        mutate(semantics) {
+          semantics.authorization_revalidation.failure.status = 401
+        },
+      },
+      {
+        name: 'authorization failure ceases to be closed',
+        mutate(semantics) {
+          semantics.authorization_revalidation.failure.closed = false
+        },
+      },
+      {
+        name: 'authorization failure loses dedicated response',
+        mutate(semantics) {
+          semantics.authorization_revalidation.failure.response =
+            '#/components/responses/Forbidden'
+        },
+      },
+      ...[
+        'active',
+        'non_deleted',
+        'same_tenant',
+        'resulting_legal_entity',
+        'caller_authorized',
+      ].flatMap((constraint) => [
+        {
+          name: `eligibility ${constraint} false`,
+          mutate(semantics) {
+            semantics.assignment_eligibility.required[constraint] = false
+          },
+        },
+        {
+          name: `eligibility ${constraint} absent`,
+          mutate(semantics) {
+            delete semantics.assignment_eligibility.required[constraint]
+          },
+        },
+      ]),
+      ...[
+        'missing',
+        'inaccessible',
+        'cross_tenant',
+        'wrong_legal_entity',
+        'inactive',
+        'deleted',
+      ].map((state) => ({
+        name: `eligibility invalid state ${state} removed`,
+        mutate(semantics) {
+          semantics.assignment_eligibility.indistinguishable_invalid_states =
+            semantics.assignment_eligibility.indistinguishable_invalid_states.filter(
+              (candidate) => candidate !== state
+            )
+        },
+      })),
+      {
+        name: 'eligibility invalid state accepted',
+        mutate(semantics) {
+          semantics.assignment_eligibility.accepted_states = ['inactive']
+        },
+      },
+      {
+        name: 'eligibility invalid states distinguished',
+        mutate(semantics) {
+          semantics.assignment_eligibility.failure.distinguish_states = true
+        },
+      },
+      {
+        name: 'eligibility failure permits disclosure',
+        mutate(semantics) {
+          semantics.assignment_eligibility.failure.disclosure =
+            'tenant and resource existence'
+        },
+      },
+      {
+        name: 'eligibility failure moved from establishment field',
+        mutate(semantics) {
+          semantics.assignment_eligibility.failure.field =
+            'customer_establishments.<index>.customer_id'
+        },
+      },
+      {
+        name: 'eligibility failure ceases to be neutral 422',
+        mutate(semantics) {
+          semantics.assignment_eligibility.failure.status = 409
+        },
+      },
+      {
+        name: 'eligibility failure loses dedicated response',
+        mutate(semantics) {
+          semantics.assignment_eligibility.failure.response =
+            '#/components/responses/ValidationError'
+        },
+      },
+      {
+        name: 'Site-linked removal becomes allowed',
+        mutate(semantics) {
+          semantics.dependency_conflicts.remove_link_used_by_site = 'allowed'
+        },
+      },
+      {
+        name: 'Site-linked removal becomes deletable',
+        mutate(semantics) {
+          semantics.dependency_conflicts.remove_link_used_by_site =
+            'delete dependent Site'
+        },
+      },
+      {
+        name: 'Legal Entity reassignment conflict becomes allowed',
+        mutate(semantics) {
+          semantics.dependency_conflicts.change_legal_entity_while_site_blocks_reassignment =
+            'allowed'
+        },
+      },
+      {
+        name: 'dependency conflict ceases to be 409',
+        mutate(semantics) {
+          semantics.dependency_conflicts.failure.status = 422
+        },
+      },
+      {
+        name: 'dependency conflict loses dedicated response',
+        mutate(semantics) {
+          semantics.dependency_conflicts.failure.response =
+            '#/components/responses/Conflict'
+        },
+      },
+      {
+        name: 'dependency conflict permits resource disclosure',
+        mutate(semantics) {
+          semantics.dependency_conflicts.failure.dependent_resource_disclosure = true
+        },
+      },
+      {
+        name: 'contract-runtime boundary removed',
+        mutate(semantics) {
+          delete semantics.contract_runtime_boundary
+        },
+      },
+      {
+        name: 'material invariant becomes prose-only',
+        mutate(semantics) {
+          semantics.authority_classification.prose_only_material_invariants = 1
+        },
+      },
+      {
+        name: 'guard false-confidence becomes nonzero',
+        mutate(semantics) {
+          semantics.authority_classification.guard_false_confidence = 1
+        },
+      },
+    ].map((mutation) => ({
+      name: `machine semantics reject ${mutation.name}`,
+      expected: /machine-readable transactional semantics/,
+      mutate(candidate) {
+        mutation.mutate(
+          candidate.paths['/customers/{customer}/transactional-edit'].put[
+            'x-transactional-edit-semantics'
+          ]
+        )
+      },
+    })),
     {
       name: 'F1 deterministic denial rejects generic Forbidden',
       expected: /fixed authorization denial payload/,
