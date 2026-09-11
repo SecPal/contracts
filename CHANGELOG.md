@@ -60,6 +60,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Defined the authoritative Work Instruction content-library API for
+  `SecPal/api#1438`, covering tenant Templates, immutable system Standard Blocks,
+  and deterministic `de`/`en` localization and fallback; this does not claim the
+  API implementation has shipped.
 - Defined the Work Instruction lifecycle OpenAPI contract for
   `SecPal/api#1437`; the API implementation has not shipped yet.
 - Defined one tenant-scoped transactional customer-edit operation that applies
