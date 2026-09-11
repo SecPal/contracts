@@ -29,6 +29,45 @@ const resolveParameter = (parameter) => {
   return componentParameters[parameter.$ref.slice(parameterRefPrefix.length)]
 }
 
+function satisfiesUniqueBy(schema, value) {
+  const uniqueBy = schema?.['x-unique-by']
+  if (
+    !Array.isArray(value) ||
+    !Array.isArray(uniqueBy) ||
+    uniqueBy.length === 0
+  ) {
+    return false
+  }
+
+  const seen = new Set()
+  for (const item of value) {
+    if (
+      typeof item !== 'object' ||
+      item === null ||
+      Array.isArray(item) ||
+      uniqueBy.some((field) => !Object.hasOwn(item, field))
+    ) {
+      return false
+    }
+    const key = JSON.stringify(uniqueBy.map((field) => item[field]))
+    if (seen.has(key)) return false
+    seen.add(key)
+  }
+  return true
+}
+
+function matchesSchemaPattern(schema, value) {
+  try {
+    return (
+      schema?.type === 'string' &&
+      typeof value === 'string' &&
+      new RegExp(schema.pattern, 'u').test(value)
+    )
+  } catch {
+    return false
+  }
+}
+
 function collectMatchingObjects(value, predicate, matches = []) {
   if (value === null || typeof value !== 'object') {
     return matches
@@ -1874,25 +1913,71 @@ const transactionalCollectionUniqueness =
   transactionalCustomerEditAssignments?.['x-uniqueness-examples'] ?? {}
 const acceptedTransactionalCollection =
   transactionalCollectionUniqueness.accepted?.[0]?.value ?? []
-const rejectedTransactionalCollection =
-  transactionalCollectionUniqueness.rejected?.[0] ?? {}
+const rejectedTransactionalCollections =
+  transactionalCollectionUniqueness.rejected ?? []
+const transactionalUniqueByValidation =
+  transactionalCustomerEditAssignments?.['x-unique-by-validation'] ?? {}
+const expectedTransactionalUniquenessViolation = {
+  status: 422,
+  field: 'customer_establishments',
+  message: 'Each establishment may be assigned at most once.',
+}
+const transactionalUniquenessCategories = [
+  'exact-duplicate',
+  'different-contact-name',
+  'different-phone',
+  'different-email',
+  'different-comments',
+]
 if (
+  transactionalCustomerEditAssignments?.uniqueItems !== true ||
   JSON.stringify(transactionalCustomerEditAssignments?.['x-unique-by']) !==
     JSON.stringify(['establishment_id']) ||
-  acceptedTransactionalCollection.length !== 2 ||
-  acceptedTransactionalCollection[0]?.establishment_id ===
-    acceptedTransactionalCollection[1]?.establishment_id ||
+  JSON.stringify(transactionalUniqueByValidation) !==
+    JSON.stringify({
+      validator: 'secpal-keyed-uniqueness',
+      authority: 'SecPal semantic validation and server enforcement',
+      json_schema_scope: 'uniqueItems compares complete array items only',
+      violation: expectedTransactionalUniquenessViolation,
+    }) ||
+  !satisfiesUniqueBy(
+    transactionalCustomerEditAssignments,
+    acceptedTransactionalCollection
+  ) ||
   acceptedTransactionalCollection[0]?.email !==
     acceptedTransactionalCollection[1]?.email ||
-  rejectedTransactionalCollection.value?.length !== 2 ||
-  rejectedTransactionalCollection.value[0]?.establishment_id !==
-    rejectedTransactionalCollection.value[1]?.establishment_id ||
-  rejectedTransactionalCollection.value[0]?.email ===
-    rejectedTransactionalCollection.value[1]?.email ||
-  rejectedTransactionalCollection.status !== 422
+  JSON.stringify(
+    rejectedTransactionalCollections.map((example) => example.category)
+  ) !== JSON.stringify(transactionalUniquenessCategories) ||
+  rejectedTransactionalCollections.some(
+    (example) =>
+      satisfiesUniqueBy(transactionalCustomerEditAssignments, example?.value) ||
+      JSON.stringify({
+        status: example?.status,
+        field: example?.field,
+        message: example?.message,
+      }) !== JSON.stringify(expectedTransactionalUniquenessViolation)
+  ) ||
+  JSON.stringify(rejectedTransactionalCollections[0]?.value?.[0]) !==
+    JSON.stringify(rejectedTransactionalCollections[0]?.value?.[1]) ||
+  [
+    ['different-contact-name', 'contact_name'],
+    ['different-phone', 'phone'],
+    ['different-email', 'email'],
+    ['different-comments', 'comments'],
+  ].some(([category, field]) => {
+    const value = rejectedTransactionalCollections.find(
+      (example) => example.category === category
+    )?.value
+    return (
+      value?.length !== 2 ||
+      value[0]?.establishment_id !== value[1]?.establishment_id ||
+      value[0]?.[field] === value[1]?.[field]
+    )
+  })
 ) {
   errors.push(
-    'Transactional customer edit establishment-key uniqueness must remain machine-readable and prove distinct accepted keys plus a rejected duplicate with different local contact data.'
+    'Transactional customer edit establishment-key uniqueness must retain uniqueItems, authenticate x-unique-by, execute SecPal keyed validation over payloads, and return the deterministic 422 for exact and differing-contact duplicates.'
   )
 }
 
@@ -1967,10 +2052,23 @@ const strongCustomerGetEtagSemantics =
   customerGet?.['x-strong-etag-semantics'] ?? {}
 const transactionalCustomerEditEtagSemantics =
   transactionalCustomerEdit?.['x-etag-precondition-semantics'] ?? {}
+const strongEntityTag = schemas.StrongEntityTag ?? {}
+const strongEntityTagRef = '#/components/schemas/StrongEntityTag'
+if (
+  customerGetEtag?.schema?.$ref !== strongEntityTagRef ||
+  transactionalCustomerEditIfMatch?.schema?.$ref !== strongEntityTagRef ||
+  !matchesSchemaPattern(strongEntityTag, '"opaque-tag"') ||
+  ['W/"opaque-tag"', 'opaque-tag', '"unterminated', '"bad\u0001tag"'].some(
+    (value) => matchesSchemaPattern(strongEntityTag, value)
+  )
+) {
+  errors.push(
+    'Customer GET ETag and transactional PUT If-Match must share the canonical strong entity-tag schema and reject weak, unquoted, unterminated, and control-character values.'
+  )
+}
 if (
   transactionalCustomerEditIfMatch?.in !== 'header' ||
   transactionalCustomerEditIfMatch.required !== true ||
-  transactionalCustomerEditIfMatch.schema?.type !== 'string' ||
   !customerGetEtag ||
   !/strong entity tag/i.test(customerGetEtag.description ?? '') ||
   transactionalCustomerEdit?.requestBody?.content?.['application/json']?.schema
@@ -2358,6 +2456,10 @@ if (
     '#/components/schemas/CustomerTransactionalEditNotFoundError' ||
   JSON.stringify(transactionalNotFoundMedia.example) !==
     JSON.stringify(fixedTransactionalNotFound) ||
+  JSON.stringify(transactionalNotFoundSchema.properties?.message?.enum) !==
+    JSON.stringify(['Resource not found']) ||
+  JSON.stringify(transactionalNotFoundSchema.properties?.code?.enum) !==
+    JSON.stringify(['NOT_FOUND']) ||
   !acceptsFixedClosedError(
     transactionalNotFoundSchema,
     transactionalNotFoundExamples.accepted?.[0]?.value

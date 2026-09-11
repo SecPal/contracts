@@ -7362,6 +7362,14 @@ components:
             resulting:
               legal_entity_id: '770e8400-e29b-41d4-a716-446655440002'
 
+    StrongEntityTag:
+      type: string
+      description: >-
+        Canonical strong HTTP entity-tag syntax: a quoted opaque tag without
+        the weak `W/` prefix or control characters.
+      pattern: '^"[!#-~\u0080-\u00FF]*"$'
+      example: '"customer-edit-8f14e45fceea167a5a36dedd4bea2543"'
+
     CustomerTransactionalEditRequest:
       type: object
       additionalProperties: false
@@ -7382,6 +7390,14 @@ components:
           uniqueItems: true
           x-unique-by:
             - establishment_id
+          x-unique-by-validation:
+            validator: secpal-keyed-uniqueness
+            authority: SecPal semantic validation and server enforcement
+            json_schema_scope: uniqueItems compares complete array items only
+            violation:
+              status: 422
+              field: customer_establishments
+              message: Each establishment may be assigned at most once.
           items:
             $ref: '#/components/schemas/CustomerTransactionalEditEstablishmentRequest'
           x-uniqueness-examples:
@@ -7395,8 +7411,45 @@ components:
                     establishment_id: '780e8400-e29b-41d4-a716-446655440001'
                     email: 'shared.contact@secpal.dev'
             rejected:
-              - name: Duplicate establishment with different local contact data
+              - name: Exact duplicate establishment assignment
+                category: exact-duplicate
                 status: 422
+                field: customer_establishments
+                message: Each establishment may be assigned at most once.
+                value:
+                  - customer_id: '550e8400-e29b-41d4-a716-446655440000'
+                    establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+                  - customer_id: '550e8400-e29b-41d4-a716-446655440000'
+                    establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+              - name: Duplicate establishment with different contact name
+                category: different-contact-name
+                status: 422
+                field: customer_establishments
+                message: Each establishment may be assigned at most once.
+                value:
+                  - customer_id: '550e8400-e29b-41d4-a716-446655440000'
+                    establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+                    contact_name: First Contact
+                  - customer_id: '550e8400-e29b-41d4-a716-446655440000'
+                    establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+                    contact_name: Replacement Contact
+              - name: Duplicate establishment with different phone
+                category: different-phone
+                status: 422
+                field: customer_establishments
+                message: Each establishment may be assigned at most once.
+                value:
+                  - customer_id: '550e8400-e29b-41d4-a716-446655440000'
+                    establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+                    phone: '+49 30 111111'
+                  - customer_id: '550e8400-e29b-41d4-a716-446655440000'
+                    establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+                    phone: '+49 30 222222'
+              - name: Duplicate establishment with different email
+                category: different-email
+                status: 422
+                field: customer_establishments
+                message: Each establishment may be assigned at most once.
                 value:
                   - customer_id: '550e8400-e29b-41d4-a716-446655440000'
                     establishment_id: '780e8400-e29b-41d4-a716-446655440000'
@@ -7404,6 +7457,18 @@ components:
                   - customer_id: '550e8400-e29b-41d4-a716-446655440000'
                     establishment_id: '780e8400-e29b-41d4-a716-446655440000'
                     email: 'replacement.contact@secpal.dev'
+              - name: Duplicate establishment with different comments
+                category: different-comments
+                status: 422
+                field: customer_establishments
+                message: Each establishment may be assigned at most once.
+                value:
+                  - customer_id: '550e8400-e29b-41d4-a716-446655440000'
+                    establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+                    comments: First comment
+                  - customer_id: '550e8400-e29b-41d4-a716-446655440000'
+                    establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+                    comments: Replacement comment
       x-validation-examples:
         rejected:
           - name: Nested customer differs from the path customer
@@ -14647,7 +14712,7 @@ paths:
             ETag:
               description: Strong entity tag for the entire actual `200` response representation emitted to this caller. Every observable change to any emitted member invalidates it. Emitted only when `customers.read` without organizational scopes guarantees complete assignment visibility; callers must return it in `If-Match` when submitting the transactional edit operation.
               schema:
-                type: string
+                $ref: '#/components/schemas/StrongEntityTag'
               example: '"customer-edit-8f14e45fceea167a5a36dedd4bea2543"'
           content:
             application/json:
@@ -14853,9 +14918,7 @@ paths:
           required: true
           description: Exact strong `ETag` returned by `GET /customers/{customer}` for the entire actual GET `200` representation emitted to the eligible caller. Any observable change to any emitted member makes it stale and produces the neutral `412` response.
           schema:
-            type: string
-            minLength: 3
-            maxLength: 128
+            $ref: '#/components/schemas/StrongEntityTag'
           example: '"customer-edit-8f14e45fceea167a5a36dedd4bea2543"'
       requestBody:
         required: true

@@ -54,6 +54,41 @@ function acceptsFixedClosedError(schema, value) {
   )
 }
 
+function satisfiesUniqueBy(schema, value) {
+  const uniqueBy = schema?.['x-unique-by']
+  if (
+    !Array.isArray(value) ||
+    !Array.isArray(uniqueBy) ||
+    uniqueBy.length === 0
+  ) {
+    return false
+  }
+
+  const seen = new Set()
+  for (const item of value) {
+    if (
+      typeof item !== 'object' ||
+      item === null ||
+      Array.isArray(item) ||
+      uniqueBy.some((field) => !Object.hasOwn(item, field))
+    ) {
+      return false
+    }
+    const key = JSON.stringify(uniqueBy.map((field) => item[field]))
+    if (seen.has(key)) return false
+    seen.add(key)
+  }
+  return true
+}
+
+function matchesSchemaPattern(schema, value) {
+  return (
+    schema?.type === 'string' &&
+    typeof value === 'string' &&
+    new RegExp(schema.pattern, 'u').test(value)
+  )
+}
+
 const transactionalValidationErrorRules = [
   [
     /^customer\.(legal_entity_id|vat_id|name|billing_address(?:\.(?:street|city|postal_code|country|latitude|longitude))?|is_active)$/,
@@ -209,6 +244,19 @@ test('defines one transactional customer edit aggregate contract', () => {
     ],
     ['establishment_id']
   )
+  const assignmentCollection =
+    schemas.CustomerTransactionalEditRequest.properties.customer_establishments
+  assert.equal(assignmentCollection.uniqueItems, true)
+  assert.deepEqual(assignmentCollection['x-unique-by-validation'], {
+    validator: 'secpal-keyed-uniqueness',
+    authority: 'SecPal semantic validation and server enforcement',
+    json_schema_scope: 'uniqueItems compares complete array items only',
+    violation: {
+      status: 422,
+      field: 'customer_establishments',
+      message: 'Each establishment may be assigned at most once.',
+    },
+  })
   const collectionUniqueness =
     schemas.CustomerTransactionalEditRequest.properties.customer_establishments[
       'x-uniqueness-examples'
@@ -222,14 +270,31 @@ test('defines one transactional customer edit aggregate contract', () => {
     collectionUniqueness.accepted[0].value[1].email
   )
   assert.equal(
-    collectionUniqueness.rejected[0].value[0].establishment_id,
-    collectionUniqueness.rejected[0].value[1].establishment_id
+    satisfiesUniqueBy(
+      assignmentCollection,
+      collectionUniqueness.accepted[0].value
+    ),
+    true
   )
-  assert.notEqual(
-    collectionUniqueness.rejected[0].value[0].email,
-    collectionUniqueness.rejected[0].value[1].email
+  assert.deepEqual(
+    collectionUniqueness.rejected.map((example) => example.category),
+    [
+      'exact-duplicate',
+      'different-contact-name',
+      'different-phone',
+      'different-email',
+      'different-comments',
+    ]
   )
-  assert.equal(collectionUniqueness.rejected[0].status, 422)
+  for (const example of collectionUniqueness.rejected) {
+    assert.equal(satisfiesUniqueBy(assignmentCollection, example.value), false)
+    assert.equal(example.status, 422)
+    assert.equal(example.field, 'customer_establishments')
+    assert.equal(
+      example.message,
+      'Each establishment may be assigned at most once.'
+    )
+  }
   assert.deepEqual(
     schemas.CustomerTransactionalEditResult.allOf.map((schema) => schema.$ref),
     [
@@ -305,6 +370,26 @@ test('defines one transactional customer edit aggregate contract', () => {
     success_etag: 'absent',
     next_validator: 'refetch GET /customers/{customer} and use its fresh ETag',
   })
+  const strongEntityTag = schemas.StrongEntityTag
+  const getEtagSchema = customerGet.responses['200'].headers.ETag.schema
+  const ifMatchSchema = operation.parameters.find(
+    (parameter) => parameter.name === 'If-Match'
+  ).schema
+  assert.deepEqual(getEtagSchema, {
+    $ref: '#/components/schemas/StrongEntityTag',
+  })
+  assert.deepEqual(ifMatchSchema, {
+    $ref: '#/components/schemas/StrongEntityTag',
+  })
+  assert.equal(matchesSchemaPattern(strongEntityTag, '"opaque-tag"'), true)
+  for (const invalid of [
+    'W/"opaque-tag"',
+    'opaque-tag',
+    '"unterminated',
+    '"bad\u0001tag"',
+  ]) {
+    assert.equal(matchesSchemaPattern(strongEntityTag, invalid), false)
+  }
   assert.equal(operation.responses['200'].headers?.ETag, undefined)
   const putAuthorization = operation['x-authorization-examples']
   assert.equal(
@@ -440,6 +525,10 @@ test('defines one transactional customer edit aggregate contract', () => {
     message: 'Resource not found',
     code: 'NOT_FOUND',
   })
+  assert.deepEqual(notFoundSchema.properties.message.enum, [
+    'Resource not found',
+  ])
+  assert.deepEqual(notFoundSchema.properties.code.enum, ['NOT_FOUND'])
   const notFoundExamples = notFoundSchema['x-validation-examples']
   assert.deepEqual(
     notFoundExamples.accepted[0].value,
@@ -554,6 +643,48 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
       },
     },
     {
+      name: 'ETag rejects an unrestricted GET header string',
+      expected: /canonical strong entity-tag schema/,
+      mutate(candidate) {
+        candidate.paths['/customers/{customer}'].get.responses[
+          '200'
+        ].headers.ETag.schema = { type: 'string' }
+      },
+    },
+    {
+      name: 'ETag rejects an unrestricted PUT If-Match string',
+      expected: /canonical strong entity-tag schema/,
+      mutate(candidate) {
+        candidate.paths[
+          '/customers/{customer}/transactional-edit'
+        ].put.parameters.find(
+          (parameter) => parameter.name === 'If-Match'
+        ).schema = {
+          type: 'string',
+        }
+      },
+    },
+    {
+      name: 'ETag rejects weak entity-tag acceptance',
+      expected: /canonical strong entity-tag schema/,
+      mutate(candidate) {
+        candidate.components.schemas.StrongEntityTag.pattern = '^.*$'
+      },
+    },
+    {
+      name: 'ETag rejects divergent GET and PUT schema authorities',
+      expected: /canonical strong entity-tag schema/,
+      mutate(candidate) {
+        candidate.paths[
+          '/customers/{customer}/transactional-edit'
+        ].put.parameters.find(
+          (parameter) => parameter.name === 'If-Match'
+        ).schema = {
+          $ref: '#/components/schemas/StringFilter',
+        }
+      },
+    },
+    {
       name: 'F1 deterministic denial rejects generic Forbidden',
       expected: /fixed authorization denial payload/,
       mutate(candidate) {
@@ -606,11 +737,42 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
       },
     },
     {
-      name: 'F2 establishment-key uniqueness',
+      name: 'F2 rejects removed establishment-key uniqueness',
       expected: /establishment-key uniqueness/,
       mutate(candidate) {
         delete candidate.components.schemas.CustomerTransactionalEditRequest
           .properties.customer_establishments['x-unique-by']
+      },
+    },
+    {
+      name: 'F2 rejects changed establishment-key uniqueness',
+      expected: /establishment-key uniqueness/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditRequest.properties.customer_establishments[
+          'x-unique-by'
+        ] = ['customer_id']
+      },
+    },
+    {
+      name: 'F2 rejects bypassed SecPal semantic validation',
+      expected: /establishment-key uniqueness/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditRequest.properties.customer_establishments[
+          'x-unique-by-validation'
+        ].validator = 'json-schema-uniqueItems-only'
+      },
+    },
+    {
+      name: 'F2 rejects differing-contact duplicate acceptance',
+      expected: /establishment-key uniqueness/,
+      mutate(candidate) {
+        const rejected =
+          candidate.components.schemas.CustomerTransactionalEditRequest
+            .properties.customer_establishments['x-uniqueness-examples']
+            .rejected
+        rejected.find(
+          (example) => example.category === 'different-email'
+        ).value[1].establishment_id = '780e8400-e29b-41d4-a716-446655440099'
       },
     },
     {
@@ -813,6 +975,24 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
       mutate(candidate) {
         candidate.components.schemas.CustomerTransactionalEditNotFoundError.properties.code.enum =
           ['CUSTOMER_NOT_FOUND']
+      },
+    },
+    {
+      name: 'B rejects appended transactional 404 message enum',
+      expected: /dedicated response\/schema references/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditNotFoundError.properties.message.enum.push(
+          'Customer not found'
+        )
+      },
+    },
+    {
+      name: 'B rejects appended transactional 404 code enum',
+      expected: /dedicated response\/schema references/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditNotFoundError.properties.code.enum.push(
+          'CUSTOMER_NOT_FOUND'
+        )
       },
     },
     ...[
