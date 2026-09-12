@@ -1796,6 +1796,20 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
         candidate.components.schemas.CustomerTransactionalEditRequest.additionalProperties = true
       },
     },
+    {
+      name: 'extra-property 422 preserves closed customer update request schema',
+      expected: /CustomerUpdateRequest must remain closed/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerUpdateRequest.additionalProperties = true
+      },
+    },
+    {
+      name: 'extra-property 422 preserves closed assignment create request schema',
+      expected: /CustomerEstablishmentCreateRequest must remain closed/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerEstablishmentCreateRequest.additionalProperties = true
+      },
+    },
     ...[
       'extra-property-request',
       'extra-property-customer',

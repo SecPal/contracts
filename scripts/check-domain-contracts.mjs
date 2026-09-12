@@ -1820,6 +1820,7 @@ const transactionalCustomerEditRequest =
   schemas.CustomerTransactionalEditRequest ?? {}
 const transactionalCustomerEditAssignments =
   transactionalCustomerEditRequest.properties?.customer_establishments
+const transactionalCustomerUpdateRequest = schemas.CustomerUpdateRequest ?? {}
 if (
   transactionalCustomerEditRequest.type !== 'object' ||
   transactionalCustomerEditRequest.additionalProperties !== false ||
@@ -1840,8 +1841,27 @@ if (
   )
 }
 
+if (
+  transactionalCustomerUpdateRequest.type !== 'object' ||
+  transactionalCustomerUpdateRequest.additionalProperties !== false
+) {
+  errors.push(
+    'CustomerUpdateRequest must remain closed because it is the transactional customer payload schema.'
+  )
+}
+
 const transactionalEstablishmentRequest =
   schemas.CustomerTransactionalEditEstablishmentRequest ?? {}
+const transactionalEstablishmentCreateRequest =
+  schemas.CustomerEstablishmentCreateRequest ?? {}
+if (
+  transactionalEstablishmentCreateRequest.type !== 'object' ||
+  transactionalEstablishmentCreateRequest.additionalProperties !== false
+) {
+  errors.push(
+    'CustomerEstablishmentCreateRequest must remain closed because it is the transactional assignment item schema.'
+  )
+}
 const transactionalContactSemantics =
   transactionalEstablishmentRequest['x-contact-field-semantics'] ?? {}
 const transactionalContactExamples =
