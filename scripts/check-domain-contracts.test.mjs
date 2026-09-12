@@ -90,14 +90,17 @@ function matchesSchemaPattern(schema, value) {
 }
 
 const transactionalValidationErrorRules = [
+  [/^customer$/, 'The customer payload is invalid.'],
   [
     /^customer\.(legal_entity_id|vat_id|name|billing_address(?:\.(?:street|city|postal_code|country|latitude|longitude))?|is_active)$/,
     'The customer field is invalid.',
   ],
+  [/^customer_establishments$/, 'The assignment collection is invalid.'],
   [
     /^customer_establishments$/,
     'Each establishment may be assigned at most once.',
   ],
+  [/^customer_establishments\.[0-9]+$/, 'The assignment item is invalid.'],
   [
     /^customer_establishments\.[0-9]+\.establishment_id$/,
     'The selected establishment is invalid.',
@@ -129,14 +132,12 @@ function acceptsTransactionalValidationProblem(value) {
   }
 
   return Object.entries(value.errors).every(([field, messages]) => {
-    const rule = transactionalValidationErrorRules.find(([pattern]) =>
-      pattern.test(field)
-    )
     return (
-      rule !== undefined &&
       Array.isArray(messages) &&
       messages.length === 1 &&
-      messages[0] === rule[1]
+      transactionalValidationErrorRules.some(
+        ([pattern, message]) => pattern.test(field) && messages[0] === message
+      )
     )
   })
 }
@@ -399,6 +400,38 @@ test('defines one transactional customer edit aggregate contract', () => {
   }
   assert.equal(operation.responses['200'].headers?.ETag, undefined)
   assert.deepEqual(operation['x-transactional-edit-semantics'], {
+    request_validation: {
+      malformed_or_protocol: {
+        causes: [
+          'malformed_or_unparseable_json',
+          'request_syntax_or_protocol_failure',
+        ],
+        status: 400,
+        response: '#/components/responses/BadRequest',
+      },
+      parsed_structural_or_domain: {
+        status: 422,
+        response:
+          '#/components/responses/CustomerTransactionalEditValidationError',
+        structural_errors: {
+          customer: {
+            causes: ['missing', 'null', 'non_object'],
+            field: 'customer',
+            message: 'The customer payload is invalid.',
+          },
+          customer_establishments: {
+            causes: ['missing', 'null', 'non_array'],
+            field: 'customer_establishments',
+            message: 'The assignment collection is invalid.',
+          },
+          customer_establishments_item: {
+            causes: ['null', 'scalar', 'array', 'non_object'],
+            field: 'customer_establishments.<index>',
+            message: 'The assignment item is invalid.',
+          },
+        },
+      },
+    },
     atomicity: {
       scope: ['customer', 'customer_establishments'],
       commit: 'success-only',
@@ -441,12 +474,98 @@ test('defines one transactional customer edit aggregate contract', () => {
     },
     dependency_conflicts: {
       remove_link_used_by_site: 'rejected',
-      change_legal_entity_while_site_blocks_reassignment: 'rejected',
+      change_legal_entity_while_any_site_exists: {
+        condition: {
+          legal_entity_changes: true,
+          remaining_customer_site_count: 'greater_than_zero',
+        },
+        result: 'rejected',
+        no_site_category_bypass: true,
+      },
+      legal_entity_site_state_matrix: [
+        {
+          legal_entity_changes: false,
+          remaining_customer_site_count: 'greater_than_zero',
+          result: 'no-reassignment-conflict',
+        },
+        {
+          legal_entity_changes: true,
+          remaining_customer_site_count: 0,
+          result: 'no-site-conflict',
+        },
+        {
+          legal_entity_changes: true,
+          remaining_customer_site_count: 1,
+          result: 'rejected',
+        },
+        {
+          legal_entity_changes: true,
+          remaining_customer_site_count: 'greater_than_one',
+          result: 'rejected',
+        },
+      ],
       failure: {
         status: 409,
         response: '#/components/responses/CustomerTransactionalEditConflict',
         dependent_resource_disclosure: false,
       },
+    },
+    authorization_precedence: {
+      required_authority: {
+        customers_update: true,
+        unrestricted_customers_read: true,
+        organizational_scopes: false,
+        complete_snapshot_authority: true,
+      },
+      operation_authorization_before_path_lookup: true,
+      unauthorized: {
+        path_states: ['existing', 'missing', 'tenant_inaccessible'],
+        status: 403,
+        response: '#/components/responses/CustomerTransactionalEditForbidden',
+        path_existence_lookup: 'prohibited',
+        resource_existence_disclosure: 'none',
+        indistinguishable: true,
+      },
+      authorized: {
+        path_lookup: 'tenant_scoped',
+        indistinguishable_states: ['missing', 'tenant_inaccessible'],
+        status: 404,
+        response: '#/components/responses/CustomerTransactionalEditNotFound',
+        indistinguishable: true,
+      },
+      state_matrix: [
+        {
+          authorized: false,
+          path_state: 'existing',
+          status: 403,
+          lookup: false,
+        },
+        {
+          authorized: false,
+          path_state: 'missing',
+          status: 403,
+          lookup: false,
+        },
+        {
+          authorized: false,
+          path_state: 'tenant_inaccessible',
+          status: 403,
+          lookup: false,
+        },
+        {
+          authorized: true,
+          path_state: 'existing',
+          status: 'continue',
+          lookup: true,
+        },
+        { authorized: true, path_state: 'missing', status: 404, lookup: true },
+        {
+          authorized: true,
+          path_state: 'tenant_inaccessible',
+          status: 404,
+          lookup: true,
+        },
+      ],
     },
     contract_runtime_boundary: {
       contract_proof:
@@ -457,6 +576,8 @@ test('defines one transactional customer edit aggregate contract', () => {
         'authorization revalidation',
         'assignment eligibility',
         'dependency conflicts',
+        'request validation routing',
+        'authorization-before-lookup',
       ],
     },
     authority_classification: {
@@ -465,9 +586,12 @@ test('defines one transactional customer edit aggregate contract', () => {
         'authorization_revalidation',
         'assignment_eligibility',
         'dependency_conflicts',
+        'request_validation',
+        'authorization_precedence',
       ],
       prose_only_material_invariants: 0,
       guard_false_confidence: 0,
+      material_x_extensions_without_executable_authority: 0,
     },
   })
   const putAuthorization = operation['x-authorization-examples']
@@ -570,7 +694,33 @@ test('defines one transactional customer edit aggregate contract', () => {
   )
   const validationExamples =
     schemas.CustomerTransactionalEditValidationProblem['x-validation-examples']
-  assert.equal(validationExamples.accepted.length, 8)
+  assert.equal(validationExamples.accepted.length, 18)
+  assert.deepEqual(
+    validationExamples.accepted
+      .slice(0, 10)
+      .map(({ category, cause }) => ({ category, cause })),
+    [
+      { category: 'structural-customer', cause: 'missing' },
+      { category: 'structural-customer', cause: 'null' },
+      { category: 'structural-customer', cause: 'non_object' },
+      { category: 'structural-collection', cause: 'missing' },
+      { category: 'structural-collection', cause: 'null' },
+      { category: 'structural-collection', cause: 'non_array' },
+      { category: 'structural-item', cause: 'null' },
+      { category: 'structural-item', cause: 'scalar' },
+      { category: 'structural-item', cause: 'array' },
+      { category: 'structural-item', cause: 'non_object' },
+    ]
+  )
+  assert.equal(
+    operation['x-transactional-edit-semantics'].request_validation
+      .malformed_or_protocol.status,
+    400
+  )
+  assert.equal(
+    operation.responses['400'].$ref,
+    '#/components/responses/BadRequest'
+  )
   for (const example of validationExamples.accepted) {
     assert.equal(acceptsTransactionalValidationProblem(example.value), true)
   }
@@ -961,8 +1111,28 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
       {
         name: 'Legal Entity reassignment conflict becomes allowed',
         mutate(semantics) {
-          semantics.dependency_conflicts.change_legal_entity_while_site_blocks_reassignment =
+          semantics.dependency_conflicts.change_legal_entity_while_any_site_exists.result =
             'allowed'
+        },
+      },
+      {
+        name: 'Legal Entity Site conflict weakens ANY Site to multiple Sites',
+        mutate(semantics) {
+          semantics.dependency_conflicts.change_legal_entity_while_any_site_exists.condition.remaining_customer_site_count =
+            'greater_than_one'
+        },
+      },
+      {
+        name: 'Legal Entity Site conflict allows a single remaining Site',
+        mutate(semantics) {
+          semantics.dependency_conflicts.legal_entity_site_state_matrix[2].result =
+            'allowed'
+        },
+      },
+      {
+        name: 'Legal Entity Site conflict permits a Site category bypass',
+        mutate(semantics) {
+          semantics.dependency_conflicts.change_legal_entity_while_any_site_exists.no_site_category_bypass = false
         },
       },
       {
@@ -984,6 +1154,118 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
           semantics.dependency_conflicts.failure.dependent_resource_disclosure = true
         },
       },
+      ...[
+        ['customer', 'missing'],
+        ['customer', 'null'],
+        ['customer', 'non_object'],
+        ['customer_establishments', 'missing'],
+        ['customer_establishments', 'null'],
+        ['customer_establishments', 'non_array'],
+        ['customer_establishments_item', 'null'],
+        ['customer_establishments_item', 'scalar'],
+        ['customer_establishments_item', 'array'],
+        ['customer_establishments_item', 'non_object'],
+      ].map(([group, cause]) => ({
+        name: `structural validation removes ${group} ${cause}`,
+        mutate(semantics) {
+          const structural =
+            semantics.request_validation.parsed_structural_or_domain
+              .structural_errors[group]
+          structural.causes = structural.causes.filter(
+            (candidate) => candidate !== cause
+          )
+        },
+      })),
+      {
+        name: 'malformed JSON becomes 422',
+        mutate(semantics) {
+          semantics.request_validation.malformed_or_protocol.status = 422
+        },
+      },
+      {
+        name: 'parsed structural validation becomes 400',
+        mutate(semantics) {
+          semantics.request_validation.parsed_structural_or_domain.status = 400
+        },
+      },
+      {
+        name: 'structural customer remaps to unrelated field',
+        mutate(semantics) {
+          semantics.request_validation.parsed_structural_or_domain.structural_errors.customer.field =
+            'customer.tenant_id'
+        },
+      },
+      {
+        name: 'structural collection weakens duplicate message',
+        mutate(semantics) {
+          semantics.request_validation.parsed_structural_or_domain.structural_errors.customer_establishments.message =
+            'Each establishment may be assigned at most once.'
+        },
+      },
+      {
+        name: 'operation authorization runs after path lookup',
+        mutate(semantics) {
+          semantics.authorization_precedence.operation_authorization_before_path_lookup = false
+        },
+      },
+      {
+        name: 'unauthorized caller receives 404',
+        mutate(semantics) {
+          semantics.authorization_precedence.unauthorized.status = 404
+        },
+      },
+      {
+        name: 'unauthorized path existence lookup is permitted',
+        mutate(semantics) {
+          semantics.authorization_precedence.unauthorized.path_existence_lookup =
+            'permitted'
+        },
+      },
+      {
+        name: 'unauthorized path states are distinguished',
+        mutate(semantics) {
+          semantics.authorization_precedence.unauthorized.indistinguishable = false
+        },
+      },
+      {
+        name: 'unauthorized response discloses existence',
+        mutate(semantics) {
+          semantics.authorization_precedence.unauthorized.resource_existence_disclosure =
+            'path state'
+        },
+      },
+      {
+        name: 'authorized missing and inaccessible diverge',
+        mutate(semantics) {
+          semantics.authorization_precedence.authorized.indistinguishable = false
+        },
+      },
+      {
+        name: 'unauthorized matrix performs existing lookup',
+        mutate(semantics) {
+          semantics.authorization_precedence.state_matrix[0].lookup = true
+        },
+      },
+      {
+        name: 'unauthorized matrix distinguishes missing as 404',
+        mutate(semantics) {
+          semantics.authorization_precedence.state_matrix[1].status = 404
+        },
+      },
+      {
+        name: 'authorization precedence uses generic open 403',
+        mutate(semantics) {
+          semantics.authorization_precedence.unauthorized.response =
+            '#/components/responses/Forbidden'
+        },
+      },
+      {
+        name: 'authorization precedence uses generic open 404',
+        mutate(semantics) {
+          semantics.authorization_precedence.authorized.response =
+            '#/components/responses/NotFound'
+        },
+      },
       {
         name: 'contract-runtime boundary removed',
         mutate(semantics) {
@@ -1000,6 +1282,12 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
         name: 'guard false-confidence becomes nonzero',
         mutate(semantics) {
           semantics.authority_classification.guard_false_confidence = 1
+        },
+      },
+      {
+        name: 'material extension lacks executable authority',
+        mutate(semantics) {
+          semantics.authority_classification.material_x_extensions_without_executable_authority = 1
         },
       },
     ].map((mutation) => ({
@@ -1244,6 +1532,94 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
           ['The contact field failed an internal database constraint.']
       },
     },
+    {
+      name: 'structural 422 rejects missing customer field authority',
+      expected: /dedicated closed validation schema/,
+      mutate(candidate) {
+        delete candidate.components.schemas
+          .CustomerTransactionalEditValidationProblem.properties.errors
+          .patternProperties['^customer$']
+      },
+    },
+    {
+      name: 'structural 422 rejects missing indexed item authority',
+      expected: /dedicated closed validation schema/,
+      mutate(candidate) {
+        delete candidate.components.schemas
+          .CustomerTransactionalEditValidationProblem.properties.errors
+          .patternProperties['^customer_establishments\\.[0-9]+$']
+      },
+    },
+    {
+      name: 'structural 422 rejects open collection messages',
+      expected: /dedicated closed validation schema/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditInvalidAssignmentCollectionErrors.items =
+          {
+            type: 'string',
+          }
+      },
+    },
+    {
+      name: 'structural 422 rejects customer disclosure message',
+      expected: /dedicated closed validation schema/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditInvalidCustomerPayloadErrors.items.enum =
+          ['Customer from tenant 42 is invalid.']
+      },
+    },
+    {
+      name: 'structural 422 rejects unrelated field remapping',
+      expected: /dedicated closed validation schema/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditValidationProblem.properties.errors.patternProperties[
+          '^customer.tenant_id$'
+        ] =
+          candidate.components.schemas.CustomerTransactionalEditValidationProblem.properties.errors.patternProperties[
+            '^customer$'
+          ]
+      },
+    },
+    {
+      name: 'structural 422 preserves duplicate collection message authority',
+      expected: /dedicated closed validation schema/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditAssignmentCollectionErrors.oneOf =
+          [
+            {
+              $ref: '#/components/schemas/CustomerTransactionalEditInvalidAssignmentCollectionErrors',
+            },
+          ]
+      },
+    },
+    ...[
+      ['structural-customer', 'missing'],
+      ['structural-customer', 'null'],
+      ['structural-customer', 'non_object'],
+      ['structural-collection', 'missing'],
+      ['structural-collection', 'null'],
+      ['structural-collection', 'non_array'],
+      ['structural-item', 'null'],
+      ['structural-item', 'scalar'],
+      ['structural-item', 'array'],
+      ['structural-item', 'non_object'],
+    ].map(([category, cause]) => ({
+      name: `structural 422 preserves ${category} ${cause} evidence`,
+      expected: /dedicated closed validation schema/,
+      mutate(candidate) {
+        const examples =
+          candidate.components.schemas
+            .CustomerTransactionalEditValidationProblem['x-validation-examples']
+            .accepted
+        examples.splice(
+          examples.findIndex(
+            (example) =>
+              example.category === category && example.cause === cause
+          ),
+          1
+        )
+      },
+    })),
     ...[
       'top-level-property',
       'unexpected-error-key',
