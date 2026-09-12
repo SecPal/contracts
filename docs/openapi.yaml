@@ -6800,6 +6800,15 @@ components:
             resulting:
               legal_entity_id: '770e8400-e29b-41d4-a716-446655440002'
 
+    CustomerTransactionalEditCustomerRequest:
+      allOf:
+        - $ref: '#/components/schemas/CustomerUpdateRequest'
+      properties:
+        billing_address:
+          allOf:
+            - $ref: '#/components/schemas/Address'
+          unevaluatedProperties: false
+
     StrongEntityTag:
       type: string
       description: >-
@@ -6821,7 +6830,7 @@ components:
         - customer_establishments
       properties:
         customer:
-          $ref: '#/components/schemas/CustomerUpdateRequest'
+          $ref: '#/components/schemas/CustomerTransactionalEditCustomerRequest'
         customer_establishments:
           type: array
           description: Complete desired customer-establishment assignment collection. Each establishment may occur at most once.
@@ -13701,7 +13710,7 @@ paths:
       description: |
         Applies customer master-data changes and reconciles the complete desired `customer_establishments` collection in one transaction. A present existing pair is retained, a present new pair is created, and an absent existing pair is deleted subject to the documented conflicts. For `contact_name`, `phone`, `email`, and `comments` on a retained pair, an omitted field preserves its stored value, explicit `null` clears it, and a value replaces it. On a new pair, omission and explicit `null` initialize the field to null, while a value initializes the supplied value. The `200` response is the committed customer with its complete committed customer-establishment assignment snapshot; it omits `sites`, `assignments`, and relationship counts.
 
-        Requires `customers.update`, `customers.read` without organizational scopes, and the exact strong `ETag` from `GET /customers/{customer}` in `If-Match`. That validator represents the entire actual GET `200` response emitted to the eligible caller. Any observable change to any member of that GET representation makes the validator stale and returns the neutral **412** response, including a represented change unrelated to the requested mutation. This unrestricted read authority guarantees visibility of the complete customer-establishment collection represented by the tag. Assignment-only and site-only callers receive **403** even when they may view a filtered customer representation. Authorization and tenant access are revalidated inside the transaction before mutation and before commit; stale authorization returns **403**. Every non-success response rolls back the complete edit. A successful transactional PUT does not return an `ETag` because its reduced committed response is not the complete GET representation. A client needing the next conditional validator must refetch `GET /customers/{customer}` and use that response's fresh strong `ETag`.
+        Requires `customers.update`, `customers.read` without organizational scopes, and the exact strong `ETag` from `GET /customers/{customer}` in `If-Match`. That validator represents the entire actual GET `200` response emitted to the eligible caller. Any observable change to any member of that GET representation makes the validator stale and returns the neutral **412** response, including a represented change unrelated to the requested mutation. The successful validator comparison and aggregate mutation are concurrency-safe as one operation: if a concurrent observable aggregate change would make the validator stale before commit, the edit does not commit and returns the same neutral **412** response. Implementations may satisfy this behavior with a lock and recheck, a compare-and-swap or version predicate, or a serializable equivalent. This unrestricted read authority guarantees visibility of the complete customer-establishment collection represented by the tag. Assignment-only and site-only callers receive **403** even when they may view a filtered customer representation. Authorization and tenant access are revalidated inside the transaction before mutation and before commit; stale authorization returns **403**. Every non-success response rolls back the complete edit. A successful transactional PUT does not return an `ETag` because its reduced committed response is not the complete GET representation. A client needing the next conditional validator must refetch `GET /customers/{customer}` and use that response's fresh strong `ETag`.
 
         **Request validation:** malformed or unparseable JSON and equivalent request syntax or protocol failures return **400**. Syntactically valid JSON that violates the request schema or domain rules returns the dedicated closed neutral **422** response. Missing, null, or non-object `customer`; missing, null, or non-array `customer_establishments`; and null, scalar, array, or otherwise non-object assignment items use their fixed structural field messages. Every item must repeat the path `customer` as `customer_id`; a different nested customer ID returns the neutral **422** customer field error and is never used to select or mutate a customer. Each `establishment_id` may occur at most once, independent of local contact data; and every target must be active, non-deleted, in the same tenant, in the customer's resulting Legal Entity, and authorized for the caller. Missing, inaccessible, cross-tenant, wrong-Legal-Entity, inactive, and deleted assignment targets use the same information-poor **422** field error. Duplicate establishment targets also return **422**. Removing a customer-establishment link used by a Site returns the neutral **409** response without identifying the dependent resource. Changing Legal Entity while any one or more Sites remain also returns that same neutral **409**; an unchanged Legal Entity or a changed Legal Entity with zero remaining Sites does not create this Site reassignment conflict. No Site category bypasses the rule, and the response never identifies a dependent resource.
 
@@ -13770,6 +13779,13 @@ paths:
             - customer_establishments
           commit: success-only
           non_success: rollback-complete-edit
+          if_match_commit_coupling:
+            required: true
+            concurrency_guarantee: validator-remains-current-through-commit
+            concurrent_observable_aggregate_change:
+              commit: prohibited
+              status: 412
+              response: '#/components/responses/CustomerTransactionalEditStale'
         authorization_revalidation:
           before_mutation: true
           before_commit: true
@@ -13945,6 +13961,7 @@ paths:
             - request validation routing
             - authorization-before-lookup
             - failure precedence
+            - If-Match and aggregate commit coupling
         authority_classification:
           machine_readable_material_groups:
             - atomicity

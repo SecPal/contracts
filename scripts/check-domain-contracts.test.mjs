@@ -18,6 +18,9 @@ const changelogPath = fileURLToPath(new URL('../CHANGELOG.md', import.meta.url))
 const guardPath = fileURLToPath(
   new URL('./check-domain-contracts.mjs', import.meta.url)
 )
+const redoclyPath = fileURLToPath(
+  new URL('../node_modules/.bin/redocly', import.meta.url)
+)
 const contractSource = readFileSync(contractPath, 'utf8')
 const changelogSource = readFileSync(changelogPath, 'utf8')
 const contract = yaml.load(contractSource)
@@ -188,10 +191,79 @@ function runGuard(candidate, candidateChangelog = changelogSource) {
   }
 }
 
+function validateTransactionalRequest(requestBody) {
+  const directory = mkdtempSync(join(tmpdir(), 'transactional-request-'))
+  const trafficPath = join(directory, 'traffic.ndjson')
+  writeFileSync(
+    trafficPath,
+    JSON.stringify({
+      request: {
+        method: 'PUT',
+        url: 'https://api.secpal.dev/v1/customers/550e8400-e29b-41d4-a716-446655440000/transactional-edit',
+        headers: {
+          'content-type': 'application/json',
+          'if-match': '"customer-edit-current"',
+        },
+        body: requestBody,
+      },
+      response: {
+        status: 500,
+        headers: { 'content-type': 'application/json' },
+        body: {
+          message: 'An internal error occurred',
+          code: 'INTERNAL_ERROR',
+        },
+      },
+    })
+  )
+
+  try {
+    return spawnSync(
+      redoclyPath,
+      [
+        'drift',
+        trafficPath,
+        '--api',
+        contractPath,
+        '--traffic-format',
+        'ndjson',
+        '--rules',
+        'schema-consistency',
+        '--format',
+        'json',
+      ],
+      { encoding: 'utf8' }
+    )
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+
 test('accepts the repository domain contract', () => {
   const result = runGuard(contract)
 
   assert.equal(result.status, 0, result.stderr)
+})
+
+test('generic OpenAPI validation rejects unknown transactional billing address properties', () => {
+  const result = validateTransactionalRequest({
+    customer: {
+      billing_address: {
+        street: 'Hauptstraße 123',
+        city: 'Berlin',
+        postal_code: '10115',
+        country: 'DE',
+        internal_account_id: 'must-not-be-accepted',
+      },
+    },
+    customer_establishments: [],
+  })
+  const output = `${result.stdout}\n${result.stderr}`
+
+  assert.notEqual(result.status, 0, output)
+  assert.match(output, /Request schema mismatch/)
+  assert.match(output, /customer\.billing_address/)
+  assert.match(output, /unevaluatedProperties/)
 })
 
 test('defines one transactional customer edit aggregate contract', () => {
@@ -223,7 +295,20 @@ test('defines one transactional customer edit aggregate contract', () => {
   ])
   assert.equal(
     schemas.CustomerTransactionalEditRequest.properties.customer.$ref,
-    '#/components/schemas/CustomerUpdateRequest'
+    '#/components/schemas/CustomerTransactionalEditCustomerRequest'
+  )
+  assert.deepEqual(schemas.CustomerTransactionalEditCustomerRequest.allOf, [
+    { $ref: '#/components/schemas/CustomerUpdateRequest' },
+  ])
+  assert.deepEqual(
+    schemas.CustomerTransactionalEditCustomerRequest.properties.billing_address
+      .allOf,
+    [{ $ref: '#/components/schemas/Address' }]
+  )
+  assert.equal(
+    schemas.CustomerTransactionalEditCustomerRequest.properties.billing_address
+      .unevaluatedProperties,
+    false
   )
   assert.equal(
     schemas.CustomerTransactionalEditRequest.properties.customer_establishments
@@ -473,6 +558,15 @@ test('defines one transactional customer edit aggregate contract', () => {
       scope: ['customer', 'customer_establishments'],
       commit: 'success-only',
       non_success: 'rollback-complete-edit',
+      if_match_commit_coupling: {
+        required: true,
+        concurrency_guarantee: 'validator-remains-current-through-commit',
+        concurrent_observable_aggregate_change: {
+          commit: 'prohibited',
+          status: 412,
+          response: '#/components/responses/CustomerTransactionalEditStale',
+        },
+      },
     },
     authorization_revalidation: {
       before_mutation: true,
@@ -708,6 +802,7 @@ test('defines one transactional customer edit aggregate contract', () => {
         'request validation routing',
         'authorization-before-lookup',
         'failure precedence',
+        'If-Match and aggregate commit coupling',
       ],
     },
     authority_classification: {
@@ -1135,6 +1230,12 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
         name: 'atomic scope excludes relationships',
         mutate(semantics) {
           semantics.atomicity.scope = ['customer']
+        },
+      },
+      {
+        name: 'atomic If-Match and commit coupling removed',
+        mutate(semantics) {
+          delete semantics.atomicity.if_match_commit_coupling
         },
       },
       {
