@@ -66,6 +66,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Defined one tenant-scoped transactional customer-edit operation that applies
+  customer master-data changes and reconciles the complete desired
+  customer-establishment assignment collection atomically. The closed request
+  and committed response reuse the current `Customer`, `CustomerUpdateRequest`,
+  and `CustomerEstablishment` contracts; strong aggregate entity tags provide
+  stale-update protection, while duplicate targets, invalid assignments,
+  authorization changes, tenant-inaccessible resources, and dependent-resource
+  conflicts have deterministic information-poor failure semantics. Aggregate
+  edits require complete assignment visibility, establishment keys are unique
+  across the submitted collection, path/body customer mismatches are rejected,
+  and committed responses exclude unrelated customer relationships
+  (SecPal/contracts#477).
 - Defined the authoritative Internal Cost Center and complete Service Booking
   allocation OpenAPI contract for `SecPal/api#383`; the API implementation has
   not shipped yet.
