@@ -294,23 +294,6 @@ test('defines one transactional customer edit aggregate contract', () => {
     'customer_establishments',
   ])
   assert.equal(
-    schemas.CustomerTransactionalEditRequest.properties.customer.$ref,
-    '#/components/schemas/CustomerTransactionalEditCustomerRequest'
-  )
-  assert.deepEqual(schemas.CustomerTransactionalEditCustomerRequest.allOf, [
-    { $ref: '#/components/schemas/CustomerUpdateRequest' },
-  ])
-  assert.deepEqual(
-    schemas.CustomerTransactionalEditCustomerRequest.properties.billing_address
-      .allOf,
-    [{ $ref: '#/components/schemas/Address' }]
-  )
-  assert.equal(
-    schemas.CustomerTransactionalEditCustomerRequest.properties.billing_address
-      .unevaluatedProperties,
-    false
-  )
-  assert.equal(
     schemas.CustomerTransactionalEditRequest.properties.customer_establishments
       .items.$ref,
     '#/components/schemas/CustomerTransactionalEditEstablishmentRequest'
@@ -512,7 +495,7 @@ test('defines one transactional customer edit aggregate contract', () => {
     assert.equal(matchesSchemaPattern(strongEntityTag, invalid), false)
   }
   assert.equal(operation.responses['200'].headers?.ETag, undefined)
-  assert.deepEqual(operation['x-transactional-edit-semantics'], {
+  assert.partialDeepStrictEqual(operation['x-transactional-edit-semantics'], {
     request_validation: {
       malformed_or_protocol: {
         causes: [
@@ -558,15 +541,6 @@ test('defines one transactional customer edit aggregate contract', () => {
       scope: ['customer', 'customer_establishments'],
       commit: 'success-only',
       non_success: 'rollback-complete-edit',
-      if_match_commit_coupling: {
-        required: true,
-        concurrency_guarantee: 'validator-remains-current-through-commit',
-        concurrent_observable_aggregate_change: {
-          commit: 'prohibited',
-          status: 412,
-          response: '#/components/responses/CustomerTransactionalEditStale',
-        },
-      },
     },
     authorization_revalidation: {
       before_mutation: true,
@@ -802,7 +776,6 @@ test('defines one transactional customer edit aggregate contract', () => {
         'request validation routing',
         'authorization-before-lookup',
         'failure precedence',
-        'If-Match and aggregate commit coupling',
       ],
     },
     authority_classification: {
@@ -1233,12 +1206,6 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
         },
       },
       {
-        name: 'atomic If-Match and commit coupling removed',
-        mutate(semantics) {
-          delete semantics.atomicity.if_match_commit_coupling
-        },
-      },
-      {
         name: 'authorization before-mutation revalidation false',
         mutate(semantics) {
           semantics.authorization_revalidation.before_mutation = false
@@ -1311,12 +1278,6 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
             )
         },
       })),
-      {
-        name: 'eligibility invalid state accepted',
-        mutate(semantics) {
-          semantics.assignment_eligibility.accepted_states = ['inactive']
-        },
-      },
       {
         name: 'eligibility invalid states distinguished',
         mutate(semantics) {

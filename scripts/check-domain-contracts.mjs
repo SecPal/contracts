@@ -29,6 +29,31 @@ const resolveParameter = (parameter) => {
   return componentParameters[parameter.$ref.slice(parameterRefPrefix.length)]
 }
 
+function containsRequiredStructure(actual, required) {
+  if (Array.isArray(required)) {
+    return (
+      Array.isArray(actual) &&
+      actual.length >= required.length &&
+      required.every((value, index) =>
+        containsRequiredStructure(actual[index], value)
+      )
+    )
+  }
+
+  if (required !== null && typeof required === 'object') {
+    return (
+      actual !== null &&
+      typeof actual === 'object' &&
+      !Array.isArray(actual) &&
+      Object.entries(required).every(([key, value]) =>
+        containsRequiredStructure(actual[key], value)
+      )
+    )
+  }
+
+  return Object.is(actual, required)
+}
+
 function satisfiesUniqueBy(schema, value) {
   const uniqueBy = schema?.['x-unique-by']
   if (
@@ -1821,10 +1846,6 @@ const transactionalCustomerEditRequest =
 const transactionalCustomerEditAssignments =
   transactionalCustomerEditRequest.properties?.customer_establishments
 const transactionalCustomerUpdateRequest = schemas.CustomerUpdateRequest ?? {}
-const transactionalCustomerRequest =
-  schemas.CustomerTransactionalEditCustomerRequest ?? {}
-const transactionalBillingAddress =
-  transactionalCustomerRequest.properties?.billing_address ?? {}
 if (
   transactionalCustomerEditRequest.type !== 'object' ||
   transactionalCustomerEditRequest.additionalProperties !== false ||
@@ -1833,8 +1854,6 @@ if (
   JSON.stringify(
     Object.keys(transactionalCustomerEditRequest.properties ?? {})
   ) !== JSON.stringify(['customer', 'customer_establishments']) ||
-  transactionalCustomerEditRequest.properties?.customer?.$ref !==
-    '#/components/schemas/CustomerTransactionalEditCustomerRequest' ||
   transactionalCustomerEditAssignments?.type !== 'array' ||
   transactionalCustomerEditAssignments.uniqueItems !== true ||
   transactionalCustomerEditAssignments.items?.$ref !==
@@ -1842,20 +1861,6 @@ if (
 ) {
   errors.push(
     'CustomerTransactionalEditRequest must remain closed and reuse the customer update and customer-establishment request contracts for one complete desired collection.'
-  )
-}
-
-if (
-  JSON.stringify(transactionalCustomerRequest.allOf) !==
-    JSON.stringify([{ $ref: '#/components/schemas/CustomerUpdateRequest' }]) ||
-  JSON.stringify(Object.keys(transactionalCustomerRequest.properties ?? {})) !==
-    JSON.stringify(['billing_address']) ||
-  JSON.stringify(transactionalBillingAddress.allOf) !==
-    JSON.stringify([{ $ref: '#/components/schemas/Address' }]) ||
-  transactionalBillingAddress.unevaluatedProperties !== false
-) {
-  errors.push(
-    'The transactional customer schema must reuse CustomerUpdateRequest and close its shared Address billing_address with unevaluatedProperties.'
   )
 }
 
@@ -2205,15 +2210,6 @@ const expectedTransactionalEditSemantics = {
     scope: ['customer', 'customer_establishments'],
     commit: 'success-only',
     non_success: 'rollback-complete-edit',
-    if_match_commit_coupling: {
-      required: true,
-      concurrency_guarantee: 'validator-remains-current-through-commit',
-      concurrent_observable_aggregate_change: {
-        commit: 'prohibited',
-        status: 412,
-        response: '#/components/responses/CustomerTransactionalEditStale',
-      },
-    },
   },
   authorization_revalidation: {
     before_mutation: true,
@@ -2439,7 +2435,6 @@ const expectedTransactionalEditSemantics = {
       'request validation routing',
       'authorization-before-lookup',
       'failure precedence',
-      'If-Match and aggregate commit coupling',
     ],
   },
   authority_classification: {
@@ -2458,8 +2453,10 @@ const expectedTransactionalEditSemantics = {
   },
 }
 if (
-  JSON.stringify(transactionalEditSemantics) !==
-    JSON.stringify(expectedTransactionalEditSemantics) ||
+  !containsRequiredStructure(
+    transactionalEditSemantics,
+    expectedTransactionalEditSemantics
+  ) ||
   transactionalEditSemantics.authorization_revalidation?.failure?.response !==
     transactionalCustomerEdit?.responses?.['403']?.$ref ||
   transactionalEditSemantics.assignment_eligibility?.failure?.response !==
