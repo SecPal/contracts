@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** Removed the unreleased Legal Hold lifecycle, attachment, and
+  release API contracts because Legal Hold is no longer part of the SecPal
+  product direction; no compatibility surface is retained (closes #491).
 - **Breaking:** Removed the abandoned Work Instruction lifecycle and
   content-library API contracts because this domain is no longer a SecPal
   product responsibility (closes #490).
@@ -82,11 +85,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `SecPal/api#382`; the API implementation has not shipped yet.
 - Defined the authoritative tenant-isolated Contract CRUD OpenAPI surface for
   adoption by `SecPal/api#381`; the API implementation has not shipped yet.
-- Added the authoritative tenant-isolated Legal Hold HTTP/OpenAPI contract for
-  list, create, inspect, single-Activity attachment, justified detachment, and
-  justified release operations. The contract is available for adoption by
-  `SecPal/api#455`; it does not claim that the API implementation has shipped
-  (closes #474).
 - Documented tenant-scoped onboarding attachment upload idempotency, including
   the optional bounded multipart retry key, exact-replay `200` response, new
   upload `201` response, deleted-key and different-upload `409` conflicts, and
