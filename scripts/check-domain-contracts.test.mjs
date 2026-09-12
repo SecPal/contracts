@@ -90,6 +90,7 @@ function matchesSchemaPattern(schema, value) {
 }
 
 const transactionalValidationErrorRules = [
+  [/^request$/, 'The request body is invalid.'],
   [/^customer$/, 'The customer payload is invalid.'],
   [
     /^customer\.(legal_entity_id|vat_id|name|billing_address(?:\.(?:street|city|postal_code|country|latitude|longitude))?|is_active)$/,
@@ -140,6 +141,33 @@ function acceptsTransactionalValidationProblem(value) {
       )
     )
   })
+}
+
+function acceptsTransactionalValidationEvidence(example, semantics) {
+  if (!acceptsTransactionalValidationProblem(example?.value)) return false
+
+  const categoryGroups = {
+    'extra-property-request': 'request',
+    'extra-property-customer': 'customer',
+    'extra-property-assignment-item': 'customer_establishments_item',
+    'extra-property-unrelated-field': 'request',
+    'structural-customer': 'customer',
+    'structural-collection': 'customer_establishments',
+    'structural-item': 'customer_establishments_item',
+  }
+  const groupName = categoryGroups[example?.category]
+  if (!groupName) return true
+
+  const structural =
+    semantics.request_validation?.parsed_structural_or_domain
+      ?.structural_errors?.[groupName]
+  return (
+    structural?.causes?.includes(example?.cause) === true &&
+    JSON.stringify(example.value.errors) ===
+      JSON.stringify({
+        [structural.field.replace('<index>', '0')]: [structural.message],
+      })
+  )
 }
 
 function runGuard(candidate, candidateChangelog = changelogSource) {
@@ -414,8 +442,13 @@ test('defines one transactional customer edit aggregate contract', () => {
         response:
           '#/components/responses/CustomerTransactionalEditValidationError',
         structural_errors: {
+          request: {
+            causes: ['extra_property'],
+            field: 'request',
+            message: 'The request body is invalid.',
+          },
           customer: {
-            causes: ['missing', 'null', 'non_object'],
+            causes: ['missing', 'null', 'non_object', 'extra_property'],
             field: 'customer',
             message: 'The customer payload is invalid.',
           },
@@ -425,10 +458,14 @@ test('defines one transactional customer edit aggregate contract', () => {
             message: 'The assignment collection is invalid.',
           },
           customer_establishments_item: {
-            causes: ['null', 'scalar', 'array', 'non_object'],
+            causes: ['null', 'scalar', 'array', 'non_object', 'extra_property'],
             field: 'customer_establishments.<index>',
             message: 'The assignment item is invalid.',
           },
+        },
+        unknown_property_handling: {
+          property_name_disclosed: false,
+          dynamic_error_paths: false,
         },
       },
     },
@@ -567,6 +604,98 @@ test('defines one transactional customer edit aggregate contract', () => {
         },
       ],
     },
+    failure_precedence: {
+      ordered_stages: [
+        'authentication',
+        'operation_authorization',
+        'tenant_scoped_customer_lookup',
+        'if_match_precondition',
+        'request_content_schema_and_domain_validation',
+        'dependency_conflicts',
+        'mutation',
+      ],
+      stages: {
+        authentication: {
+          failure_status: 401,
+          response: '#/components/responses/Unauthorized',
+        },
+        operation_authorization: {
+          failure_status: 403,
+          response: '#/components/responses/CustomerTransactionalEditForbidden',
+          path_customer_lookup_permitted: false,
+        },
+        tenant_scoped_customer_lookup: {
+          missing_status: 404,
+          tenant_inaccessible_status: 404,
+          response: '#/components/responses/CustomerTransactionalEditNotFound',
+          missing_and_tenant_inaccessible_indistinguishable: true,
+        },
+        if_match_precondition: {
+          stale_status: 412,
+          response: '#/components/responses/CustomerTransactionalEditStale',
+          later_stages_evaluated_when_stale: false,
+        },
+        request_content_schema_and_domain_validation: {
+          malformed_or_unparseable_status: 400,
+          malformed_response: '#/components/responses/BadRequest',
+          parsed_schema_or_domain_failure_status: 422,
+          parsed_failure_response:
+            '#/components/responses/CustomerTransactionalEditValidationError',
+        },
+        dependency_conflicts: {
+          failure_status: 409,
+          response: '#/components/responses/CustomerTransactionalEditConflict',
+        },
+        mutation: {
+          reached_only_after_prior_stages_pass: true,
+        },
+      },
+      mixed_failure_state_matrix: [
+        { case: 'authentication_failure', status: 401 },
+        {
+          case: 'operation_authorization_failure_any_state',
+          status: 403,
+          path_customer_lookup: false,
+        },
+        {
+          case: 'authorized_missing_stale_invalid',
+          status: 404,
+        },
+        {
+          case: 'authorized_tenant_inaccessible_stale_invalid',
+          status: 404,
+          same_as: 'authorized_missing_stale_invalid',
+        },
+        {
+          case: 'existing_stale_malformed',
+          status: 412,
+        },
+        {
+          case: 'existing_stale_parsed_invalid',
+          status: 412,
+        },
+        {
+          case: 'existing_stale_dependency_conflict',
+          status: 412,
+        },
+        {
+          case: 'existing_current_malformed',
+          status: 400,
+        },
+        {
+          case: 'existing_current_parsed_invalid_dependency_conflict',
+          status: 422,
+        },
+        {
+          case: 'existing_current_valid_dependency_conflict',
+          status: 409,
+        },
+        {
+          case: 'existing_current_valid_no_dependency_conflict',
+          status: 'mutation',
+        },
+      ],
+    },
     contract_runtime_boundary: {
       contract_proof:
         'normative contract cannot weaken while maintained validation passes',
@@ -578,6 +707,7 @@ test('defines one transactional customer edit aggregate contract', () => {
         'dependency conflicts',
         'request validation routing',
         'authorization-before-lookup',
+        'failure precedence',
       ],
     },
     authority_classification: {
@@ -588,6 +718,7 @@ test('defines one transactional customer edit aggregate contract', () => {
         'dependency_conflicts',
         'request_validation',
         'authorization_precedence',
+        'failure_precedence',
       ],
       prose_only_material_invariants: 0,
       guard_false_confidence: 0,
@@ -694,12 +825,18 @@ test('defines one transactional customer edit aggregate contract', () => {
   )
   const validationExamples =
     schemas.CustomerTransactionalEditValidationProblem['x-validation-examples']
-  assert.equal(validationExamples.accepted.length, 18)
+  assert.equal(validationExamples.accepted.length, 21)
   assert.deepEqual(
     validationExamples.accepted
-      .slice(0, 10)
+      .slice(0, 13)
       .map(({ category, cause }) => ({ category, cause })),
     [
+      { category: 'extra-property-request', cause: 'extra_property' },
+      { category: 'extra-property-customer', cause: 'extra_property' },
+      {
+        category: 'extra-property-assignment-item',
+        cause: 'extra_property',
+      },
       { category: 'structural-customer', cause: 'missing' },
       { category: 'structural-customer', cause: 'null' },
       { category: 'structural-customer', cause: 'non_object' },
@@ -722,10 +859,22 @@ test('defines one transactional customer edit aggregate contract', () => {
     '#/components/responses/BadRequest'
   )
   for (const example of validationExamples.accepted) {
-    assert.equal(acceptsTransactionalValidationProblem(example.value), true)
+    assert.equal(
+      acceptsTransactionalValidationEvidence(
+        example,
+        operation['x-transactional-edit-semantics']
+      ),
+      true
+    )
   }
   for (const example of validationExamples.rejected) {
-    assert.equal(acceptsTransactionalValidationProblem(example.value), false)
+    assert.equal(
+      acceptsTransactionalValidationEvidence(
+        example,
+        operation['x-transactional-edit-semantics']
+      ),
+      false
+    )
   }
   assert.deepEqual(
     validationExamples.rejected.map((example) => example.category),
@@ -741,6 +890,11 @@ test('defines one transactional customer edit aggregate contract', () => {
       'contact-tenant-disclosure',
       'contact-resource-disclosure',
       'contact-database-internal-text',
+      'extra-property-root-disclosure',
+      'extra-property-customer-disclosure',
+      'extra-property-item-disclosure',
+      'extra-property-dynamic-path',
+      'extra-property-unrelated-field',
     ]
   )
   const notFoundResponse =
@@ -1176,6 +1330,61 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
           )
         },
       })),
+      ...[
+        ['request', 'extra_property'],
+        ['customer', 'extra_property'],
+        ['customer_establishments_item', 'extra_property'],
+      ].map(([group, cause]) => ({
+        name: `extra-property validation removes ${group} ${cause}`,
+        mutate(semantics) {
+          const structural =
+            semantics.request_validation.parsed_structural_or_domain
+              .structural_errors[group]
+          structural.causes = structural.causes.filter(
+            (candidate) => candidate !== cause
+          )
+        },
+      })),
+      {
+        name: 'extra-property root remaps to customer field',
+        mutate(semantics) {
+          semantics.request_validation.parsed_structural_or_domain.structural_errors.request.field =
+            'customer'
+        },
+      },
+      {
+        name: 'extra-property names become disclosable',
+        mutate(semantics) {
+          semantics.request_validation.parsed_structural_or_domain.unknown_property_handling.property_name_disclosed = true
+        },
+      },
+      {
+        name: 'extra-property dynamic error paths become allowed',
+        mutate(semantics) {
+          semantics.request_validation.parsed_structural_or_domain.unknown_property_handling.dynamic_error_paths = true
+        },
+      },
+      {
+        name: 'failure precedence validation runs before If-Match',
+        mutate(semantics) {
+          const stages = semantics.failure_precedence.ordered_stages
+          ;[stages[3], stages[4]] = [stages[4], stages[3]]
+        },
+      },
+      {
+        name: 'failure precedence conflicts run before If-Match',
+        mutate(semantics) {
+          const stages = semantics.failure_precedence.ordered_stages
+          ;[stages[3], stages[5]] = [stages[5], stages[3]]
+        },
+      },
+      {
+        name: 'failure precedence conflicts run before validation',
+        mutate(semantics) {
+          const stages = semantics.failure_precedence.ordered_stages
+          ;[stages[4], stages[5]] = [stages[5], stages[4]]
+        },
+      },
       {
         name: 'malformed JSON becomes 422',
         mutate(semantics) {
@@ -1263,6 +1472,56 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
         name: 'authorization precedence uses generic open 404',
         mutate(semantics) {
           semantics.authorization_precedence.authorized.response =
+            '#/components/responses/NotFound'
+        },
+      },
+      {
+        name: 'failure precedence lookup runs before authorization',
+        mutate(semantics) {
+          const stages = semantics.failure_precedence.ordered_stages
+          ;[stages[1], stages[2]] = [stages[2], stages[1]]
+        },
+      },
+      {
+        name: 'failure precedence evaluates later stages when stale',
+        mutate(semantics) {
+          semantics.failure_precedence.stages.if_match_precondition.later_stages_evaluated_when_stale = true
+        },
+      },
+      ...[
+        ['existing_stale_malformed', 400],
+        ['existing_stale_parsed_invalid', 422],
+        ['existing_stale_dependency_conflict', 409],
+        ['existing_current_malformed', 422],
+        ['existing_current_parsed_invalid_dependency_conflict', 409],
+        ['existing_current_valid_dependency_conflict', 422],
+        ['authorized_missing_stale_invalid', 412],
+        ['authorized_tenant_inaccessible_stale_invalid', 412],
+      ].map(([caseName, status]) => ({
+        name: `failure precedence rejects ${caseName} as ${status}`,
+        mutate(semantics) {
+          semantics.failure_precedence.mixed_failure_state_matrix.find(
+            (entry) => entry.case === caseName
+          ).status = status
+        },
+      })),
+      {
+        name: 'failure precedence permits path lookup after failed authorization',
+        mutate(semantics) {
+          semantics.failure_precedence.stages.operation_authorization.path_customer_lookup_permitted = true
+        },
+      },
+      {
+        name: 'failure precedence substitutes open 403 response',
+        mutate(semantics) {
+          semantics.failure_precedence.stages.operation_authorization.response =
+            '#/components/responses/Forbidden'
+        },
+      },
+      {
+        name: 'failure precedence substitutes open 404 response',
+        mutate(semantics) {
+          semantics.failure_precedence.stages.tenant_scoped_customer_lookup.response =
             '#/components/responses/NotFound'
         },
       },
@@ -1506,6 +1765,56 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
       },
     },
     {
+      name: 'extra-property 422 rejects missing request authority',
+      expected: /dedicated closed validation schema/,
+      mutate(candidate) {
+        delete candidate.components.schemas
+          .CustomerTransactionalEditValidationProblem.properties.errors
+          .patternProperties['^request$']
+      },
+    },
+    {
+      name: 'extra-property 422 rejects open request messages',
+      expected: /dedicated closed validation schema/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditInvalidRequestBodyErrors.items =
+          { type: 'string' }
+      },
+    },
+    {
+      name: 'extra-property 422 rejects root property-name disclosure',
+      expected: /dedicated closed validation schema/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditInvalidRequestBodyErrors.items.enum =
+          ['Unknown property secret_field.']
+      },
+    },
+    {
+      name: 'extra-property 422 preserves closed request schema',
+      expected: /must remain closed/,
+      mutate(candidate) {
+        candidate.components.schemas.CustomerTransactionalEditRequest.additionalProperties = true
+      },
+    },
+    ...[
+      'extra-property-request',
+      'extra-property-customer',
+      'extra-property-assignment-item',
+    ].map((category) => ({
+      name: `extra-property 422 preserves accepted ${category} evidence`,
+      expected: /dedicated closed validation schema/,
+      mutate(candidate) {
+        const examples =
+          candidate.components.schemas
+            .CustomerTransactionalEditValidationProblem['x-validation-examples']
+            .accepted
+        examples.splice(
+          examples.findIndex((example) => example.category === category),
+          1
+        )
+      },
+    })),
+    {
       name: 'A rejects arbitrary transactional validation strings',
       expected: /dedicated closed validation schema/,
       mutate(candidate) {
@@ -1632,6 +1941,11 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
       'contact-tenant-disclosure',
       'contact-resource-disclosure',
       'contact-database-internal-text',
+      'extra-property-root-disclosure',
+      'extra-property-customer-disclosure',
+      'extra-property-item-disclosure',
+      'extra-property-dynamic-path',
+      'extra-property-unrelated-field',
     ].map((category) => ({
       name: `A preserves rejected ${category} evidence`,
       expected: /dedicated closed validation schema/,

@@ -7080,6 +7080,15 @@ components:
         enum:
           - Each establishment may be assigned at most once.
 
+    CustomerTransactionalEditInvalidRequestBodyErrors:
+      type: array
+      minItems: 1
+      maxItems: 1
+      items:
+        type: string
+        enum:
+          - The request body is invalid.
+
     CustomerTransactionalEditInvalidCustomerPayloadErrors:
       type: array
       minItems: 1
@@ -7156,6 +7165,8 @@ components:
           minProperties: 1
           additionalProperties: false
           patternProperties:
+            '^request$':
+              $ref: '#/components/schemas/CustomerTransactionalEditInvalidRequestBodyErrors'
             '^customer$':
               $ref: '#/components/schemas/CustomerTransactionalEditInvalidCustomerPayloadErrors'
             '^customer\.(legal_entity_id|vat_id|name|billing_address(?:\.(?:street|city|postal_code|country|latitude|longitude))?|is_active)$':
@@ -7172,6 +7183,30 @@ components:
               $ref: '#/components/schemas/CustomerTransactionalEditInvalidContactFieldErrors'
       x-validation-examples:
         accepted:
+          - name: Unknown request property
+            category: extra-property-request
+            cause: extra_property
+            value:
+              message: The given data was invalid.
+              errors:
+                request:
+                  - The request body is invalid.
+          - name: Unknown customer property
+            category: extra-property-customer
+            cause: extra_property
+            value:
+              message: The given data was invalid.
+              errors:
+                customer:
+                  - The customer payload is invalid.
+          - name: Unknown assignment item property
+            category: extra-property-assignment-item
+            cause: extra_property
+            value:
+              message: The given data was invalid.
+              errors:
+                customer_establishments.0:
+                  - The assignment item is invalid.
           - name: Missing customer payload
             category: structural-customer
             cause: missing
@@ -7379,6 +7414,42 @@ components:
               errors:
                 customer_establishments.0.comments:
                   - Database constraint customer_establishment_comments_check failed.
+          - name: Unknown root property name disclosure
+            category: extra-property-root-disclosure
+            value:
+              message: The given data was invalid.
+              errors:
+                request:
+                  - Unknown property secret_field.
+          - name: Unknown customer property name disclosure
+            category: extra-property-customer-disclosure
+            value:
+              message: The given data was invalid.
+              errors:
+                customer:
+                  - Unknown property internal_account_id.
+          - name: Unknown assignment property name disclosure
+            category: extra-property-item-disclosure
+            value:
+              message: The given data was invalid.
+              errors:
+                customer_establishments.0:
+                  - Unknown property internal_assignment_id.
+          - name: Dynamic unknown-property path
+            category: extra-property-dynamic-path
+            value:
+              message: The given data was invalid.
+              errors:
+                customer.internal_account_id:
+                  - The customer payload is invalid.
+          - name: Unknown root property remapped to unrelated known field
+            category: extra-property-unrelated-field
+            cause: extra_property
+            value:
+              message: The given data was invalid.
+              errors:
+                customer.name:
+                  - The customer field is invalid.
 
     CustomerTransactionalEditConflictError:
       type: object
@@ -13634,7 +13705,11 @@ paths:
 
         **Request validation:** malformed or unparseable JSON and equivalent request syntax or protocol failures return **400**. Syntactically valid JSON that violates the request schema or domain rules returns the dedicated closed neutral **422** response. Missing, null, or non-object `customer`; missing, null, or non-array `customer_establishments`; and null, scalar, array, or otherwise non-object assignment items use their fixed structural field messages. Every item must repeat the path `customer` as `customer_id`; a different nested customer ID returns the neutral **422** customer field error and is never used to select or mutate a customer. Each `establishment_id` may occur at most once, independent of local contact data; and every target must be active, non-deleted, in the same tenant, in the customer's resulting Legal Entity, and authorized for the caller. Missing, inaccessible, cross-tenant, wrong-Legal-Entity, inactive, and deleted assignment targets use the same information-poor **422** field error. Duplicate establishment targets also return **422**. Removing a customer-establishment link used by a Site returns the neutral **409** response without identifying the dependent resource. Changing Legal Entity while any one or more Sites remain also returns that same neutral **409**; an unchanged Legal Entity or a changed Legal Entity with zero remaining Sites does not create this Site reassignment conflict. No Site category bypasses the rule, and the response never identifies a dependent resource.
 
+        **Forbidden extra properties:** unknown properties at the request root, inside `customer`, or inside an assignment item map respectively to the fixed `request`, `customer`, or indexed assignment-item **422** error. The unknown property name is never exposed and never becomes a dynamic error path.
+
         **Authorization boundary:** authentication and path UUID syntax handling precede operation authorization. Before any path-customer lookup that could select an existence-dependent response, require `customers.update`, unrestricted `customers.read`, no organizational scopes, and complete-snapshot authority. Unauthorized existing, missing, and tenant-inaccessible IDs all return the same closed neutral **403** without a path-existence lookup. Only authorized callers perform tenant-scoped lookup; authorized missing and tenant-inaccessible customers return the identical information-poor **404**. OU scopes do not grant access to customer or site domain writes; callers with any organizational scopes receive **403**, and unscoped callers require `customers.update` together with unrestricted `customers.read`. Legal Entity, Establishment, Site, and customer-establishment relationships remain tenant scoped and expose no organizational-unit relationship. The separate `CustomerEstablishment` CRUD operations remain available for intentional single-link changes; they are not a second transactional customer-edit path.
+
+        **Failure precedence:** after path syntax handling, the operation evaluates authentication, operation authorization, tenant-scoped customer lookup, the `If-Match` precondition, request-content schema and domain validation, dependency conflicts, and mutation in that order. A stale `If-Match` terminates with **412** before malformed or parsed-invalid content and dependency conflicts are evaluated. With a current validator, malformed content returns **400**, parsed schema or domain invalidity returns **422** before dependency-conflict evaluation, and a valid request with a dependency conflict returns **409**. Mutation begins only after every prior stage passes.
       x-etag-precondition-semantics:
         source_operation: GET /customers/{customer}
         source_header: ETag
@@ -13657,11 +13732,17 @@ paths:
             status: 422
             response: '#/components/responses/CustomerTransactionalEditValidationError'
             structural_errors:
+              request:
+                causes:
+                  - extra_property
+                field: request
+                message: The request body is invalid.
               customer:
                 causes:
                   - missing
                   - 'null'
                   - non_object
+                  - extra_property
                 field: customer
                 message: The customer payload is invalid.
               customer_establishments:
@@ -13677,8 +13758,12 @@ paths:
                   - scalar
                   - array
                   - non_object
+                  - extra_property
                 field: 'customer_establishments.<index>'
                 message: The assignment item is invalid.
+            unknown_property_handling:
+              property_name_disclosed: false
+              dynamic_error_paths: false
         atomicity:
           scope:
             - customer
@@ -13788,6 +13873,67 @@ paths:
               path_state: tenant_inaccessible
               status: 404
               lookup: true
+        failure_precedence:
+          ordered_stages:
+            - authentication
+            - operation_authorization
+            - tenant_scoped_customer_lookup
+            - if_match_precondition
+            - request_content_schema_and_domain_validation
+            - dependency_conflicts
+            - mutation
+          stages:
+            authentication:
+              failure_status: 401
+              response: '#/components/responses/Unauthorized'
+            operation_authorization:
+              failure_status: 403
+              response: '#/components/responses/CustomerTransactionalEditForbidden'
+              path_customer_lookup_permitted: false
+            tenant_scoped_customer_lookup:
+              missing_status: 404
+              tenant_inaccessible_status: 404
+              response: '#/components/responses/CustomerTransactionalEditNotFound'
+              missing_and_tenant_inaccessible_indistinguishable: true
+            if_match_precondition:
+              stale_status: 412
+              response: '#/components/responses/CustomerTransactionalEditStale'
+              later_stages_evaluated_when_stale: false
+            request_content_schema_and_domain_validation:
+              malformed_or_unparseable_status: 400
+              malformed_response: '#/components/responses/BadRequest'
+              parsed_schema_or_domain_failure_status: 422
+              parsed_failure_response: '#/components/responses/CustomerTransactionalEditValidationError'
+            dependency_conflicts:
+              failure_status: 409
+              response: '#/components/responses/CustomerTransactionalEditConflict'
+            mutation:
+              reached_only_after_prior_stages_pass: true
+          mixed_failure_state_matrix:
+            - case: authentication_failure
+              status: 401
+            - case: operation_authorization_failure_any_state
+              status: 403
+              path_customer_lookup: false
+            - case: authorized_missing_stale_invalid
+              status: 404
+            - case: authorized_tenant_inaccessible_stale_invalid
+              status: 404
+              same_as: authorized_missing_stale_invalid
+            - case: existing_stale_malformed
+              status: 412
+            - case: existing_stale_parsed_invalid
+              status: 412
+            - case: existing_stale_dependency_conflict
+              status: 412
+            - case: existing_current_malformed
+              status: 400
+            - case: existing_current_parsed_invalid_dependency_conflict
+              status: 422
+            - case: existing_current_valid_dependency_conflict
+              status: 409
+            - case: existing_current_valid_no_dependency_conflict
+              status: mutation
         contract_runtime_boundary:
           contract_proof: normative contract cannot weaken while maintained validation passes
           runtime_proof_owner: SecPal/api#1332
@@ -13798,6 +13944,7 @@ paths:
             - dependency conflicts
             - request validation routing
             - authorization-before-lookup
+            - failure precedence
         authority_classification:
           machine_readable_material_groups:
             - atomicity
@@ -13806,6 +13953,7 @@ paths:
             - dependency_conflicts
             - request_validation
             - authorization_precedence
+            - failure_precedence
           prose_only_material_invariants: 0
           guard_false_confidence: 0
           material_x_extensions_without_executable_authority: 0

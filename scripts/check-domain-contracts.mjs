@@ -2136,8 +2136,13 @@ const expectedTransactionalEditSemantics = {
       response:
         '#/components/responses/CustomerTransactionalEditValidationError',
       structural_errors: {
+        request: {
+          causes: ['extra_property'],
+          field: 'request',
+          message: 'The request body is invalid.',
+        },
         customer: {
-          causes: ['missing', 'null', 'non_object'],
+          causes: ['missing', 'null', 'non_object', 'extra_property'],
           field: 'customer',
           message: 'The customer payload is invalid.',
         },
@@ -2147,10 +2152,14 @@ const expectedTransactionalEditSemantics = {
           message: 'The assignment collection is invalid.',
         },
         customer_establishments_item: {
-          causes: ['null', 'scalar', 'array', 'non_object'],
+          causes: ['null', 'scalar', 'array', 'non_object', 'extra_property'],
           field: 'customer_establishments.<index>',
           message: 'The assignment item is invalid.',
         },
+      },
+      unknown_property_handling: {
+        property_name_disclosed: false,
+        dynamic_error_paths: false,
       },
     },
   },
@@ -2279,6 +2288,98 @@ const expectedTransactionalEditSemantics = {
       },
     ],
   },
+  failure_precedence: {
+    ordered_stages: [
+      'authentication',
+      'operation_authorization',
+      'tenant_scoped_customer_lookup',
+      'if_match_precondition',
+      'request_content_schema_and_domain_validation',
+      'dependency_conflicts',
+      'mutation',
+    ],
+    stages: {
+      authentication: {
+        failure_status: 401,
+        response: '#/components/responses/Unauthorized',
+      },
+      operation_authorization: {
+        failure_status: 403,
+        response: '#/components/responses/CustomerTransactionalEditForbidden',
+        path_customer_lookup_permitted: false,
+      },
+      tenant_scoped_customer_lookup: {
+        missing_status: 404,
+        tenant_inaccessible_status: 404,
+        response: '#/components/responses/CustomerTransactionalEditNotFound',
+        missing_and_tenant_inaccessible_indistinguishable: true,
+      },
+      if_match_precondition: {
+        stale_status: 412,
+        response: '#/components/responses/CustomerTransactionalEditStale',
+        later_stages_evaluated_when_stale: false,
+      },
+      request_content_schema_and_domain_validation: {
+        malformed_or_unparseable_status: 400,
+        malformed_response: '#/components/responses/BadRequest',
+        parsed_schema_or_domain_failure_status: 422,
+        parsed_failure_response:
+          '#/components/responses/CustomerTransactionalEditValidationError',
+      },
+      dependency_conflicts: {
+        failure_status: 409,
+        response: '#/components/responses/CustomerTransactionalEditConflict',
+      },
+      mutation: {
+        reached_only_after_prior_stages_pass: true,
+      },
+    },
+    mixed_failure_state_matrix: [
+      { case: 'authentication_failure', status: 401 },
+      {
+        case: 'operation_authorization_failure_any_state',
+        status: 403,
+        path_customer_lookup: false,
+      },
+      {
+        case: 'authorized_missing_stale_invalid',
+        status: 404,
+      },
+      {
+        case: 'authorized_tenant_inaccessible_stale_invalid',
+        status: 404,
+        same_as: 'authorized_missing_stale_invalid',
+      },
+      {
+        case: 'existing_stale_malformed',
+        status: 412,
+      },
+      {
+        case: 'existing_stale_parsed_invalid',
+        status: 412,
+      },
+      {
+        case: 'existing_stale_dependency_conflict',
+        status: 412,
+      },
+      {
+        case: 'existing_current_malformed',
+        status: 400,
+      },
+      {
+        case: 'existing_current_parsed_invalid_dependency_conflict',
+        status: 422,
+      },
+      {
+        case: 'existing_current_valid_dependency_conflict',
+        status: 409,
+      },
+      {
+        case: 'existing_current_valid_no_dependency_conflict',
+        status: 'mutation',
+      },
+    ],
+  },
   contract_runtime_boundary: {
     contract_proof:
       'normative contract cannot weaken while maintained validation passes',
@@ -2290,6 +2391,7 @@ const expectedTransactionalEditSemantics = {
       'dependency conflicts',
       'request validation routing',
       'authorization-before-lookup',
+      'failure precedence',
     ],
   },
   authority_classification: {
@@ -2300,6 +2402,7 @@ const expectedTransactionalEditSemantics = {
       'dependency_conflicts',
       'request_validation',
       'authorization_precedence',
+      'failure_precedence',
     ],
     prose_only_material_invariants: 0,
     guard_false_confidence: 0,
@@ -2322,10 +2425,27 @@ if (
   transactionalEditSemantics.authorization_precedence?.unauthorized
     ?.response !== transactionalCustomerEdit?.responses?.['403']?.$ref ||
   transactionalEditSemantics.authorization_precedence?.authorized?.response !==
-    transactionalCustomerEdit?.responses?.['404']?.$ref
+    transactionalCustomerEdit?.responses?.['404']?.$ref ||
+  transactionalEditSemantics.failure_precedence?.stages?.authentication
+    ?.response !== transactionalCustomerEdit?.responses?.['401']?.$ref ||
+  transactionalEditSemantics.failure_precedence?.stages?.operation_authorization
+    ?.response !== transactionalCustomerEdit?.responses?.['403']?.$ref ||
+  transactionalEditSemantics.failure_precedence?.stages
+    ?.tenant_scoped_customer_lookup?.response !==
+    transactionalCustomerEdit?.responses?.['404']?.$ref ||
+  transactionalEditSemantics.failure_precedence?.stages?.if_match_precondition
+    ?.response !== transactionalCustomerEdit?.responses?.['412']?.$ref ||
+  transactionalEditSemantics.failure_precedence?.stages
+    ?.request_content_schema_and_domain_validation?.malformed_response !==
+    transactionalCustomerEdit?.responses?.['400']?.$ref ||
+  transactionalEditSemantics.failure_precedence?.stages
+    ?.request_content_schema_and_domain_validation?.parsed_failure_response !==
+    transactionalCustomerEdit?.responses?.['422']?.$ref ||
+  transactionalEditSemantics.failure_precedence?.stages?.dependency_conflicts
+    ?.response !== transactionalCustomerEdit?.responses?.['409']?.$ref
 ) {
   errors.push(
-    'Transactional customer edit machine-readable transactional semantics must exactly preserve structural 400/422 routing, atomic success-only commit and rollback, authorization revalidation with closed 403, neutral assignment eligibility with dedicated field-level 422, any-Site dependency conflicts with dedicated 409, authorization before path lookup, the contract/runtime boundary, PROSE_ONLY_MATERIAL_INVARIANTS=0, material extension executable authority, and guard false-confidence=0.'
+    'Transactional customer edit machine-readable transactional semantics must exactly preserve closed extra-property 422 routing, structural 400/422 routing, deterministic failure precedence, atomic success-only commit and rollback, authorization revalidation with closed 403, neutral assignment eligibility with dedicated field-level 422, any-Site dependency conflicts with dedicated 409, authorization before path lookup, the contract/runtime boundary, PROSE_ONLY_MATERIAL_INVARIANTS=0, material extension executable authority, and guard false-confidence=0.'
   )
 }
 
@@ -2436,6 +2556,10 @@ function acceptsFixedClosedError(schema, value) {
 
 const transactionalValidationErrorRules = [
   {
+    pattern: /^request$/,
+    message: 'The request body is invalid.',
+  },
+  {
     pattern: /^customer$/,
     message: 'The customer payload is invalid.',
   },
@@ -2496,6 +2620,33 @@ function acceptsTransactionalValidationProblem(value) {
       )
     )
   })
+}
+
+function acceptsTransactionalValidationEvidence(example) {
+  if (!acceptsTransactionalValidationProblem(example?.value)) return false
+
+  const categoryGroups = {
+    'extra-property-request': 'request',
+    'extra-property-customer': 'customer',
+    'extra-property-assignment-item': 'customer_establishments_item',
+    'extra-property-unrelated-field': 'request',
+    'structural-customer': 'customer',
+    'structural-collection': 'customer_establishments',
+    'structural-item': 'customer_establishments_item',
+  }
+  const groupName = categoryGroups[example?.category]
+  if (!groupName) return true
+
+  const structural =
+    transactionalEditSemantics.request_validation?.parsed_structural_or_domain
+      ?.structural_errors?.[groupName]
+  return (
+    structural?.causes?.includes(example?.cause) === true &&
+    JSON.stringify(example.value.errors) ===
+      JSON.stringify({
+        [structural.field.replace('<index>', '0')]: [structural.message],
+      })
+  )
 }
 
 const transactionalCustomerEditForbidden =
@@ -2559,6 +2710,8 @@ const transactionalValidationErrors =
 const transactionalValidationExamples =
   transactionalValidationSchema['x-validation-examples'] ?? {}
 const transactionalValidationPatterns = {
+  '^request$':
+    '#/components/schemas/CustomerTransactionalEditInvalidRequestBodyErrors',
   '^customer$':
     '#/components/schemas/CustomerTransactionalEditInvalidCustomerPayloadErrors',
   '^customer\\.(legal_entity_id|vat_id|name|billing_address(?:\\.(?:street|city|postal_code|country|latitude|longitude))?|is_active)$':
@@ -2575,6 +2728,8 @@ const transactionalValidationPatterns = {
     '#/components/schemas/CustomerTransactionalEditInvalidContactFieldErrors',
 }
 const transactionalValidationFieldSchemas = {
+  CustomerTransactionalEditInvalidRequestBodyErrors:
+    'The request body is invalid.',
   CustomerTransactionalEditInvalidCustomerPayloadErrors:
     'The customer payload is invalid.',
   CustomerTransactionalEditCustomerFieldErrors:
@@ -2642,16 +2797,22 @@ if (
         $ref: '#/components/schemas/CustomerTransactionalEditInvalidAssignmentCollectionErrors',
       },
     ]) ||
-  transactionalValidationExamples.accepted?.length !== 18 ||
+  transactionalValidationExamples.accepted?.length !== 21 ||
   transactionalValidationExamples.accepted.some(
-    (example) => !acceptsTransactionalValidationProblem(example?.value)
+    (example) => !acceptsTransactionalValidationEvidence(example)
   ) ||
   JSON.stringify(
     transactionalValidationExamples.accepted
-      .slice(0, 10)
+      .slice(0, 13)
       .map(({ category, cause }) => ({ category, cause }))
   ) !==
     JSON.stringify([
+      { category: 'extra-property-request', cause: 'extra_property' },
+      { category: 'extra-property-customer', cause: 'extra_property' },
+      {
+        category: 'extra-property-assignment-item',
+        cause: 'extra_property',
+      },
       { category: 'structural-customer', cause: 'missing' },
       { category: 'structural-customer', cause: 'null' },
       { category: 'structural-customer', cause: 'non_object' },
@@ -2669,6 +2830,9 @@ if (
     )
   ) !==
     JSON.stringify([
+      'request',
+      'customer',
+      'customer_establishments.0',
       'customer',
       'customer',
       'customer',
@@ -2688,9 +2852,9 @@ if (
       'customer_establishments.0.email',
       'customer_establishments.0.comments',
     ]) ||
-  transactionalValidationExamples.rejected?.length !== 11 ||
+  transactionalValidationExamples.rejected?.length !== 16 ||
   transactionalValidationExamples.rejected.some((example) =>
-    acceptsTransactionalValidationProblem(example?.value)
+    acceptsTransactionalValidationEvidence(example)
   ) ||
   JSON.stringify(
     transactionalValidationExamples.rejected.map((example) => example.category)
@@ -2707,10 +2871,15 @@ if (
       'contact-tenant-disclosure',
       'contact-resource-disclosure',
       'contact-database-internal-text',
+      'extra-property-root-disclosure',
+      'extra-property-customer-disclosure',
+      'extra-property-item-disclosure',
+      'extra-property-dynamic-path',
+      'extra-property-unrelated-field',
     ])
 ) {
   errors.push(
-    'Transactional customer edit 422 must use its dedicated closed validation schema, accept only customer master-data and fixed transactional field errors, and reject arbitrary or tenant-disclosing keys, strings, details, hints, and properties.'
+    'Transactional customer edit 422 must use its dedicated closed validation schema, map forbidden extra properties to fixed neutral request, customer, or assignment-item errors without disclosing names, accept only customer master-data and fixed transactional field errors, and reject arbitrary or tenant-disclosing keys, strings, details, hints, and properties.'
   )
 }
 
