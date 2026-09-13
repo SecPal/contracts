@@ -461,8 +461,10 @@ test('defines one transactional customer edit aggregate contract', () => {
     validator_strength: 'strong',
     representation_scope: 'entire actual 200 response representation',
     invalidated_by: 'any observable change to any emitted data member',
-    comparison_basis:
-      'current actual representation at each protected comparison or recheck',
+    initial_comparison_basis:
+      'current actual emitted GET representation including current temporal state',
+    temporal_boundary_before_initial_comparison:
+      'reflected in current representation; older validator is stale',
     stale_response: '412 CustomerTransactionalEditStale',
     conservative_rejection:
       'represented changes unrelated to the mutation are stale',
@@ -545,10 +547,16 @@ test('defines one transactional customer edit aggregate contract', () => {
       non_success: 'rollback-complete-edit',
       if_match_commit_coupling: {
         required: true,
+        state_revalidation_scope:
+          'persisted representation state and representation-visibility authority state',
         concurrency_guarantee:
-          'persisted or authorization-state mutations that invalidate the successful comparison remain protected through commit',
-        concurrent_persisted_or_authorization_state_mutation: {
+          'representation-affecting state mutations remain protected through commit',
+        concurrent_representation_affecting_state_mutation: {
+          mutation_scope:
+            'persisted representation state or representation-visibility authority state',
+          operation_authorization: 'remains-valid',
           commit: 'prohibited',
+          rollback: 'complete-edit',
           status: 412,
           response: '#/components/responses/CustomerTransactionalEditStale',
         },
@@ -557,12 +565,15 @@ test('defines one transactional customer edit aggregate contract', () => {
       },
     },
     authorization_revalidation: {
+      scope: 'required transactional-edit operation authority',
       before_mutation: true,
       before_commit: true,
       failure: {
         status: 403,
         response: '#/components/responses/CustomerTransactionalEditForbidden',
         closed: true,
+        rollback: 'complete-edit',
+        classified_as_if_match_stale: false,
       },
     },
     assignment_eligibility: {

@@ -13710,7 +13710,7 @@ paths:
       description: |
         Applies customer master-data changes and reconciles the complete desired `customer_establishments` collection in one transaction. A present existing pair is retained, a present new pair is created, and an absent existing pair is deleted subject to the documented conflicts. For `contact_name`, `phone`, `email`, and `comments` on a retained pair, an omitted field preserves its stored value, explicit `null` clears it, and a value replaces it. On a new pair, omission and explicit `null` initialize the field to null, while a value initializes the supplied value. The `200` response is the committed customer with its complete committed customer-establishment assignment snapshot; it omits `sites`, `assignments`, and relationship counts.
 
-        Requires `customers.update`, `customers.read` without organizational scopes, and the exact strong `ETag` from `GET /customers/{customer}` in `If-Match`. That validator represents the entire actual GET `200` response emitted to the eligible caller. Any observable change to any member of that GET representation makes the validator stale and returns the neutral **412** response, including a represented change unrelated to the requested mutation. Each protected comparison or recheck uses the current actual representation, so a temporal boundary crossed before that comparison is reflected in the representation and an older validator is stale normally. The successful validator comparison and aggregate mutation are concurrency-safe as one operation: if a concurrent persisted-state or authorization-state mutation would invalidate that successful comparison before commit, the edit does not commit, rolls back, and returns the same neutral **412** response. Passage of wall-clock time alone after a successful protected comparison is not a concurrent aggregate mutation, does not retroactively invalidate the comparison, and independently requires neither **412** nor rollback. Implementations may satisfy the mutation coupling with a lock and recheck, a compare-and-swap or version predicate, or a serializable equivalent. This unrestricted read authority guarantees visibility of the complete customer-establishment collection represented by the tag. Assignment-only and site-only callers receive **403** even when they may view a filtered customer representation. Authorization and tenant access are revalidated inside the transaction before mutation and before commit; stale authorization returns **403**. Every non-success response rolls back the complete edit. A successful transactional PUT does not return an `ETag` because its reduced committed response is not the complete GET representation. A client needing the next conditional validator must refetch `GET /customers/{customer}` and use that response's fresh strong `ETag`.
+        Requires `customers.update`, `customers.read` without organizational scopes, and the exact strong `ETag` from `GET /customers/{customer}` in `If-Match`. That validator represents the entire actual GET `200` response emitted to the eligible caller. Any observable change to any member of that GET representation makes the validator stale and returns the neutral **412** response, including a represented change unrelated to the requested mutation. The initial protected `If-Match` evaluation compares the supplied validator with the current actual emitted GET representation, including its current temporal state; a temporal boundary crossed before that evaluation is reflected in the representation and an older validator is stale normally. After a successful initial comparison, commit-coupling state revalidation protects persisted representation state and representation-visibility authority state through commit while required transactional-edit operation authority remains valid. If a concurrent mutation to either protected state changes the actual GET representation before commit, the edit does not commit, rolls back, and returns the same neutral **412** response. Separately, loss of required transactional-edit operation authority before mutation or before commit returns **403** with complete rollback under authorization revalidation and is not an `If-Match` stale condition. Passage of wall-clock time alone after the successful initial comparison is not a concurrent aggregate mutation, does not retroactively invalidate the comparison, and does not independently invalidate commit-coupling state revalidation or require **412** or rollback. Implementations may satisfy the state coupling with a lock and scoped state revalidation, a compare-and-swap or version predicate, or a serializable equivalent; no frozen wall clock is required. This unrestricted read authority guarantees visibility of the complete customer-establishment collection represented by the tag. Assignment-only and site-only callers receive **403** even when they may view a filtered customer representation. Authorization and tenant access are revalidated inside the transaction before mutation and before commit; stale authorization returns **403**. Every non-success response rolls back the complete edit. A successful transactional PUT does not return an `ETag` because its reduced committed response is not the complete GET representation. A client needing the next conditional validator must refetch `GET /customers/{customer}` and use that response's fresh strong `ETag`.
 
         **Request validation:** malformed or unparseable JSON and equivalent request syntax or protocol failures return **400**. Syntactically valid JSON that violates the request schema or domain rules returns the dedicated closed neutral **422** response. Missing, null, or non-object `customer`; missing, null, or non-array `customer_establishments`; and null, scalar, array, or otherwise non-object assignment items use their fixed structural field messages. Every item must repeat the path `customer` as `customer_id`; a different nested customer ID returns the neutral **422** customer field error and is never used to select or mutate a customer. Each `establishment_id` may occur at most once, independent of local contact data; and every target must be active, non-deleted, in the same tenant, in the customer's resulting Legal Entity, and authorized for the caller. Missing, inaccessible, cross-tenant, wrong-Legal-Entity, inactive, and deleted assignment targets use the same information-poor **422** field error. Duplicate establishment targets also return **422**. Removing a customer-establishment link used by a Site returns the neutral **409** response without identifying the dependent resource. Changing Legal Entity while any one or more Sites remain also returns that same neutral **409**; an unchanged Legal Entity or a changed Legal Entity with zero remaining Sites does not create this Site reassignment conflict. No Site category bypasses the rule, and the response never identifies a dependent resource.
 
@@ -13725,7 +13725,8 @@ paths:
         validator_strength: strong
         representation_scope: entire actual 200 response representation
         invalidated_by: any observable change to any emitted data member
-        comparison_basis: current actual representation at each protected comparison or recheck
+        initial_comparison_basis: current actual emitted GET representation including current temporal state
+        temporal_boundary_before_initial_comparison: reflected in current representation; older validator is stale
         stale_response: 412 CustomerTransactionalEditStale
         conservative_rejection: represented changes unrelated to the mutation are stale
         success_etag: absent
@@ -13782,19 +13783,26 @@ paths:
           non_success: rollback-complete-edit
           if_match_commit_coupling:
             required: true
-            concurrency_guarantee: persisted or authorization-state mutations that invalidate the successful comparison remain protected through commit
-            concurrent_persisted_or_authorization_state_mutation:
+            state_revalidation_scope: persisted representation state and representation-visibility authority state
+            concurrency_guarantee: representation-affecting state mutations remain protected through commit
+            concurrent_representation_affecting_state_mutation:
+              mutation_scope: persisted representation state or representation-visibility authority state
+              operation_authorization: remains-valid
               commit: prohibited
+              rollback: complete-edit
               status: 412
               response: '#/components/responses/CustomerTransactionalEditStale'
             wall_clock_only_after_successful_comparison: does not invalidate the comparison or require 412 or rollback
         authorization_revalidation:
+          scope: required transactional-edit operation authority
           before_mutation: true
           before_commit: true
           failure:
             status: 403
             response: '#/components/responses/CustomerTransactionalEditForbidden'
             closed: true
+            rollback: complete-edit
+            classified_as_if_match_stale: false
         assignment_eligibility:
           required:
             active: true
