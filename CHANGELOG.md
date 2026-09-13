@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Clarified the transactional customer-edit ETag contract so persisted
+  representation or visibility-authority mutations remain protected through
+  commit with `412` and rollback, operation-authority loss remains a `403`, and
+  wall-clock passage alone after the initial comparison requires neither a
+  stale response nor rollback (closes #494).
 - Added a bounded 50/100/200 ms retry backoff for transient
   `ERR_MODULE_NOT_FOUND` failures resolving `js-yaml` in the verified-endpoint
   guard test harness, without masking other guard failures (closes #436).

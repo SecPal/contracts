@@ -2136,6 +2136,10 @@ if (
       validator_strength: 'strong',
       representation_scope: 'entire actual 200 response representation',
       invalidated_by: 'any observable change to any emitted data member',
+      initial_comparison_basis:
+        'current actual emitted GET representation including current temporal state',
+      temporal_boundary_before_initial_comparison:
+        'reflected in current representation; older validator is stale',
       stale_response: '412 CustomerTransactionalEditStale',
       conservative_rejection:
         'represented changes unrelated to the mutation are stale',
@@ -2151,6 +2155,12 @@ if (
     transactionalCustomerEditIfMatch?.description ?? ''
   ) ||
   !/entire actual GET .*200.* response.*any observable change to any member.*stale.*412.*represented change unrelated to the requested mutation.*successful transactional PUT does not return an .*ETag.*refetch .*GET \/customers\/\{customer\}.*fresh strong .*ETag/is.test(
+    transactionalCustomerEditDescription
+  ) ||
+  !/initial protected .*If-Match.*current actual emitted GET representation.*current temporal state.*temporal boundary crossed before that evaluation.*older validator is stale/is.test(
+    transactionalCustomerEditDescription
+  ) ||
+  !/commit-coupling state revalidation protects persisted representation state and representation-visibility authority state.*operation authority remains valid.*rolls back.*412.*loss of required transactional-edit operation authority.*403.*not an .*If-Match.*stale condition.*wall-clock time alone after the successful initial comparison.*does not independently invalidate commit-coupling state revalidation.*no frozen wall clock is required/is.test(
     transactionalCustomerEditDescription
   ) ||
   !/reduced response does not provide an ETag.*refetch GET \/customers\/\{customer\}.*next conditional validator/is.test(
@@ -2210,14 +2220,35 @@ const expectedTransactionalEditSemantics = {
     scope: ['customer', 'customer_establishments'],
     commit: 'success-only',
     non_success: 'rollback-complete-edit',
+    if_match_commit_coupling: {
+      required: true,
+      state_revalidation_scope:
+        'persisted representation state and representation-visibility authority state',
+      concurrency_guarantee:
+        'representation-affecting state mutations remain protected through commit',
+      concurrent_representation_affecting_state_mutation: {
+        mutation_scope:
+          'persisted representation state or representation-visibility authority state',
+        operation_authorization: 'remains-valid',
+        commit: 'prohibited',
+        rollback: 'complete-edit',
+        status: 412,
+        response: '#/components/responses/CustomerTransactionalEditStale',
+      },
+      wall_clock_only_after_successful_comparison:
+        'does not invalidate the comparison or require 412 or rollback',
+    },
   },
   authorization_revalidation: {
+    scope: 'required transactional-edit operation authority',
     before_mutation: true,
     before_commit: true,
     failure: {
       status: 403,
       response: '#/components/responses/CustomerTransactionalEditForbidden',
       closed: true,
+      rollback: 'complete-edit',
+      classified_as_if_match_stale: false,
     },
   },
   assignment_eligibility: {
