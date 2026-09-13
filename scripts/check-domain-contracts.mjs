@@ -2136,6 +2136,8 @@ if (
       validator_strength: 'strong',
       representation_scope: 'entire actual 200 response representation',
       invalidated_by: 'any observable change to any emitted data member',
+      comparison_basis:
+        'current actual representation at each protected comparison or recheck',
       stale_response: '412 CustomerTransactionalEditStale',
       conservative_rejection:
         'represented changes unrelated to the mutation are stale',
@@ -2151,6 +2153,9 @@ if (
     transactionalCustomerEditIfMatch?.description ?? ''
   ) ||
   !/entire actual GET .*200.* response.*any observable change to any member.*stale.*412.*represented change unrelated to the requested mutation.*successful transactional PUT does not return an .*ETag.*refetch .*GET \/customers\/\{customer\}.*fresh strong .*ETag/is.test(
+    transactionalCustomerEditDescription
+  ) ||
+  !/temporal boundary crossed before that comparison.*reflected in the representation.*older validator is stale.*wall-clock time alone after a successful protected comparison.*not a concurrent aggregate mutation.*requires neither .*412.* nor rollback/is.test(
     transactionalCustomerEditDescription
   ) ||
   !/reduced response does not provide an ETag.*refetch GET \/customers\/\{customer\}.*next conditional validator/is.test(
@@ -2210,6 +2215,18 @@ const expectedTransactionalEditSemantics = {
     scope: ['customer', 'customer_establishments'],
     commit: 'success-only',
     non_success: 'rollback-complete-edit',
+    if_match_commit_coupling: {
+      required: true,
+      concurrency_guarantee:
+        'persisted or authorization-state mutations that invalidate the successful comparison remain protected through commit',
+      concurrent_persisted_or_authorization_state_mutation: {
+        commit: 'prohibited',
+        status: 412,
+        response: '#/components/responses/CustomerTransactionalEditStale',
+      },
+      wall_clock_only_after_successful_comparison:
+        'does not invalidate the comparison or require 412 or rollback',
+    },
   },
   authorization_revalidation: {
     before_mutation: true,
