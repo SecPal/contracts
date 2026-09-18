@@ -59,7 +59,7 @@ The API specification can be used to:
 
 ### Prerequisites
 
-- Node.js v24.x
+- Node.js v24.21.0 or later within the v24 LTS line
 - npm
 
 ### Setup

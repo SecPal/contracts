@@ -99,6 +99,30 @@ test('rejects any directly owned workflow with an incompatible selector', () => 
   )
 })
 
+test('rejects a same-major workflow selector below the engine minimum', () => {
+  withFixture(
+    (directory) => {
+      const packageJson = JSON.parse(
+        readFileSync(join(directory, 'package.json'), 'utf8')
+      )
+      const engine = parseNodeEngine(packageJson.engines.node)
+      const [major, minor, patch] = engine.minimum
+      const belowMinimum =
+        minor > 0 ? `${major}.${minor - 1}.999` : `${major}.0.${patch - 1}`
+      writeFileSync(
+        join(directory, '.github', 'workflows', 'below-minimum-node.yml'),
+        `jobs:\n  validation:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/setup-node@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa # test\n        with:\n          node-version: '${belowMinimum}'\n`
+      )
+    },
+    (directory) => {
+      assert.throws(
+        () => checkNodeToolchain(directory, process.version),
+        /selector is incompatible/
+      )
+    }
+  )
+})
+
 test('rejects a range that silently admits later Node majors', () => {
   const packageJson = JSON.parse(
     readFileSync(join(repositoryRoot, 'package.json'), 'utf8')
