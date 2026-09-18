@@ -13,8 +13,11 @@
   "bugs": {
     "url": "https://github.com/SecPal/contracts/issues"
   },
+  "engines": {
+    "node": "^24.21.0"
+  },
   "scripts": {
-    "prelint": "bash scripts/check-redocly-cli-sync.sh && node scripts/check-markdownlint-toolchain.mjs && node scripts/check-dependabot-config.mjs && node scripts/check-workflow-action-pins.mjs",
+    "prelint": "bash scripts/check-redocly-cli-sync.sh && node scripts/check-node-toolchain.mjs && node scripts/check-markdownlint-toolchain.mjs && node scripts/check-dependabot-config.mjs && node scripts/check-workflow-action-pins.mjs",
     "lint": "node --test && redocly lint docs/openapi.yaml && node scripts/check-openapi-verified-endpoints.mjs docs/openapi.yaml && node scripts/check-contract-crud.mjs docs/openapi.yaml && node scripts/check-service-booking-crud.mjs docs/openapi.yaml && node scripts/check-internal-cost-center-allocation.mjs docs/openapi.yaml && node scripts/check-domain-contracts.mjs docs/openapi.yaml",
     "format": "prettier --write '**/*.{md,yml,yaml,json,js,mjs}'",
     "format:check": "prettier --check '**/*.{md,yml,yaml,json,js,mjs}'",
