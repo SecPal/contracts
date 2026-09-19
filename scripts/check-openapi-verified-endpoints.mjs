@@ -173,6 +173,10 @@ const passkeyRegistrationVerificationRequest =
   schemas.PasskeyRegistrationVerificationRequest ?? {}
 const contractErrors = []
 const canonicalLogout = paths['/auth/logout']?.post ?? {}
+const canonicalLogoutSecurityAlternatives = [
+  { BearerAuth: [] },
+  { SessionAuth: [], CsrfToken: [] },
+]
 
 if (paths['/auth/session/logout'] !== undefined) {
   contractErrors.push(
@@ -191,6 +195,21 @@ if (
 ) {
   contractErrors.push(
     'POST /auth/logout must remain the canonical session and bearer-token logout operation.'
+  )
+}
+
+if (
+  !Array.isArray(canonicalLogout.security) ||
+  canonicalLogout.security.length !==
+    canonicalLogoutSecurityAlternatives.length ||
+  !canonicalLogoutSecurityAlternatives.every((expectedAlternative) =>
+    canonicalLogout.security.some((actualAlternative) =>
+      isDeepStrictEqual(actualAlternative, expectedAlternative)
+    )
+  )
+) {
+  contractErrors.push(
+    'POST /auth/logout must preserve the canonical /auth/logout security alternatives: BearerAuth, or SessionAuth with CsrfToken.'
   )
 }
 

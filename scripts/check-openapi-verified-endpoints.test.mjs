@@ -205,6 +205,65 @@ test('rejects republication of the retired session logout alias', () => {
   assert.match(result.stderr, /session\/logout is retired/i)
 })
 
+test('accepts canonical logout security alternatives independent of order', () => {
+  const candidate = structuredClone(parsedContract)
+  candidate.paths['/auth/logout'].post.security.reverse()
+
+  const result = runGuard(yaml.dump(candidate))
+
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('rejects canonical logout security regressions', () => {
+  const mutations = [
+    {
+      invariant: 'Bearer authentication alternative',
+      mutate(candidate) {
+        candidate.paths['/auth/logout'].post.security = candidate.paths[
+          '/auth/logout'
+        ].post.security.filter(
+          (requirement) => requirement.BearerAuth === undefined
+        )
+      },
+    },
+    {
+      invariant: 'session authentication alternative',
+      mutate(candidate) {
+        candidate.paths['/auth/logout'].post.security = candidate.paths[
+          '/auth/logout'
+        ].post.security.filter(
+          (requirement) => requirement.SessionAuth === undefined
+        )
+      },
+    },
+    {
+      invariant: 'session CSRF requirement',
+      mutate(candidate) {
+        const sessionRequirement = candidate.paths[
+          '/auth/logout'
+        ].post.security.find(
+          (requirement) => requirement.SessionAuth !== undefined
+        )
+        delete sessionRequirement.CsrfToken
+      },
+    },
+  ]
+
+  for (const { invariant, mutate } of mutations) {
+    const candidate = structuredClone(parsedContract)
+    mutate(candidate)
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, `${invariant}: ${result.stdout}`)
+    assert.match(
+      result.stderr,
+      /canonical \/auth\/logout security alternatives/i,
+      invariant
+    )
+  }
+})
+
 test('does not retry other guard failures', () => {
   let calls = 0
   const result = runGuard(contract, {
