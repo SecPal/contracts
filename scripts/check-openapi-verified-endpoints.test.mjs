@@ -191,6 +191,20 @@ test('stops retrying after the bounded js-yaml backoff', () => {
   assert.deepEqual(retryDelays, [50, 100, 200])
 })
 
+test('rejects republication of the retired session logout alias', () => {
+  const candidate = structuredClone(parsedContract)
+  candidate.paths['/auth/session/logout'] = {
+    post: {
+      operationId: 'logoutLegacySessionAlias',
+    },
+  }
+
+  const result = runGuard(yaml.dump(candidate))
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /session\/logout is retired/i)
+})
+
 test('does not retry other guard failures', () => {
   let calls = 0
   const result = runGuard(contract, {

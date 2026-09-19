@@ -9361,29 +9361,6 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /auth/session/logout:
-    post:
-      summary: Legacy Browser Session Logout Alias
-      description: Deprecated compatibility alias for older SPA clients. New clients should use `/auth/logout`.
-      operationId: logoutLegacySessionAlias
-      tags:
-        - Authentication
-      deprecated: true
-      security:
-        - SessionAuth: []
-          CsrfToken: []
-      responses:
-        '200':
-          description: Session logged out successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
   /auth/logout-all:
     post:
       summary: Revoke All Personal Access Tokens
