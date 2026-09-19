@@ -247,6 +247,12 @@ test('rejects canonical logout security regressions', () => {
         delete sessionRequirement.CsrfToken
       },
     },
+    {
+      invariant: 'anonymous security alternative',
+      mutate(candidate) {
+        candidate.paths['/auth/logout'].post.security.push({})
+      },
+    },
   ]
 
   for (const { invariant, mutate } of mutations) {
