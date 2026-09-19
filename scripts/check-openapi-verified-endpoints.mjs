@@ -55,6 +55,39 @@ const REQUIRED_OPERATIONS = [
   ['post', '/me/passkeys/challenges/registration'],
   ['post', '/me/passkeys/challenges/registration/{challengeId}/verify'],
   ['delete', '/me/passkeys/{credentialId}'],
+  ['get', '/roles'],
+  ['post', '/roles'],
+  ['get', '/roles/{id}'],
+  ['patch', '/roles/{id}'],
+  ['delete', '/roles/{id}'],
+  ['get', '/users/{user}/roles'],
+  ['post', '/users/{user}/roles'],
+  ['delete', '/users/{user}/roles/{role}'],
+  ['patch', '/users/{user}/roles/{role}/extend'],
+  ['get', '/users/{user}/permissions'],
+  ['get', '/users/{user}/permissions/direct'],
+  ['post', '/users/{user}/permissions'],
+  ['delete', '/users/{user}/permissions/{permission}'],
+]
+
+const RBAC_OPERATIONS = [
+  ['get', '/roles', 'listRoles'],
+  ['post', '/roles', 'createRole'],
+  ['get', '/roles/{id}', 'getRole'],
+  ['patch', '/roles/{id}', 'updateRole'],
+  ['delete', '/roles/{id}', 'deleteRole'],
+  ['get', '/users/{user}/roles', 'listUserRoles'],
+  ['post', '/users/{user}/roles', 'assignUserRole'],
+  ['delete', '/users/{user}/roles/{role}', 'revokeUserRole'],
+  ['patch', '/users/{user}/roles/{role}/extend', 'extendUserRoleAssignment'],
+  ['get', '/users/{user}/permissions', 'listUserPermissions'],
+  ['get', '/users/{user}/permissions/direct', 'listUserDirectPermissions'],
+  ['post', '/users/{user}/permissions', 'assignUserDirectPermissions'],
+  [
+    'delete',
+    '/users/{user}/permissions/{permission}',
+    'revokeUserDirectPermission',
+  ],
 ]
 
 const AUTHENTICATION_OPERATIONS = [
@@ -177,6 +210,143 @@ const canonicalLogoutSecurityAlternatives = [
   { BearerAuth: [] },
   { SessionAuth: [], CsrfToken: [] },
 ]
+
+const readSecurityAlternatives = [{ BearerAuth: [] }, { SessionAuth: [] }]
+const writeSecurityAlternatives = [
+  { BearerAuth: [] },
+  { SessionAuth: [], CsrfToken: [] },
+]
+const rbacParameterRefs = {
+  id: '#/components/parameters/RoleId',
+  permission: '#/components/parameters/PermissionName',
+  role: '#/components/parameters/RoleName',
+  user: '#/components/parameters/UserId',
+}
+const httpMethods = new Set([
+  'delete',
+  'get',
+  'head',
+  'options',
+  'patch',
+  'post',
+  'put',
+  'trace',
+])
+const expectedRbacOperationKeys = new Set(
+  RBAC_OPERATIONS.map(([method, pathKey]) => `${method} ${pathKey}`)
+)
+const actualRbacOperationKeys = Object.entries(paths).flatMap(
+  ([pathKey, pathItem]) => {
+    if (
+      !/^\/roles(?:\/|$)/.test(pathKey) &&
+      !/^\/users\/\{user\}\/(?:roles|permissions)(?:\/|$)/.test(pathKey)
+    ) {
+      return []
+    }
+
+    return Object.keys(pathItem ?? {})
+      .filter((method) => httpMethods.has(method))
+      .map((method) => `${method} ${pathKey}`)
+  }
+)
+
+for (const operationKey of actualRbacOperationKeys) {
+  if (!expectedRbacOperationKeys.has(operationKey)) {
+    contractErrors.push(
+      `${operationKey.toUpperCase()} is not one of the 13 shipped RBAC operations.`
+    )
+  }
+}
+
+for (const [method, pathKey, operationId] of RBAC_OPERATIONS) {
+  const operation = paths[pathKey]?.[method]
+  if (!operation) continue
+
+  if (operation.operationId !== operationId) {
+    contractErrors.push(
+      `${method.toUpperCase()} ${pathKey} must use operationId ${operationId}.`
+    )
+  }
+
+  const expectedSecurity =
+    method === 'get' ? readSecurityAlternatives : writeSecurityAlternatives
+  if (
+    !Array.isArray(operation.security) ||
+    operation.security.length !== expectedSecurity.length ||
+    !expectedSecurity.every((expectedAlternative) =>
+      operation.security.some((actualAlternative) =>
+        isDeepStrictEqual(actualAlternative, expectedAlternative)
+      )
+    )
+  ) {
+    contractErrors.push(
+      `${method.toUpperCase()} ${pathKey} must preserve the supported Sanctum Bearer and browser-session authentication alternatives${method === 'get' ? '' : ' with CSRF on session writes'}.`
+    )
+  }
+
+  for (const parameterName of pathKey.match(/(?<=\{)[^}]+/g) ?? []) {
+    const expectedRef = rbacParameterRefs[parameterName]
+    if (
+      !operation.parameters?.some(
+        (parameter) => parameter?.$ref === expectedRef
+      )
+    ) {
+      contractErrors.push(
+        `${method.toUpperCase()} ${pathKey} must reuse ${expectedRef} for {${parameterName}}.`
+      )
+    }
+  }
+}
+
+if (
+  componentParameters.UserId?.name !== 'user' ||
+  componentParameters.UserId?.in !== 'path' ||
+  componentParameters.UserId?.required !== true ||
+  componentParameters.UserId?.schema?.type !== 'string' ||
+  componentParameters.UserId?.schema?.format !== 'uuid'
+) {
+  contractErrors.push('RBAC user identifiers must remain UUID strings.')
+}
+
+if (
+  componentParameters.RoleId?.name !== 'id' ||
+  componentParameters.RoleId?.in !== 'path' ||
+  componentParameters.RoleId?.required !== true ||
+  componentParameters.RoleId?.schema?.type !== 'integer' ||
+  componentParameters.RoleId?.schema?.minimum !== 1
+) {
+  contractErrors.push('Role CRUD identifiers must remain positive integers.')
+}
+
+for (const [componentName, parameterName] of [
+  ['RoleName', 'role'],
+  ['PermissionName', 'permission'],
+]) {
+  const parameter = componentParameters[componentName]
+  if (
+    parameter?.name !== parameterName ||
+    parameter?.in !== 'path' ||
+    parameter?.required !== true ||
+    parameter?.schema?.type !== 'string' ||
+    parameter?.schema?.minLength !== 1 ||
+    parameter?.schema?.maxLength !== 255
+  ) {
+    contractErrors.push(
+      `${componentName} must remain a non-empty, bounded name path parameter.`
+    )
+  }
+}
+
+for (const forbiddenPath of Object.keys(paths).filter(
+  (pathKey) =>
+    /^\/(?:permissions|tenant-memberships|access-assignments)(?:\/|$)/.test(
+      pathKey
+    ) || /\/(?:tenant-memberships|access-assignments)(?:\/|$)/.test(pathKey)
+)) {
+  contractErrors.push(
+    `${forbiddenPath} is not part of the currently shipped RBAC surface.`
+  )
+}
 
 if (paths['/auth/session/logout'] !== undefined) {
   contractErrors.push(

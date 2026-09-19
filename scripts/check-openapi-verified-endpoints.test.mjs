@@ -328,6 +328,123 @@ test('accepts the repository contract', () => {
   assert.equal(result.status, 0, result.stderr)
 })
 
+const rbacOperations = [
+  ['get', '/roles'],
+  ['post', '/roles'],
+  ['get', '/roles/{id}'],
+  ['patch', '/roles/{id}'],
+  ['delete', '/roles/{id}'],
+  ['get', '/users/{user}/roles'],
+  ['post', '/users/{user}/roles'],
+  ['delete', '/users/{user}/roles/{role}'],
+  ['patch', '/users/{user}/roles/{role}/extend'],
+  ['get', '/users/{user}/permissions'],
+  ['get', '/users/{user}/permissions/direct'],
+  ['post', '/users/{user}/permissions'],
+  ['delete', '/users/{user}/permissions/{permission}'],
+]
+
+test('rejects removal or method drift for every shipped RBAC operation', () => {
+  for (const [method, pathKey] of rbacOperations) {
+    const candidate = structuredClone(parsedContract)
+    delete candidate.paths[pathKey][method]
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(
+      result.status,
+      0,
+      `${method.toUpperCase()} ${pathKey}: ${result.stdout}`
+    )
+  }
+})
+
+test('rejects integer RBAC user identifiers', () => {
+  const candidate = structuredClone(parsedContract)
+  candidate.components.parameters.UserId.schema = {
+    type: 'integer',
+    minimum: 1,
+  }
+
+  const result = runGuard(yaml.dump(candidate))
+
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /user identifiers must remain UUID strings/i)
+})
+
+test('rejects RBAC authentication-context regressions', () => {
+  const readCandidate = structuredClone(parsedContract)
+  readCandidate.paths['/roles'].get.security = [{ BearerAuth: [] }]
+  const readResult = runGuard(yaml.dump(readCandidate))
+
+  assert.notEqual(readResult.status, 0, readResult.stdout)
+
+  const writeCandidate = structuredClone(parsedContract)
+  writeCandidate.paths['/roles'].post.security = [
+    { BearerAuth: [] },
+    { SessionAuth: [] },
+  ]
+  const writeResult = runGuard(yaml.dump(writeCandidate))
+
+  assert.notEqual(writeResult.status, 0, writeResult.stdout)
+})
+
+test('rejects role and permission path-identifier normalization', () => {
+  for (const componentName of ['RoleId', 'RoleName', 'PermissionName']) {
+    const candidate = structuredClone(parsedContract)
+    candidate.components.parameters[componentName].schema = {
+      type: 'string',
+      format: 'uuid',
+    }
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, `${componentName}: ${result.stdout}`)
+  }
+})
+
+test('rejects publication of future RBAC resource families', () => {
+  for (const pathKey of [
+    '/permissions',
+    '/tenant-memberships',
+    '/users/{user}/access-assignments',
+  ]) {
+    const candidate = structuredClone(parsedContract)
+    candidate.paths[pathKey] = {
+      get: {
+        operationId: 'futureRbacOperation',
+      },
+    }
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(result.status, 0, `${pathKey}: ${result.stdout}`)
+  }
+})
+
+test('rejects unshipped operations in the current RBAC path families', () => {
+  const candidates = [
+    ['/roles/{id}/permissions', 'get'],
+    ['/users/{user}/roles', 'put'],
+  ]
+
+  for (const [pathKey, method] of candidates) {
+    const candidate = structuredClone(parsedContract)
+    candidate.paths[pathKey] ??= {}
+    candidate.paths[pathKey][method] = {
+      operationId: 'unshippedRbacOperation',
+    }
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.notEqual(
+      result.status,
+      0,
+      `${method.toUpperCase()} ${pathKey}: ${result.stdout}`
+    )
+  }
+})
+
 test('documents onboarding file upload idempotency', () => {
   const upload =
     parsedContract.paths['/onboarding/submissions/{submission}/files'].post
