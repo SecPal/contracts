@@ -57,6 +57,29 @@ const REQUIRED_OPERATIONS = [
   ['delete', '/me/passkeys/{credentialId}'],
 ]
 
+const AUTHENTICATION_OPERATIONS = [
+  ['post', '/auth/login'],
+  ['post', '/auth/token'],
+  ['post', '/auth/token/passkeys/challenges'],
+  ['post', '/auth/token/passkeys/challenges/{challengeId}/verify'],
+  ['post', '/auth/passkeys/challenges'],
+  ['post', '/auth/passkeys/challenges/{challengeId}/verify'],
+  ['post', '/auth/mfa-challenges/{challengeId}/verify'],
+  ['post', '/auth/logout'],
+  ['post', '/auth/logout-all'],
+  ['post', '/auth/email/verification-notification'],
+  ['get', '/me'],
+  ['get', '/me/mfa'],
+  ['delete', '/me/mfa'],
+  ['post', '/me/mfa/totp/enrollment'],
+  ['post', '/me/mfa/totp/enrollment/confirm'],
+  ['post', '/me/mfa/recovery-codes/regenerate'],
+  ['get', '/me/passkeys'],
+  ['post', '/me/passkeys/challenges/registration'],
+  ['post', '/me/passkeys/challenges/registration/{challengeId}/verify'],
+  ['delete', '/me/passkeys/{credentialId}'],
+]
+
 const target = process.argv[2]
 if (!target) {
   console.error(
@@ -89,6 +112,13 @@ const paths =
 const missing = []
 
 for (const [method, pathKey] of REQUIRED_OPERATIONS) {
+  const op = paths[pathKey]
+  if (!op || op[method] == null) {
+    missing.push(`${method.toUpperCase()} ${pathKey}`)
+  }
+}
+
+for (const [method, pathKey] of AUTHENTICATION_OPERATIONS) {
   const op = paths[pathKey]
   if (!op || op[method] == null) {
     missing.push(`${method.toUpperCase()} ${pathKey}`)
@@ -142,6 +172,27 @@ const passkeyCurrentPasswordStepUp =
 const passkeyRegistrationVerificationRequest =
   schemas.PasskeyRegistrationVerificationRequest ?? {}
 const contractErrors = []
+const canonicalLogout = paths['/auth/logout']?.post ?? {}
+
+if (paths['/auth/session/logout'] !== undefined) {
+  contractErrors.push(
+    'POST /auth/session/logout is retired and must not be published.'
+  )
+}
+
+if (
+  canonicalLogout.operationId !== 'logoutCurrentAuthContext' ||
+  !/browser sessions/i.test(canonicalLogout.description ?? '') ||
+  !/bearer-token clients revoke the current personal access token/i.test(
+    canonicalLogout.description ?? ''
+  ) ||
+  canonicalLogout.responses?.['200']?.content?.['application/json']?.schema
+    ?.$ref !== '#/components/schemas/SimpleMessageResponse'
+) {
+  contractErrors.push(
+    'POST /auth/logout must remain the canonical session and bearer-token logout operation.'
+  )
+}
 
 const onboardingUploadIdempotencyKey =
   onboardingSubmissionFileUploadRequest.properties?.idempotency_key ?? {}

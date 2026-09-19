@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** Removed the retired `POST /auth/session/logout` compatibility
+  alias from the public OpenAPI contract. `POST /auth/logout` remains the sole
+  supported logout operation (closes #506).
 - **Breaking:** Removed the unreleased Legal Hold lifecycle, attachment, and
   release API contracts because Legal Hold is no longer part of the SecPal
   product direction; no compatibility surface is retained (closes #491).
