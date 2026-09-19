@@ -53,27 +53,28 @@ function workflowSteps(document) {
   )
 }
 
-function selectorVersion(value, path) {
-  if (typeof value === 'number' && Number.isInteger(value)) return [value]
+function selectorMinimum(value, path) {
+  // actions/setup-node node-version ranges must not begin below engines.node.
+  if (typeof value === 'number' && Number.isInteger(value)) {
+    return [value, 0, 0]
+  }
   if (typeof value !== 'string') {
     fail(`${path} has a non-string setup-node selector`)
   }
-  const match = /^(\d+)(?:\.x|\.(\d+)(?:\.(\d+))?)?$/.exec(value)
+  const match = /^(?:\^)?(\d+)(?:\.(x|\d+)(?:\.(x|\d+))?)?$/.exec(value)
   if (!match) fail(`${path} has an unsupported setup-node selector: ${value}`)
-  return match
-    .slice(1)
-    .filter((part) => part !== undefined)
-    .map(Number)
+  const [, major, minor, patch] = match
+  if (value.startsWith('^') && (minor === undefined || patch === undefined)) {
+    fail(`${path} has an unsupported setup-node selector: ${value}`)
+  }
+  return [major, minor, patch].map((part) =>
+    part === undefined || part === 'x' ? 0 : Number(part)
+  )
 }
 
 function selectorSatisfiesNodeEngine(value, engine, path) {
-  const selector = selectorVersion(value, path)
-  const [major, minor, patch] = selector
-  const [minimumMajor, minimumMinor] = engine.minimum
-  if (major !== minimumMajor) return false
-  if (minor === undefined) return true
-  if (patch === undefined) return minor >= minimumMinor
-  return satisfiesNodeEngine(selector.join('.'), engine)
+  const minimum = selectorMinimum(value, path)
+  return satisfiesNodeEngine(minimum.join('.'), engine)
 }
 
 export function checkNodeToolchain(repositoryRoot, runtime = process.version) {
