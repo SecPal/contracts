@@ -389,6 +389,34 @@ test('rejects RBAC authentication-context regressions', () => {
   assert.notEqual(writeResult.status, 0, writeResult.stdout)
 })
 
+test('rejects missing or widened RBAC internal-server-error responses', () => {
+  for (const [method, pathKey] of rbacOperations) {
+    const missingCandidate = structuredClone(parsedContract)
+    delete missingCandidate.paths[pathKey][method].responses['500']
+
+    const missingResult = runGuard(yaml.dump(missingCandidate))
+
+    assert.notEqual(
+      missingResult.status,
+      0,
+      `${method.toUpperCase()} ${pathKey}: ${missingResult.stdout}`
+    )
+
+    const widenedCandidate = structuredClone(parsedContract)
+    widenedCandidate.paths[pathKey][method].responses['500'] = {
+      $ref: '#/components/responses/InternalServerError',
+    }
+
+    const widenedResult = runGuard(yaml.dump(widenedCandidate))
+
+    assert.notEqual(
+      widenedResult.status,
+      0,
+      `${method.toUpperCase()} ${pathKey}: ${widenedResult.stdout}`
+    )
+  }
+})
+
 test('rejects role and permission path-identifier normalization', () => {
   for (const componentName of ['RoleId', 'RoleName', 'PermissionName']) {
     const candidate = structuredClone(parsedContract)

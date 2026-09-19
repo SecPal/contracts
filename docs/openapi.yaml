@@ -8503,7 +8503,7 @@ components:
         valid_from:
           type: [string, 'null']
           format: date-time
-          description: Optional assignment start; when supplied with `valid_until`, it must not be later.
+          description: Optional assignment start; when supplied with `valid_until`, it must be earlier.
           example: '2026-09-20T08:00:00Z'
         valid_until:
           type: [string, 'null']
@@ -10750,6 +10750,8 @@ paths:
           $ref: '#/components/responses/SimpleForbidden'
         '429':
           $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
     post:
       summary: Create a role
       description: >-
@@ -10783,6 +10785,8 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '429':
           $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
 
   /roles/{id}:
     get:
@@ -10813,6 +10817,8 @@ paths:
           $ref: '#/components/responses/RbacNotFound'
         '429':
           $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
     patch:
       summary: Update a role
       description: >-
@@ -10851,6 +10857,8 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '429':
           $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
     delete:
       summary: Delete a role
       description: >-
@@ -10883,6 +10891,8 @@ paths:
                 $ref: '#/components/schemas/RoleInUseProblem'
         '429':
           $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
 
   /users/{user}/roles:
     get:
@@ -10913,6 +10923,8 @@ paths:
           $ref: '#/components/responses/RbacNotFound'
         '429':
           $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
     post:
       summary: Assign a role to a user
       description: >-
@@ -10957,6 +10969,8 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '429':
           $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
 
   /users/{user}/roles/{role}:
     delete:
@@ -10985,6 +10999,8 @@ paths:
           $ref: '#/components/responses/RbacNotFound'
         '429':
           $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
 
   /users/{user}/roles/{role}/extend:
     patch:
@@ -11025,6 +11041,8 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '429':
           $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
 
   /users/{user}/permissions:
     get:
@@ -11056,6 +11074,8 @@ paths:
           $ref: '#/components/responses/RbacNotFound'
         '429':
           $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
     post:
       summary: Assign direct permissions to a user
       description: >-
@@ -11094,6 +11114,8 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '429':
           $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
 
   /users/{user}/permissions/direct:
     get:
@@ -11125,6 +11147,8 @@ paths:
           $ref: '#/components/responses/RbacNotFound'
         '429':
           $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
 
   /users/{user}/permissions/{permission}:
     delete:
@@ -11160,6 +11184,8 @@ paths:
           $ref: '#/components/responses/RbacNotFound'
         '429':
           $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
 
   /activity-logs:
     get:

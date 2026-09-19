@@ -268,6 +268,15 @@ for (const [method, pathKey, operationId] of RBAC_OPERATIONS) {
     )
   }
 
+  if (
+    operation.responses?.['500']?.$ref !==
+    '#/components/responses/SimpleInternalServerError'
+  ) {
+    contractErrors.push(
+      `${method.toUpperCase()} ${pathKey} must document the normalized message-only 500 response.`
+    )
+  }
+
   const expectedSecurity =
     method === 'get' ? readSecurityAlternatives : writeSecurityAlternatives
   if (
