@@ -71,6 +71,11 @@ tags:
     description: Internal tenant-scoped organizational hierarchy, independent status flags, and parent relationships.
   - name: Assignments
     description: Customer, site, and self-service assignment operations.
+  - name: Access Control
+    description: >-
+      Current tenant-scoped role management, user-role assignment, and direct user-permission operations. Every
+      operation requires a verified Sanctum context with the `api-access` ability; Bearer tokens and first-party
+      browser sessions are supported, and session-authenticated writes additionally require the CSRF token.
   - name: Me
     description: Canonical self-service endpoints for the authenticated caller under the `/me` namespace.
   - name: Cost Centers
@@ -8081,6 +8086,469 @@ components:
           description: Soft deletion timestamp
           example: null
 
+    RoleNameValue:
+      type: string
+      minLength: 1
+      maxLength: 255
+      description: Tenant-scoped role name. The accepted values are database-backed and are not a closed enum.
+      example: Manager
+
+    PermissionNameValue:
+      type: string
+      minLength: 1
+      maxLength: 255
+      description: Permission name from the server-managed permission inventory. The inventory is not a closed OpenAPI enum.
+      example: employees.read
+
+    RoleSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - permissions_count
+        - users_count
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          example: 12
+        name:
+          $ref: '#/components/schemas/RoleNameValue'
+        permissions_count:
+          type: integer
+          minimum: 0
+          example: 4
+        users_count:
+          type: integer
+          minimum: 0
+          example: 8
+        created_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+        updated_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+
+    RoleWithPermissions:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - permissions
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          example: 12
+        name:
+          $ref: '#/components/schemas/RoleNameValue'
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PermissionNameValue'
+          example: [employees.read, shifts.read]
+        users_count:
+          type: integer
+          minimum: 0
+          description: Present on the role-detail response and omitted from create and update responses.
+          example: 8
+        created_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+        updated_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+
+    RoleListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoleSummary'
+
+    RoleMutationResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          allOf:
+            - $ref: '#/components/schemas/RoleWithPermissions'
+            - not:
+                properties:
+                  users_count:
+                    type: integer
+                required:
+                  - users_count
+
+    RoleDetailResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          allOf:
+            - $ref: '#/components/schemas/RoleWithPermissions'
+            - required:
+                - users_count
+
+    RoleCreateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          $ref: '#/components/schemas/RoleNameValue'
+        permissions:
+          oneOf:
+            - type: array
+              items:
+                $ref: '#/components/schemas/PermissionNameValue'
+            - type: 'null'
+          description: Optional existing permission names. Omitted or `null` creates the role without permissions.
+          example: [employees.read, shifts.read]
+
+    RoleUpdateRequest:
+      type: object
+      description: Partial role update. An empty object is accepted and leaves the role unchanged.
+      properties:
+        name:
+          $ref: '#/components/schemas/RoleNameValue'
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PermissionNameValue'
+          description: Complete replacement permission-name set. An empty array removes every permission; `null` is invalid.
+          example: [employees.read, shifts.read]
+
+    RoleInUseProblem:
+      type: object
+      additionalProperties: false
+      required:
+        - message
+        - assigned_to
+      properties:
+        message:
+          type: string
+          enum:
+            - Cannot delete role while assigned to users
+        assigned_to:
+          type: integer
+          minimum: 1
+          description: Number of users currently assigned to the role.
+          example: 3
+
+    AssignRoleRequest:
+      type: object
+      required:
+        - role
+      properties:
+        role:
+          $ref: '#/components/schemas/RoleNameValue'
+        valid_from:
+          type: [string, 'null']
+          format: date-time
+          description: Optional assignment start. If omitted or `null`, the server uses the current time.
+          example: '2026-09-20T08:00:00Z'
+        valid_until:
+          type: [string, 'null']
+          format: date-time
+          description: Optional assignment end. When both dates are present, this value cannot precede `valid_from`.
+          example: '2026-10-20T08:00:00Z'
+        auto_revoke:
+          type: [boolean, 'null']
+          default: true
+          description: Whether the expiration worker may revoke the assignment after `valid_until`.
+        reason:
+          type: [string, 'null']
+          maxLength: 500
+          example: Vacation coverage
+
+    ExtendRoleRequest:
+      type: object
+      required:
+        - valid_until
+      properties:
+        valid_until:
+          type: string
+          format: date-time
+          description: New future expiration. It must be later than the current expiration when one exists.
+          example: '2026-11-20T08:00:00Z'
+        reason:
+          type: [string, 'null']
+          maxLength: 500
+          description: Optional replacement reason. If blank or omitted, the existing reason or the server default is retained.
+          example: Coverage extended
+
+    RoleAssignmentRepresentation:
+      type: object
+      additionalProperties: false
+      required:
+        - user_id
+        - role
+        - valid_from
+        - valid_until
+        - auto_revoke
+        - reason
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        role:
+          $ref: '#/components/schemas/RoleNameValue'
+        valid_from:
+          $ref: '#/components/schemas/NullableApiTimestamp'
+        valid_until:
+          $ref: '#/components/schemas/NullableApiTimestamp'
+        auto_revoke:
+          type: boolean
+        reason:
+          type: string
+          example: Vacation coverage
+        message:
+          type: string
+          description: Present only on the idempotent 200 response for an existing assignment.
+          example: Role already assigned to user
+
+    RoleAssignmentCreatedResponse:
+      allOf:
+        - $ref: '#/components/schemas/RoleAssignmentRepresentation'
+        - not:
+            properties:
+              message:
+                type: string
+            required:
+              - message
+
+    RoleAssignmentExistingResponse:
+      allOf:
+        - $ref: '#/components/schemas/RoleAssignmentRepresentation'
+        - required:
+            - message
+
+    RoleAssignmentExtensionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - user_id
+        - role
+        - valid_from
+        - valid_until
+        - reason
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        role:
+          $ref: '#/components/schemas/RoleNameValue'
+        valid_from:
+          $ref: '#/components/schemas/NullableApiTimestamp'
+        valid_until:
+          $ref: '#/components/schemas/ApiTimestamp'
+        reason:
+          type: string
+          example: Coverage extended
+
+    UserRoleAssignment:
+      type: object
+      additionalProperties: false
+      required:
+        - role
+        - valid_from
+        - valid_until
+        - is_active
+        - is_expired
+        - auto_revoke
+        - reason
+      properties:
+        role:
+          type: string
+          description: Assigned role name; `unknown` is emitted if a legacy assignment no longer resolves to a role row.
+          example: Manager
+        valid_from:
+          $ref: '#/components/schemas/NullableApiTimestamp'
+        valid_until:
+          $ref: '#/components/schemas/NullableApiTimestamp'
+        is_active:
+          type: boolean
+        is_expired:
+          type: boolean
+        auto_revoke:
+          type: boolean
+        reason:
+          type: [string, 'null']
+          example: Vacation coverage
+
+    UserRoleListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - roles
+      properties:
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserRoleAssignment'
+
+    PermissionViaRole:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - role
+      properties:
+        name:
+          $ref: '#/components/schemas/PermissionNameValue'
+        role:
+          $ref: '#/components/schemas/RoleNameValue'
+
+    DirectPermissionAssignment:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - valid_from
+        - valid_until
+        - assigned_at
+        - assigned_by
+        - reason
+      properties:
+        name:
+          $ref: '#/components/schemas/PermissionNameValue'
+        valid_from:
+          type: [string, 'null']
+          description: Persisted optional start date as serialized by the current database query.
+          example: '2026-09-20 08:00:00'
+        valid_until:
+          type: [string, 'null']
+          description: Persisted optional end date as serialized by the current database query.
+          example: '2026-10-20 08:00:00'
+        assigned_at:
+          type: [string, 'null']
+          description: Persisted creation date as serialized by the current database query.
+          example: '2026-09-19 10:30:00'
+        assigned_by:
+          type: [string, 'null']
+          format: uuid
+          description: Assigning user UUID, or `null` when that user is unavailable or the assignment predates audit metadata.
+        reason:
+          type: [string, 'null']
+          example: Temporary report access
+
+    UserPermissionsResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required:
+            - via_roles
+            - direct
+            - all
+          properties:
+            via_roles:
+              type: array
+              items:
+                $ref: '#/components/schemas/PermissionViaRole'
+            direct:
+              type: array
+              items:
+                $ref: '#/components/schemas/DirectPermissionAssignment'
+            all:
+              type: array
+              uniqueItems: true
+              items:
+                $ref: '#/components/schemas/PermissionNameValue'
+
+    UserDirectPermissionsResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required:
+            - direct
+          properties:
+            direct:
+              type: array
+              items:
+                $ref: '#/components/schemas/DirectPermissionAssignment'
+
+    AssignDirectPermissionsRequest:
+      type: object
+      required:
+        - permissions
+      properties:
+        permissions:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/PermissionNameValue'
+          description: Existing permission names. The server-managed inventory is not duplicated as an enum.
+          example: [employees.export]
+        valid_from:
+          type: [string, 'null']
+          format: date-time
+          description: Optional assignment start; when supplied with `valid_until`, it must be earlier.
+          example: '2026-09-20T08:00:00Z'
+        valid_until:
+          type: [string, 'null']
+          format: date-time
+          description: Optional assignment end; when supplied with `valid_from`, it must be later.
+          example: '2026-10-20T08:00:00Z'
+        reason:
+          type: [string, 'null']
+          maxLength: 1000
+          example: Temporary report access
+
+    AssignedDirectPermission:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - valid_from
+        - valid_until
+      properties:
+        name:
+          $ref: '#/components/schemas/PermissionNameValue'
+        valid_from:
+          type: [string, 'null']
+          description: The accepted request value, returned without normalization.
+          example: '2026-09-20T08:00:00Z'
+        valid_until:
+          type: [string, 'null']
+          description: The accepted request value, returned without normalization.
+          example: '2026-10-20T08:00:00Z'
+
+    DirectPermissionAssignmentResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - message
+        - data
+      properties:
+        message:
+          type: string
+          example: Permissions assigned successfully
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssignedDirectPermission'
+
     DuplicateResourceError:
       type: object
       additionalProperties: false
@@ -8099,6 +8567,44 @@ components:
             - DUPLICATE_RESOURCE
 
   parameters:
+    UserId:
+      name: user
+      in: path
+      required: true
+      description: Tenant-visible user UUID. Missing, malformed, and cross-tenant UUIDs are not exposed and return 404.
+      schema:
+        type: string
+        format: uuid
+
+    RoleId:
+      name: id
+      in: path
+      required: true
+      description: Tenant-scoped numeric role identifier used by role CRUD operations.
+      schema:
+        type: integer
+        minimum: 1
+
+    RoleName:
+      name: role
+      in: path
+      required: true
+      description: Role name used by user-role assignment operations.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+
+    PermissionName:
+      name: permission
+      in: path
+      required: true
+      description: Permission name used to revoke one direct assignment. Role-derived access is unaffected.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+
     ContractId:
       name: contract
       in: path
@@ -8581,6 +9087,25 @@ components:
             forbidden:
               value:
                 message: Invalid ability provided.
+
+    RbacNotFound:
+      description: >-
+        Not Found - the role, assignment, direct permission, or tenant-visible user is unavailable. User binding
+        deliberately returns the same status for missing, malformed, and cross-tenant UUIDs.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SimpleMessageResponse'
+          examples:
+            unavailableResource:
+              value:
+                message: Resource not found.
+            missingAssignment:
+              value:
+                message: Role not assigned to user
+            missingDirectPermission:
+              value:
+                message: User does not have this permission directly assigned
 
     NotFound:
       description: Not Found - Resource does not exist
@@ -10199,6 +10724,468 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
+
+  /roles:
+    get:
+      summary: List roles
+      description: >-
+        Returns every role in the authenticated user's current tenant, ordered by name, with permission and user
+        counts. Requires a verified authenticated context with the `api-access` ability and `roles.read`.
+      operationId: listRoles
+      tags:
+        - Access Control
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      responses:
+        '200':
+          description: Tenant-scoped role collection.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleListResponse'
+        '401':
+          $ref: '#/components/responses/SimpleUnauthorized'
+        '403':
+          $ref: '#/components/responses/SimpleForbidden'
+        '429':
+          $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+    post:
+      summary: Create a role
+      description: >-
+        Creates a role in the authenticated user's current tenant and optionally assigns existing permission names.
+        Role-name uniqueness is enforced within the current tenant and Sanctum guard. Requires `roles.create`.
+      operationId: createRole
+      tags:
+        - Access Control
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleCreateRequest'
+      responses:
+        '201':
+          description: Role created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleMutationResponse'
+        '401':
+          $ref: '#/components/responses/SimpleUnauthorized'
+        '403':
+          $ref: '#/components/responses/SimpleForbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+
+  /roles/{id}:
+    get:
+      summary: Get a role
+      description: >-
+        Returns one current-tenant role with its assigned permission names and user count. Missing and
+        tenant-inaccessible role IDs return the same 404 response. Requires `roles.read`.
+      operationId: getRole
+      tags:
+        - Access Control
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RoleId'
+      responses:
+        '200':
+          description: Role details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleDetailResponse'
+        '401':
+          $ref: '#/components/responses/SimpleUnauthorized'
+        '403':
+          $ref: '#/components/responses/SimpleForbidden'
+        '404':
+          $ref: '#/components/responses/RbacNotFound'
+        '429':
+          $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+    patch:
+      summary: Update a role
+      description: >-
+        Updates the current-tenant role name, replaces its permission-name set, or both. Role-name uniqueness is
+        enforced within the current tenant and Sanctum guard. Missing and tenant-inaccessible role IDs return the
+        same 404 response. Requires `roles.update`.
+      operationId: updateRole
+      tags:
+        - Access Control
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/RoleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleUpdateRequest'
+      responses:
+        '200':
+          description: Updated role.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleMutationResponse'
+        '401':
+          $ref: '#/components/responses/SimpleUnauthorized'
+        '403':
+          $ref: '#/components/responses/SimpleForbidden'
+        '404':
+          $ref: '#/components/responses/RbacNotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+    delete:
+      summary: Delete a role
+      description: >-
+        Deletes an unassigned current-tenant role. A role assigned to one or more users returns 422 with the
+        assignment count. Missing and tenant-inaccessible role IDs return the same 404 response. Requires
+        `roles.delete`.
+      operationId: deleteRole
+      tags:
+        - Access Control
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/RoleId'
+      responses:
+        '204':
+          description: Role deleted.
+        '401':
+          $ref: '#/components/responses/SimpleUnauthorized'
+        '403':
+          $ref: '#/components/responses/SimpleForbidden'
+        '404':
+          $ref: '#/components/responses/RbacNotFound'
+        '422':
+          description: The role is still assigned to users.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleInUseProblem'
+        '429':
+          $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+
+  /users/{user}/roles:
+    get:
+      summary: List a user's role assignments
+      description: >-
+        Returns all temporal role assignments for a tenant-visible user, including inactive and expired rows and
+        their current status. Requires `role.read`. Missing, malformed, and cross-tenant user UUIDs return 404.
+      operationId: listUserRoles
+      tags:
+        - Access Control
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User role assignments.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRoleListResponse'
+        '401':
+          $ref: '#/components/responses/SimpleUnauthorized'
+        '403':
+          $ref: '#/components/responses/SimpleForbidden'
+        '404':
+          $ref: '#/components/responses/RbacNotFound'
+        '429':
+          $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+    post:
+      summary: Assign a role to a user
+      description: >-
+        Assigns one existing role name to a tenant-visible user with optional validity and audit metadata. A new
+        assignment returns 201. Repeating an existing assignment is idempotent and returns its unchanged current
+        representation with 200. Requires `role.assign`; missing, malformed, and cross-tenant user UUIDs return 404.
+      operationId: assignUserRole
+      tags:
+        - Access Control
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignRoleRequest'
+      responses:
+        '200':
+          description: The role was already assigned; the existing assignment is returned unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleAssignmentExistingResponse'
+        '201':
+          description: Role assigned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleAssignmentCreatedResponse'
+        '401':
+          $ref: '#/components/responses/SimpleUnauthorized'
+        '403':
+          $ref: '#/components/responses/SimpleForbidden'
+        '404':
+          $ref: '#/components/responses/RbacNotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+
+  /users/{user}/roles/{role}:
+    delete:
+      summary: Revoke a user's role
+      description: >-
+        Revokes the named role assignment from a tenant-visible user without changing other assignments. Requires
+        `role.revoke`. An unknown role name, absent assignment, or unavailable user returns 404.
+      operationId: revokeUserRole
+      tags:
+        - Access Control
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/RoleName'
+      responses:
+        '204':
+          description: Role assignment revoked.
+        '401':
+          $ref: '#/components/responses/SimpleUnauthorized'
+        '403':
+          $ref: '#/components/responses/SimpleForbidden'
+        '404':
+          $ref: '#/components/responses/RbacNotFound'
+        '429':
+          $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+
+  /users/{user}/roles/{role}/extend:
+    patch:
+      summary: Extend a user's role assignment
+      description: >-
+        Replaces the named assignment's expiration with a later future date. Requires `role.assign`. An unknown role
+        name, absent assignment, or unavailable user returns 404; invalid or non-extending dates return 422.
+      operationId: extendUserRoleAssignment
+      tags:
+        - Access Control
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/RoleName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtendRoleRequest'
+      responses:
+        '200':
+          description: Role assignment expiration extended.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleAssignmentExtensionResponse'
+        '401':
+          $ref: '#/components/responses/SimpleUnauthorized'
+        '403':
+          $ref: '#/components/responses/SimpleForbidden'
+        '404':
+          $ref: '#/components/responses/RbacNotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+
+  /users/{user}/permissions:
+    get:
+      summary: List a user's effective permissions
+      description: >-
+        Returns permissions grouped into role-derived assignments, direct assignments with temporal metadata, and a
+        deduplicated effective name list. A user may read their own permissions; reading another tenant-visible user
+        requires `permissions.read`. Missing, malformed, and cross-tenant user UUIDs return 404.
+      operationId: listUserPermissions
+      tags:
+        - Access Control
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Effective, role-derived, and direct permissions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPermissionsResponse'
+        '401':
+          $ref: '#/components/responses/SimpleUnauthorized'
+        '403':
+          $ref: '#/components/responses/SimpleForbidden'
+        '404':
+          $ref: '#/components/responses/RbacNotFound'
+        '429':
+          $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+    post:
+      summary: Assign direct permissions to a user
+      description: >-
+        Assigns or replaces one or more direct permission rows for a tenant-visible user with shared optional temporal
+        and audit metadata. Existing names are updated idempotently. Requires `permissions.assign_direct`; missing,
+        malformed, and cross-tenant user UUIDs return 404.
+      operationId: assignUserDirectPermissions
+      tags:
+        - Access Control
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignDirectPermissionsRequest'
+      responses:
+        '201':
+          description: Direct permission rows assigned or updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DirectPermissionAssignmentResponse'
+        '401':
+          $ref: '#/components/responses/SimpleUnauthorized'
+        '403':
+          $ref: '#/components/responses/SimpleForbidden'
+        '404':
+          $ref: '#/components/responses/RbacNotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+
+  /users/{user}/permissions/direct:
+    get:
+      summary: List a user's direct permissions
+      description: >-
+        Returns only direct permission rows and their temporal and audit metadata; permissions inherited from roles are
+        excluded. A user may read their own direct permissions; reading another tenant-visible user requires
+        `permissions.read`. Missing, malformed, and cross-tenant user UUIDs return 404.
+      operationId: listUserDirectPermissions
+      tags:
+        - Access Control
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Direct permission rows.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDirectPermissionsResponse'
+        '401':
+          $ref: '#/components/responses/SimpleUnauthorized'
+        '403':
+          $ref: '#/components/responses/SimpleForbidden'
+        '404':
+          $ref: '#/components/responses/RbacNotFound'
+        '429':
+          $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+
+  /users/{user}/permissions/{permission}:
+    delete:
+      summary: Revoke a direct permission from a user
+      description: >-
+        Removes only the named direct permission assignment from a tenant-visible user. A permission inherited from a
+        role remains effective. Requires `permissions.revoke_direct`; an absent direct assignment or unavailable user
+        returns 404.
+      operationId: revokeUserDirectPermission
+      tags:
+        - Access Control
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/PermissionName'
+      responses:
+        '200':
+          description: Direct permission revoked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleMessageResponse'
+              example:
+                message: Permission revoked successfully
+        '401':
+          $ref: '#/components/responses/SimpleUnauthorized'
+        '403':
+          $ref: '#/components/responses/SimpleForbidden'
+        '404':
+          $ref: '#/components/responses/RbacNotFound'
+        '429':
+          $ref: '#/components/responses/SimpleTooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
 
   /activity-logs:
     get:

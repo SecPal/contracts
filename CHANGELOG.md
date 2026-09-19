@@ -74,6 +74,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added the already-shipped tenant-scoped role CRUD, user-role assignment, and
+  direct user-permission operations to the public OpenAPI contract, including
+  current UUID user binding, temporal assignment fields, authorization, and
+  response semantics (closes #507).
 - Defined one tenant-scoped transactional customer-edit operation that applies
   customer master-data changes and reconciles the complete desired
   customer-establishment assignment collection atomically. The closed request
