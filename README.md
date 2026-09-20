@@ -5,128 +5,73 @@ SPDX-License-Identifier: CC0-1.0
 
 # SecPal Contracts
 
-> OpenAPI 3.1 specifications for the SecPal API
+> SecPal – A guard's best friend
 
 [![Quality Gates](https://github.com/SecPal/contracts/actions/workflows/quality.yml/badge.svg)](https://github.com/SecPal/contracts/actions/workflows/quality.yml)
-[![PR Size](https://github.com/SecPal/contracts/actions/workflows/pr-size.yml/badge.svg)](https://github.com/SecPal/contracts/actions/workflows/pr-size.yml)
 [![License: AGPL v3+](https://img.shields.io/badge/License-AGPL%20v3+-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
-SecPal is the operations software for German private security services. This repository contains the OpenAPI 3.1 specifications for the SecPal API — the single source of truth for all API contracts between frontend, backend, and other clients.
+SecPal is operations software for German private security services. This
+repository owns the public HTTP API contract shared by the SecPal server and its
+clients.
 
-## Overview
+## Contract responsibility
 
-- **OpenAPI Format:** 3.1.0
-- **API Version:** `0.0.1` (Initial Development)
-- **Specification File:** `docs/openapi.yaml`
-- **Base URL:** `https://api.secpal.dev/v1`
-- **Last Updated:** 2026-05-02
+[`docs/openapi.yaml`](docs/openapi.yaml) is the normative public HTTP API
+contract for the SecPal API. The OpenAPI 3.1 document defines public paths and
+methods, request bodies, response schemas, authentication security declarations,
+and reusable public API components.
 
-### Available Endpoints
+The OpenAPI document itself is the public endpoint inventory; this README does
+not duplicate it.
 
-The contract file `docs/openapi.yaml` is the source of truth. It documents a large portion of the live `/v1` surface, including authentication and session flows, self-service (`/me`), employees (including nested qualifications and documents), the qualification catalog, customers, sites, assignments, onboarding, activity logs, Android release metadata, and more.
+Security-relevant interface semantics include authorization-facing HTTP
+behavior where represented, tenant-sensitive resource interfaces, validation,
+and error shapes. Runtime authentication, authorization, tenant isolation,
+validation, and other enforcement belong to the API implementation. A
+discovered mismatch between the contract and implementation is contract drift
+that must be reconciled explicitly.
 
-- **Monitoring:** Health-related paths (for example `GET /health`) appear in the spec as deployed.
-- **Coverage:** Some backend-only or admin-heavy routes are described in the API repository ([`SecPal/api` docs](https://github.com/SecPal/api)) and may not yet appear in OpenAPI; compare with `routes/api.php` when auditing coverage. Notable examples:
-  - RBAC role administration (all five sub-paths):
-    - `GET /v1/roles`
-    - `POST /v1/roles`
-    - `GET /v1/roles/{id}`
-    - `PATCH /v1/roles/{id}`
-    - `DELETE /v1/roles/{id}`
-  - User-role assignment (all four sub-paths):
-    - `GET /v1/users/{user}/roles`
-    - `POST /v1/users/{user}/roles`
-    - `DELETE /v1/users/{user}/roles/{role}`
-    - `PATCH /v1/users/{user}/roles/{role}/extend`
-  - Direct user-permission administration (all four sub-paths):
-    - `GET /v1/users/{user}/permissions`
-    - `GET /v1/users/{user}/permissions/direct`
-    - `POST /v1/users/{user}/permissions`
-    - `DELETE /v1/users/{user}/permissions/{permission}`
+This repository does not own client-specific native bridge contracts,
+deployment interfaces, separate machine-readable security-event contracts, or
+internal implementation interfaces. Those remain with their responsible
+repositories.
 
-_See `docs/openapi.yaml` for paths, operations, and schemas._
-
-## Usage
-
-The API specification can be used to:
-
-- Generate client libraries
-- Generate server stubs
-- Configure API gateways
-- Validate API requests and responses
-
-## Development
-
-### Prerequisites
-
-- Node.js v22.x
-- npm
-
-### Setup
+## Validate locally
 
 ```bash
-# Install dependencies
-npm install
-```
-
-### Validation
-
-Run the standard contract-test entry point:
-
-```bash
-npm test
-```
-
-This runs the repository's complete contract validation pipeline: OpenAPI linting, verified-endpoint checks, and formatting checks. To run the same pipeline explicitly, use:
-
-```bash
+npm ci
 npm run validate
 ```
 
-To run only the OpenAPI lint and verified-endpoint checks, use:
+These canonical package scripts validate the OpenAPI contract and the
+repository's policy and formatting requirements.
 
-```bash
-npm run lint
-```
+## Related repositories
 
-This uses `@redocly/cli` to lint `docs/openapi.yaml` against the repository rules in `redocly.yaml` (auto-discovered when lint runs from the repo root).
+- [`SecPal/api`](https://github.com/SecPal/api) owns the server implementation
+  and observable runtime behavior.
+- [`SecPal/frontend`](https://github.com/SecPal/frontend) owns the shared
+  browser and PWA client.
+- [`SecPal/android`](https://github.com/SecPal/android) owns the Android client
+  and its native bridge contracts.
+- [`SecPal/deployment`](https://github.com/SecPal/deployment) owns self-hosting,
+  deployment, and operational integration contracts.
 
-To lint directly with the CLI instead of `npm run lint`, run from the repository root so `redocly.yaml` is picked up:
-
-```bash
-npx @redocly/cli lint docs/openapi.yaml
-```
-
-`GET /health` documents `200` and `503` only. Redocly's recommended `operation-4xx-response` rule expects a `4XX` response on every operation, but health checks accept no input and do not produce client errors. That rule is disabled in `redocly.yaml`; without that config file, standalone lint reports a warning on `#/paths/~1health/get/responses`.
+Frontend and native clients consume the public HTTP contract without moving
+their client-specific integration protocols into this repository.
 
 ## Contributing
 
-Please read the main `CONTRIBUTING.md` in the [SecPal/.github](https://github.com/SecPal/.github) repository. All contributions must follow the organization-wide guidelines.
+See the repository's [`CONTRIBUTING.md`](CONTRIBUTING.md) and the
+[organization-wide contribution guidance](https://github.com/SecPal/.github/blob/main/CONTRIBUTING.md).
 
-- **Branch Naming:** `feat/add-new-endpoint`, `fix/correct-schema-definition`, etc.
-- **Commits:** Must follow Conventional Commits specification.
-- **Pull Requests:** Must be small, focused, and link to a relevant issue.
+## Security
 
-## 🤖 Automation
+Report vulnerabilities through the process in [`SECURITY.md`](SECURITY.md).
 
-This repository uses automated project board management. Issues and PRs are automatically added to the [SecPal Roadmap](https://github.com/orgs/SecPal/projects/1) with status based on labels and PR state.
+## License
 
-**Quick Start:**
-
-```bash
-# Create issue (auto-added to project board)
-gh issue create --label "enhancement" --title "..."
-
-# Draft PR workflow (recommended)
-gh pr create --draft --body "Closes #123"  # → 🚧 In Progress
-gh pr ready <PR>                            # → 👀 In Review
-gh pr merge <PR> --squash                   # → ✅ Done
-```
-
-See [Project Automation docs](https://github.com/SecPal/.github/blob/main/docs/workflows/PROJECT_AUTOMATION.md) for details.
-
-## Licensing
-
-This repository uses a dual-licensing model. See the `LICENSE` and `REUSE.toml` files for details.
-
-<!-- CLA Test: Verify CI workflows -->
+Repository-owned code, where applicable, is licensed under the GNU Affero
+General Public License 3.0 or later. See [`LICENSE`](LICENSE); file-level SPDX
+and REUSE metadata in [`REUSE.toml`](REUSE.toml) provide the applicable
+licensing authority.
