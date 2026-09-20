@@ -21,6 +21,9 @@ contract for the SecPal API. The OpenAPI 3.1 document defines public paths and
 methods, request bodies, response schemas, authentication security declarations,
 and reusable public API components.
 
+The OpenAPI document itself is the public endpoint inventory; this README does
+not duplicate it.
+
 Security-relevant interface semantics include authorization-facing HTTP
 behavior where represented, tenant-sensitive resource interfaces, validation,
 and error shapes. Runtime authentication, authorization, tenant isolation,
