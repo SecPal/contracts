@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Adopted Node.js 26 for contract validation tooling, CI, and contributor
+  setup, with a structural guard for runtime and selector drift (closes #524).
 - **Breaking:** Removed the retired `POST /auth/session/logout` compatibility
   alias from the public OpenAPI contract. `POST /auth/logout` remains the sole
   supported logout operation (closes #506).
