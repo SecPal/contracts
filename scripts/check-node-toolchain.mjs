@@ -70,9 +70,15 @@ if (
   try {
     const read = (path) => readFileSync(resolve(root, path), 'utf8')
     const workflows = Object.fromEntries(
-      readdirSync(resolve(root, '.github/workflows'))
-        .filter((name) => /\.ya?ml$/.test(name))
-        .map((name) => [name, loadYaml(read(`.github/workflows/${name}`))])
+      readdirSync(resolve(root, '.github/workflows'), { withFileTypes: true })
+        .filter((entry) => /\.ya?ml$/.test(entry.name))
+        .map((entry) => {
+          requireInvariant(
+            entry.isFile(),
+            `${entry.name} must be a regular file.`
+          )
+          return [entry.name, loadYaml(read(`.github/workflows/${entry.name}`))]
+        })
     )
     validateNodeToolchain({
       runtimeVersion: process.version,
