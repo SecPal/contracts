@@ -1,9 +1,15 @@
 <!--
-SPDX-FileCopyrightText: 2026 SecPal
+SPDX-FileCopyrightText: 2026 SecPal Contributors
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
 # SecPal/contracts Copilot Instructions
+
+## Canonical Review And Signing
+
+Apply `AGENTS.md` and the organization-wide [review-acquisition rule](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md#531-initial-automated-review)
+and [SSH signing authority](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md#532-signing-authority).
+This compatibility mirror defines no separate lifecycle or signing authority.
 
 `AGENTS.md` is the authoritative Contracts runtime baseline. This compatibility
 mirror summarizes the same authority boundary for tools that load this path.
@@ -63,7 +69,8 @@ sequence, readiness, or progress.
   changed-file hook, and `git diff --check` checks.
 - Update `CHANGELOG.md` for product fixes, features, or breaking changes, not
   automatically for governance-only prose.
-- Keep commits cryptographically signed and use no bypass.
+- Keep new SecPal commits SSH-signed with the existing identity and use no
+  bypass. Require GitHub verification for every PR commit.
 - Follow the canonical contract for pull-request delivery and relationship
   semantics. Keep GitHub communication in English, SPDX years current, and
   project artifacts free of AI attribution unless explicitly required.
