@@ -26,6 +26,8 @@ permissions:
   issues: write
   pull-requests: write
 
+cache-mode: none
+
 jobs:
   project-automation:
     name: Project automation
