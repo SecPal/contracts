@@ -62,6 +62,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Pinned the Markdownlint toolchain's transitive KaTeX dependency to 0.18.2
+  to prevent inherited renderer settings from bypassing trust restrictions
+  ([GHSA-238p-pmpm-9mq7](https://github.com/advisories/GHSA-238p-pmpm-9mq7)).
+- Pinned the Markdownlint CLI's transitive `smol-toml` dependency to 1.9.1
+  to remediate quadratic-time TOML key parsing that can cause denial of service
+  ([GHSA-r4xh-jqrq-34v2](https://github.com/advisories/GHSA-r4xh-jqrq-34v2)).
 - Pinned every external GitHub Action and reusable workflow to a verified full
   commit SHA while preserving its existing release channel for Dependabot;
   added a syntax-aware repository-wide guard against mutable, abbreviated,
