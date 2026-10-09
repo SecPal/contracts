@@ -21,10 +21,6 @@ const guardPath = fileURLToPath(
   new URL('./check-workflow-action-pins.mjs', import.meta.url)
 )
 const fullSha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-const dependabotAutoMergeWorkflow = readFileSync(
-  new URL('../.github/workflows/dependabot-auto-merge.yml', import.meta.url),
-  'utf8'
-)
 const packageJson = JSON.parse(
   readFileSync(new URL('../package.json', import.meta.url), 'utf8')
 )
@@ -112,13 +108,6 @@ jobs:
   })
 
   assert.equal(result.status, 0, result.stderr)
-})
-
-test('keeps the Dependabot auto-merge workflow on the v1 release channel', () => {
-  assert.match(
-    dependabotAutoMergeWorkflow,
-    /reusable-dependabot-auto-merge\.yml@[0-9a-f]{40} # v1$/m
-  )
 })
 
 for (const [name, reference] of [

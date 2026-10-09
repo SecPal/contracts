@@ -43,8 +43,9 @@ repos:
         args: ['-c', '.yamllint.yml']
 
   # GitHub Actions workflow linting
-  - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.4
+  # Match the actionlint distribution used by the reusable CI workflow.
+  - repo: https://github.com/kjanat/actionlint
+    rev: 08bb2c4f0d039744455b87aef1c647fb8b66d37b # v1.17.0
     hooks:
       - id: actionlint
 
