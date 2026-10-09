@@ -31,6 +31,12 @@
     "@redocly/cli": {
       "undici": "6.24.0"
     },
+    "markdownlint-cli": {
+      "smol-toml": "1.9.1"
+    },
+    "micromark-extension-math": {
+      "katex": "0.18.2"
+    },
     "protobufjs": {
       "@protobufjs/utf8": "1.1.1",
       ".": "7.5.8"
