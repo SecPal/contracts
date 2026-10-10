@@ -9,6 +9,7 @@ import {
   validateBraceExpansionOverride,
   validateMarkdownlintToolchain,
   validateMarkdownlintVersion,
+  validateMarkdownlintYamlOverride,
   validatePrettierToolchain,
   validateSetupScript,
 } from './check-markdownlint-toolchain.mjs'
@@ -245,8 +246,8 @@ test('rejects a missing or non-exact brace-expansion override', () => {
 test('rejects a brace-expansion override below the security floor', () => {
   const vulnerableOverrideManifest = structuredClone(packageJson)
   const vulnerableLockfile = structuredClone(packageLock)
-  vulnerableOverrideManifest.overrides['brace-expansion@^5'] = '5.0.8'
-  vulnerableLockfile.packages['node_modules/brace-expansion'].version = '5.0.8'
+  vulnerableOverrideManifest.overrides['brace-expansion@^5'] = '5.0.11'
+  vulnerableLockfile.packages['node_modules/brace-expansion'].version = '5.0.11'
 
   assert.throws(
     () =>
@@ -254,7 +255,35 @@ test('rejects a brace-expansion override below the security floor', () => {
         packageJson: vulnerableOverrideManifest,
         packageLock: vulnerableLockfile,
       }),
-    /must pin brace-expansion@\^5 to 5\.0\.9 or later/
+    /must pin brace-expansion@\^5 to 5\.0\.12 or later/
+  )
+})
+
+test('keeps the markdownlint js-yaml override patched and locked', () => {
+  assert.doesNotThrow(() =>
+    validateMarkdownlintYamlOverride({ packageJson, packageLock })
+  )
+
+  const vulnerableManifest = structuredClone(packageJson)
+  vulnerableManifest.devDependencies['js-yaml'] = '^5.4.0'
+  assert.throws(
+    () =>
+      validateMarkdownlintYamlOverride({
+        packageJson: vulnerableManifest,
+        packageLock,
+      }),
+    /must declare js-yaml at 5\.4\.1 or later/
+  )
+
+  const mismatchedLockfile = structuredClone(packageLock)
+  mismatchedLockfile.packages['node_modules/js-yaml'].version = '5.4.0'
+  assert.throws(
+    () =>
+      validateMarkdownlintYamlOverride({
+        packageJson,
+        packageLock: mismatchedLockfile,
+      }),
+    /must resolve js-yaml to 5\.4\.1 or later/
   )
 })
 

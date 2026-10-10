@@ -82,6 +82,15 @@ technical detail.
   deprecated request fields, or legacy variants without a proven live caller
   when they weaken security, correctness, or contract clarity.
 
+### Initial Automated Review
+
+Apply the [canonical review-acquisition rule](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md#531-initial-automated-review).
+These runtime assertions consume that owner; they define no separate lifecycle.
+
+- `PRIMARY_AUTOMATED_REVIEW_TRIGGER: DRAFT_TO_READY`
+- `PRIMARY_CODEX_COMMENT_TRIGGER_ALLOWED: NO`
+- `POST_READY_BOUNDED_COMMENT_FALLBACK: YES`
+
 ## OpenAPI Ownership
 
 - This repository is the contract-first source of truth for the SecPal API.
@@ -133,7 +142,10 @@ stop on the first failed item:
   schemes, examples, and validators remain coherent;
 - update `CHANGELOG.md` for actual product fixes, features, or breaking changes,
   but not automatically for governance-only prose;
-- verify commits are cryptographically signed and no bypass was used.
+- `SECPAL_SIGNING_FORMAT: SSH`; apply the [canonical signing authority](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md#532-signing-authority).
+  Preserve existing SSH keys and signing configuration. GitHub-generated
+  signatures are provider evidence, not SecPal OpenPGP signing authority.
+  Every PR commit must have GitHub `verification.verified == true`.
 
 Use a body file for multiline `gh pr create` or `gh pr edit` content. Follow the
 canonical work-graph contract for pull-request delivery, issue-closing, and

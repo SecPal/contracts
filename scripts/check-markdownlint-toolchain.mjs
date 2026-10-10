@@ -8,7 +8,8 @@ import { load as loadYaml } from 'js-yaml'
 
 const EXACT_VERSION_PATTERN =
   /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
-const BRACE_EXPANSION_SECURITY_FLOOR = [5, 0, 9]
+const BRACE_EXPANSION_SECURITY_FLOOR = [5, 0, 12]
+const MARKDOWNLINT_YAML_SECURITY_FLOOR = [5, 4, 1]
 const VERSION_COMPONENTS_PATTERN =
   /^(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
@@ -197,7 +198,7 @@ export function validateBraceExpansionOverride({ packageJson, packageLock }) {
   )
   requireInvariant(
     isVersionAtLeast(override, BRACE_EXPANSION_SECURITY_FLOOR),
-    `package.json must pin brace-expansion@^5 to 5.0.9 or later, found ${override}.`
+    `package.json must pin brace-expansion@^5 to 5.0.12 or later, found ${override}.`
   )
 
   const lockedVersion =
@@ -205,6 +206,33 @@ export function validateBraceExpansionOverride({ packageJson, packageLock }) {
   requireInvariant(
     lockedVersion === override,
     `package-lock.json must resolve brace-expansion to ${override}, found ${lockedVersion || 'missing'}.`
+  )
+}
+
+export function validateMarkdownlintYamlOverride({ packageJson, packageLock }) {
+  const override = packageJson.overrides?.['js-yaml'] ?? ''
+  requireInvariant(
+    override === '$js-yaml',
+    `package.json must override transitive js-yaml with the direct dependency, found ${override || 'missing'}.`
+  )
+  const declaredRange = packageJson.devDependencies?.['js-yaml'] ?? ''
+  const minimumVersion = declaredRange.startsWith('^')
+    ? declaredRange.slice(1)
+    : declaredRange
+  requireInvariant(
+    isVersionAtLeast(minimumVersion, MARKDOWNLINT_YAML_SECURITY_FLOOR),
+    `package.json must declare js-yaml at 5.4.1 or later, found ${declaredRange || 'missing'}.`
+  )
+  const lockedPackages = Object.entries(packageLock.packages ?? {}).filter(
+    ([path]) =>
+      path.endsWith('/node_modules/js-yaml') || path === 'node_modules/js-yaml'
+  )
+  requireInvariant(
+    lockedPackages.length > 0 &&
+      lockedPackages.every(([, entry]) =>
+        isVersionAtLeast(entry.version ?? '', MARKDOWNLINT_YAML_SECURITY_FLOOR)
+      ),
+    'package-lock.json must resolve js-yaml to 5.4.1 or later.'
   )
 }
 
@@ -250,6 +278,7 @@ const setupScript = readFileSync(
 try {
   validatePrettierToolchain({ packageJson, packageLock, preCommitConfig })
   validateBraceExpansionOverride({ packageJson, packageLock })
+  validateMarkdownlintYamlOverride({ packageJson, packageLock })
   validateMarkdownlintVersion({ packageJson, packageLock })
   validateMarkdownlintToolchain(preCommitConfig)
   validateSetupScript(setupScript)
