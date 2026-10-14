@@ -386,9 +386,7 @@ Closes #123"
 
 ## Signing Commits
 
-SecPal uses SSH signing, not GPG/OpenPGP. Follow the
-[canonical signing authority](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md#532-signing-authority)
-for commits and role-specific lifecycle, attestation and publication signers.
+SecPal commits use SSH signing with the existing signing identity.
 
 Preserve the existing SSH signing identity and configuration. Do not replace
 keys, reuse a transport key as a signing credential, disable signing, or switch
