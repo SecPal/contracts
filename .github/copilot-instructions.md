@@ -5,42 +5,28 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 # SecPal/contracts Copilot Instructions
 
-## Canonical Review And Signing
-
-Apply `AGENTS.md` and the organization-wide [review-acquisition rule](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md#531-initial-automated-review)
-and [SSH signing authority](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md#532-signing-authority).
-This compatibility mirror defines no separate lifecycle or signing authority.
-
 `AGENTS.md` is the authoritative Contracts runtime baseline. This compatibility
-mirror summarizes the same authority boundary for tools that load this path.
+mirror summarizes the same repository constraints for tools that load this path.
 
-## Governance Authority
-
-[`SecPal/.github/docs/work-graph-contract.md`](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md)
-is the single organization-wide owner of generic work-graph and engineering
-governance semantics. Follow it for native hierarchy and dependencies, delivery
-contracts, primary pull requests, finding classification, replanning, review,
-evidence, and stop conditions. Do not redefine those semantics locally.
-
-GitHub-native issue state and relationships are authoritative. Contracts prose
-owns OpenAPI, validation, compatibility, and supply-chain detail, not graph
-sequence, readiness, or progress.
+Use GitHub issues and native relationships for scope and dependencies, and
+pull requests, reviews, conversations, and required checks for delivery.
+Follow the pull request review and SSH signing guidance in `AGENTS.md`.
 
 ## Contracts Runtime Constraints
 
 - Run `git status --short --branch` before writing; preserve existing topic work.
 - Never bypass hooks, force-push, or push directly from a protected branch.
-- Keep work inside the current delivery contract and use canonical replanning
-  for a real prerequisite or independent responsibility.
+- Keep work inside the requested scope. Record a real prerequisite or
+  independent responsibility using GitHub issues and native relationships.
 - For an observable OpenAPI or API-contract change, start with the smallest
   meaningful failing contract, validation, or example evidence where it can
   demonstrate the changed contract.
 - For governance-only prose, behavior-preserving formatting or refactoring,
   dependency metadata-only updates, and source-shape changes, existing
   structural evidence may suffice; do not manufacture a failing behavior test.
-- Apply canonical proportional evidence, finding materiality, finite review, and
-  stop conditions. Invalid or immaterial observations may be dispositioned with
-  concise evidence and no mutation.
+- Use the smallest applicable evidence set. Assess automated findings against
+  a reproduction or named invariant before changing code; explain invalid or
+  immaterial observations with concise evidence.
 
 ## OpenAPI, Validation, And Supply Chain
 
@@ -71,9 +57,9 @@ sequence, readiness, or progress.
   automatically for governance-only prose.
 - Keep new SecPal commits SSH-signed with the existing identity and use no
   bypass. Require GitHub verification for every PR commit.
-- Follow the canonical contract for pull-request delivery and relationship
-  semantics. Keep GitHub communication in English, SPDX years current, and
-  project artifacts free of AI attribution unless explicitly required.
+- Link related issues and use closing references only for completed work. Keep
+  GitHub communication in English, SPDX years current, and project artifacts
+  free of AI attribution unless explicitly required.
 
 ## Domain Policy
 

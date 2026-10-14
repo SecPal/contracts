@@ -44,10 +44,7 @@ jobs:
   ai-instructions:
     name: AI Instructions
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/reusable-ai-instructions.yml@eab46aa7a3d828e0f1b2e75a48a8ff8f135dec93 # main
-    with:
-      # yamllint disable-line rule:line-length
-      governance-ref: '6f8e13a7a62cee356811a7f58d6b92119941652f'
+    uses: SecPal/.github/.github/workflows/reusable-ai-instructions.yml@500c12b585d8265e1f52936c72764ec2a0d98ad1 # main
 
   openapi-lint:
     name: OpenAPI Lint

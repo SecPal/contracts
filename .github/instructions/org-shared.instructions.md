@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 SecPal
 # SPDX-License-Identifier: AGPL-3.0-or-later
 name: Contracts Runtime Overlay
-description: Delegates generic governance and preserves Contracts-specific constraints.
+description: Applies the repository baseline and Contracts-specific constraints.
 applyTo: '**'
 ---
 
@@ -12,9 +12,9 @@ This file auto-applies to all files in this repository.
 
 - `AGENTS.md` is the authoritative runtime baseline for this repository.
   `.github/copilot-instructions.md` is only a compatibility mirror.
-- `SecPal/.github/docs/work-graph-contract.md` is the single organization-wide
-  owner of generic graph, delivery, finding, replanning, review, evidence, and
-  stop-condition semantics. Do not restate them in this overlay.
+- Use GitHub issues and native relationships for scope and dependencies, and
+  pull requests, reviews, conversations, and required checks for delivery.
+- Apply the pull request review guidance from `AGENTS.md`.
 - Preserve Contracts-specific OpenAPI 3.1 ownership, `$ref` reuse, compatibility,
   validation, domain, action-pinning, narrow-matcher, and dependency-override
   constraints from `AGENTS.md`.

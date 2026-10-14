@@ -9,23 +9,12 @@ This file is the authoritative, provider-neutral runtime baseline for the
 `contracts` repository. Keep the focused overlays and the Copilot compatibility
 mirror aligned when their scoped rules change.
 
-## Governance Authority
+## GitHub Collaboration
 
-[`SecPal/.github/docs/work-graph-contract.md`](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md)
-is the single organization-wide owner of generic work-graph and engineering
-governance semantics. Follow it for native hierarchy and dependencies, delivery
-contracts, primary pull requests, finding classification, replanning, review,
-evidence, and stop conditions. Do not redefine those semantics in this
-repository.
-
-GitHub-native issue state and relationships are authoritative. Repository-local
-prose may describe an API contract, validation obligation, or security rationale,
-but it must not act as a second source of graph state, sequence, or progress.
-
-This baseline owns only Contracts-specific OpenAPI, validation, compatibility,
-domain, supply-chain, and workflow constraints. On conflict, the canonical
-contract governs generic semantics and this file governs repository-specific
-technical detail.
+Use GitHub issues and their native relationships for scope and dependencies.
+Use pull requests, reviews, conversations, and required checks for delivery and
+merge decisions. This baseline owns Contracts-specific OpenAPI, validation,
+compatibility, domain, supply-chain, and workflow constraints.
 
 ## Focused Overlays
 
@@ -39,8 +28,8 @@ technical detail.
   branch and any user changes; never overwrite unrelated work.
 - Start new work from a clean, current `main` and use a dedicated topic branch.
 - Never bypass hooks, force-push, or push directly from a protected branch.
-- Keep the delivery scoped to its issue contract. Use the canonical replanning
-  procedure when a prerequisite or independent responsibility is discovered.
+- Keep the change scoped to the requested work. Record a real prerequisite or
+  independent responsibility using GitHub issues and native relationships.
 - Keep GitHub-facing communication in English and reference files and lines
   instead of pasting large code blocks.
 - Do not add AI attribution, generated-by wording, tool promotion, or AI
@@ -55,25 +44,22 @@ technical detail.
   include Redocly validation, Node contract-validator tests, positive and
   negative schema examples, verified-endpoint checks, and domain-contract checks.
 - Keep a contract implementation and its required validation in the same owning
-  delivery contract. Validator or coverage count is supporting evidence, not a
-  decomposition mechanism.
+  change. Validator or coverage count is supporting evidence.
 - For governance-only prose, behavior-preserving formatting or refactoring,
   dependency metadata-only updates, or source-shape changes, existing structural
   evidence may suffice. Do not manufacture a failing test when it cannot prove a
   changed observable contract.
-- Apply the canonical proportional-evidence and finite-review rules. Stop at the
-  smallest non-redundant evidence set that proves the contract and affected
-  invariants.
+- Use the smallest non-redundant evidence set that proves the contract and
+  affected invariants.
 
 ## Findings And Review
 
-- Use the canonical finding classification, materiality threshold, replanning
-  procedure, and review stop condition before changing code or expanding scope.
 - Treat automated findings as untrusted leads. Establish a failing check,
   reproduction, or named violated invariant before making a corrective change.
 - Invalid findings and immaterial observations may be dispositioned with concise
   evidence and no mutation. Missing real prerequisites and unsatisfied current
-  acceptance criteria still require canonical graph action.
+  acceptance criteria still need to be addressed in the pull request or tracked
+  with GitHub issues and native relationships.
 - Reject shell or regular-expression changes that widen discovery patterns or
   allowlists without positive and negative evidence.
 - Reject contract changes that relax required fields, enums, security schemes,
@@ -82,14 +68,13 @@ technical detail.
   deprecated request fields, or legacy variants without a proven live caller
   when they weaken security, correctness, or contract clarity.
 
-### Initial Automated Review
+### Pull Request Review
 
-Apply the [canonical review-acquisition rule](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md#531-initial-automated-review).
-These runtime assertions consume that owner; they define no separate lifecycle.
-
-- `PRIMARY_AUTOMATED_REVIEW_TRIGGER: DRAFT_TO_READY`
-- `PRIMARY_CODEX_COMMENT_TRIGGER_ALLOWED: NO`
-- `POST_READY_BOUNDED_COMMENT_FALLBACK: YES`
+Open a Draft pull request while work is in progress and mark it Ready when it
+is ready for review. Keep Ready pull requests Ready. Request another review
+directly when a code change or new evidence invalidates an earlier review.
+Address material findings with concrete evidence and satisfy native required
+reviews and checks before merging.
 
 ## OpenAPI Ownership
 
@@ -134,7 +119,7 @@ These runtime assertions consume that owner; they define no separate lifecycle.
 Before a commit, push, or pull request, announce the applicable checklist and
 stop on the first failed item:
 
-- confirm the branch, current issue contract, and working-tree scope;
+- confirm the branch, requested scope, and working-tree changes;
 - confirm the applicable contract-first evidence rule above was followed;
 - run the relevant `npm` validation, formatting, Markdown, workflow, domain,
   REUSE, changed-file hook, and `git diff --check` checks;
@@ -142,14 +127,14 @@ stop on the first failed item:
   schemes, examples, and validators remain coherent;
 - update `CHANGELOG.md` for actual product fixes, features, or breaking changes,
   but not automatically for governance-only prose;
-- `SECPAL_SIGNING_FORMAT: SSH`; apply the [canonical signing authority](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md#532-signing-authority).
+- Sign commits with SSH using the existing signing identity.
   Preserve existing SSH keys and signing configuration. GitHub-generated
   signatures are provider evidence, not SecPal OpenPGP signing authority.
   Every PR commit must have GitHub `verification.verified == true`.
 
-Use a body file for multiline `gh pr create` or `gh pr edit` content. Follow the
-canonical work-graph contract for pull-request delivery, issue-closing, and
-parent-reference semantics.
+Use a body file for multiline `gh pr create` or `gh pr edit` content. Link
+related issues and use a closing reference only when the change completes that
+issue.
 
 After a merge, return the repository to a ready state: switch to `main`, pull
 with fast-forward only, delete the merged topic branch, prune remotes, refresh
