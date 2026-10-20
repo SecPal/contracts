@@ -68,10 +68,15 @@ test('quality uses the reviewed central manifest guard with read-only permission
       'utf8'
     )
   )
-  assert.deepEqual(quality.jobs['dependabot-manifests'], {
+  const guard = quality.jobs['dependabot-manifests']
+  assert.match(
+    guard?.uses ?? '',
+    /^SecPal\/\.github\/\.github\/workflows\/reusable-dependabot-manifest-coverage\.yml@[0-9a-f]{40}$/u
+  )
+  assert.deepEqual(guard, {
     name: 'Dependabot Manifest Guard',
     permissions: { contents: 'read' },
-    uses: 'SecPal/.github/.github/workflows/reusable-dependabot-manifest-coverage.yml@80732e29ad253f63fa8c46637f6686c344ce82ad',
+    uses: guard.uses,
   })
   assert.deepEqual(quality.on, {
     pull_request: { branches: ['main'] },
