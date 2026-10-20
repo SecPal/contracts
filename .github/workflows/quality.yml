@@ -19,6 +19,13 @@ permissions:
   pull-requests: read
 
 jobs:
+  dependabot-manifests:
+    name: Dependabot Manifest Guard
+    permissions:
+      contents: read
+    # yamllint disable-line rule:line-length
+    uses: SecPal/.github/.github/workflows/reusable-dependabot-manifest-coverage.yml@80732e29ad253f63fa8c46637f6686c344ce82ad # main
+
   reuse:
     name: REUSE Compliance
     # yamllint disable-line rule:line-length

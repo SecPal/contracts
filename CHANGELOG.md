@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Covered remote pre-commit hooks with daily 04:00 Europe/Berlin Dependabot
+  proposals requiring manual review, and adopted the pinned shared manifest
+  coverage and cadence guard without changing npm/Actions update behavior.
+
 - Adopted Node.js 26 for contract validation tooling, CI, and contributor
   setup, with a structural guard for runtime and selector drift (closes #524).
 - **Breaking:** Removed the retired `POST /auth/session/logout` compatibility

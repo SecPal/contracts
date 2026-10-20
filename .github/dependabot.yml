@@ -59,3 +59,14 @@ updates:
     target-branch: 'main'
     pull-request-branch-name:
       separator: '-'
+
+  # Remote hooks require manual review; explicit labels replace defaults.
+  - package-ecosystem: 'pre-commit'
+    directory: '/'
+    schedule:
+      interval: 'daily'
+      time: '04:00'
+      timezone: 'Europe/Berlin'
+    labels:
+      - 'developer-experience'
+      - 'dependabot'
