@@ -68,6 +68,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Require pinned organization Trivy repository-security CLEAN evidence before
+  the existing required OpenAPI validation job installs dependencies or runs
+  contract validators, preserving shared freshness, redaction and policy
+  ownership (closes #455).
 - Pinned the Markdownlint toolchain's transitive KaTeX dependency to 0.18.2
   to prevent inherited renderer settings from bypassing trust restrictions
   ([GHSA-238p-pmpm-9mq7](https://github.com/advisories/GHSA-238p-pmpm-9mq7)).
