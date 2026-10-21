@@ -69,6 +69,20 @@ See the repository's [`CONTRIBUTING.md`](CONTRIBUTING.md) and the
 
 Report vulnerabilities through the process in [`SECURITY.md`](SECURITY.md).
 
+The required OpenAPI Lint check first runs the immutable organization Trivy
+repository scanner on the exact checked-out commit with read-only permissions.
+It includes npm development dependencies, exposed secrets and supported
+misconfigurations. Only successful CLEAN evidence allows dependency installation
+and contract validation to proceed; missing, failed, stale or non-CLEAN evidence
+fails the check. The shared action owns scanner/database identity, freshness,
+policy and redaction, retaining bounded secret-safe evidence for 14 days.
+
+Trivy does not replace Redocly, OpenAPI semantics, verified-endpoint or domain
+contract checks, or prove semantic coverage for every configuration format.
+Workflow changes remain candidate-controlled and subject to the existing GitHub
+protections and maintainer review; this check is not independent, tamper-proof
+workflow enforcement.
+
 ## License
 
 Repository-owned code, where applicable, is licensed under the GNU Affero
