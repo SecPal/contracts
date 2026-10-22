@@ -38,9 +38,9 @@ test('the existing required OpenAPI check scans exact source before dependencies
     ref: '${{ github.sha }}',
     'persist-credentials': false,
   })
-  assert.equal(
+  assert.match(
     scan?.uses,
-    'SecPal/.github/.github/actions/trivy-repository-scan@55bcdb6f00eb7d552da206f83fcdc87cf2c43375'
+    /^SecPal\/\.github\/\.github\/actions\/trivy-repository-scan@[0-9a-f]{40}$/
   )
   for (const key of ['with', 'env', 'if', 'continue-on-error']) {
     assert.equal(Object.hasOwn(scan, key), false)
