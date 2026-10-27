@@ -140,3 +140,5 @@ After a merge, return the repository to a ready state: switch to `main`, pull
 with fast-forward only, delete the merged topic branch, prune remotes, refresh
 Node dependencies with `npm ci`, run `npm run validate`, and confirm a clean
 working tree.
+
+For evidence and external-system architecture, follow the [canonical Evidence Architecture contract](https://github.com/SecPal/.github/blob/main/docs/evidence-architecture-contract.md).
