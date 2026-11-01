@@ -68,6 +68,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Patch development-tooling denial-of-service vulnerabilities with scoped
+  minimatch 11.0.3 and re2js 2.8.7 overrides (refs #578).
+
 - Require pinned organization Trivy repository-security CLEAN evidence before
   the existing required OpenAPI validation job installs dependencies or runs
   contract validators, preserving shared freshness, redaction and policy

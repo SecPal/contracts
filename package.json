@@ -35,7 +35,11 @@
       "undici": "6.24.0"
     },
     "markdownlint-cli": {
-      "smol-toml": "1.9.1"
+      "smol-toml": "1.9.1",
+      "minimatch": "11.0.3",
+      "markdownlint": {
+        "re2js": "2.8.7"
+      }
     },
     "micromark-extension-math": {
       "katex": "0.18.2"
