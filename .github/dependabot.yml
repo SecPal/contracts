@@ -14,18 +14,20 @@ updates:
       time: '04:00'
       timezone: 'Europe/Berlin'
     groups:
-      secpal-workflows:
-        patterns:
-          - 'SecPal/.github*'
-      github-actions:
-        patterns:
-          - 'actions/*'
-      third-party-actions:
-        patterns:
-          - '*'
-        exclude-patterns:
-          - 'SecPal/.github*'
-          - 'actions/*'
+      shared-workflow-pins:
+        patterns: ['SecPal/.github*']
+      github-actions-patch:
+        patterns: ['*']
+        exclude-patterns: ['SecPal/.github*']
+        update-types: ['patch']
+      github-actions-minor:
+        patterns: ['*']
+        exclude-patterns: ['SecPal/.github*']
+        update-types: ['minor']
+      github-actions-major:
+        patterns: ['*']
+        exclude-patterns: ['SecPal/.github*']
+        update-types: ['major']
     commit-message:
       prefix: 'chore'
       include: 'scope'
