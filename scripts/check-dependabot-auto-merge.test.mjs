@@ -10,7 +10,7 @@ test('immutable enrollment reconciles every PR without executing its source', ()
     readFileSync('.github/workflows/dependabot-auto-merge.yml', 'utf8')
   )
   const trigger = w.on.pull_request_target
-  assert.deepEqual(trigger?.branches, ['main'])
+  assert.equal(trigger?.branches, undefined)
   for (const event of [
     'opened',
     'synchronize',
@@ -39,5 +39,7 @@ test('immutable enrollment reconciles every PR without executing its source', ()
   assert.deepEqual(w.permissions, {
     contents: 'write',
     'pull-requests': 'write',
+    checks: 'read',
+    statuses: 'read',
   })
 })
