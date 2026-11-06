@@ -10,12 +10,18 @@
 name: Dependabot Auto-Merge
 
 on:
-  pull_request:
+  # Only the accepted immutable callee runs; no PR-controlled source is executed.
+  pull_request_target:
+    branches: [main]
     types:
       - opened
       - synchronize
       - reopened
       - ready_for_review
+      - labeled
+      - unlabeled
+      - edited
+      - converted_to_draft
 
 # Ensure only one auto-merge runs at a time per PR
 concurrency:
@@ -30,7 +36,8 @@ permissions:
 jobs:
   auto-merge:
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@72e3b32a88513f381aa6cd769618bf197106d794 # main
+    uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@d9d0bd62cb8b895b1b7784bf7d1a4d7c051638c5 # main
     with:
+      allowed-ecosystems: 'github_actions,npm_and_yarn'
       phase: '1' # Phase 1: Only PATCH updates auto-merge
       merge-method: 'squash' # Use squash merge for cleaner history
