@@ -26,9 +26,11 @@ on:
 # Ensure only one auto-merge runs at a time per PR
 concurrency:
   group: ${{ github.repository }}-dependabot-auto-merge-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 # Required permissions for dependabot auto-merge
+cache-mode: none
+
 permissions:
   contents: write
   pull-requests: write
