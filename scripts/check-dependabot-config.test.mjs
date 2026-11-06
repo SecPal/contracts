@@ -83,3 +83,46 @@ test('quality uses the reviewed central manifest guard with read-only permission
     push: { branches: ['main'] },
   })
 })
+
+test('Actions groups retain a single verified semantic class and exclude shared SHA pins', () => {
+  const config = yaml.load(readFileSync('.github/dependabot.yml', 'utf8'))
+  const actions = config.updates.find(
+    (entry) => entry['package-ecosystem'] === 'github-actions'
+  )
+  assert.deepEqual(actions.groups['shared-workflow-pins'].patterns, [
+    'SecPal/.github*',
+  ])
+  for (const kind of ['patch', 'minor', 'major']) {
+    const group = actions.groups[`github-actions-${kind}`]
+    assert.deepEqual(group['update-types'], [kind])
+    assert.deepEqual(group['exclude-patterns'], ['SecPal/.github*'])
+  }
+})
+
+test('configuration guard rejects mixed classes and shared-pin grouping', () => {
+  for (const mutation of [
+    (config) =>
+      config.updates[0].groups['github-actions-minor']['update-types'].push(
+        'patch'
+      ),
+    (config) =>
+      delete config.updates[0].groups['github-actions-patch'][
+        'exclude-patterns'
+      ],
+    (config) =>
+      (config.updates[0].groups['shared-workflow-pins']['update-types'] = [
+        'patch',
+      ]),
+  ]) {
+    const config = yaml.load(readFileSync('.github/dependabot.yml', 'utf8'))
+    mutation(config)
+    const directory = mkdtempSync(join(tmpdir(), 'dependabot-group-'))
+    try {
+      const path = join(directory, 'config.yml')
+      writeFileSync(path, yaml.dump(config))
+      assert.notEqual(spawnSync(process.execPath, [guardPath, path]).status, 0)
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  }
+})

@@ -33,7 +33,7 @@ test('immutable enrollment reconciles every PR without executing its source', ()
   )
   assert.equal(job.steps, undefined)
   assert.equal(job.secrets, undefined)
-  assert.equal(job.with.phase, '1')
+  assert.equal(job.with.phase, '2')
   assert.equal(job.with['merge-method'], 'squash')
   assert.equal(job.with['allowed-ecosystems'], 'github_actions,npm_and_yarn')
   assert.deepEqual(w.permissions, {
