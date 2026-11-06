@@ -47,9 +47,10 @@ if (!groups || typeof groups !== 'object') {
 }
 
 const expectedGroups = {
-  'secpal-workflows': ['SecPal/.github*'],
-  'github-actions': ['actions/*'],
-  'third-party-actions': ['*'],
+  'shared-workflow-pins': ['SecPal/.github*'],
+  'github-actions-patch': ['*'],
+  'github-actions-minor': ['*'],
+  'github-actions-major': ['*'],
 }
 
 for (const [name, patterns] of Object.entries(expectedGroups)) {
@@ -71,19 +72,20 @@ for (const [name, patterns] of Object.entries(expectedGroups)) {
   }
 }
 
-const thirdPartyExcludes = groups['third-party-actions']?.['exclude-patterns']
-if (!Array.isArray(thirdPartyExcludes)) {
-  fail(
-    'github-actions group "third-party-actions" must define exclude-patterns.'
-  )
-}
-
-for (const excludedPattern of ['SecPal/.github*', 'actions/*']) {
-  if (!thirdPartyExcludes.includes(excludedPattern)) {
+for (const kind of ['patch', 'minor', 'major']) {
+  const group = groups[`github-actions-${kind}`]
+  if (
+    JSON.stringify(group['update-types']) !== JSON.stringify([kind]) ||
+    JSON.stringify(group['exclude-patterns']) !==
+      JSON.stringify(['SecPal/.github*'])
+  ) {
     fail(
-      `github-actions group "third-party-actions" must exclude "${excludedPattern}".`
+      `github-actions-${kind} must be homogeneous and exclude shared commit pins.`
     )
   }
+}
+if (Object.hasOwn(groups['shared-workflow-pins'], 'update-types')) {
+  fail('Shared commit pins must remain on their unclassified manual path.')
 }
 
 console.log('Dependabot config guard OK.')
