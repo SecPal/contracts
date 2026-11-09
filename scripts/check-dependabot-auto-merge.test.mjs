@@ -23,7 +23,7 @@ test('immutable enrollment reconciles every PR without executing its source', ()
   ])
     assert.ok(trigger.types.includes(event), event)
   assert.equal(w.on.pull_request, undefined)
-  assert.equal(w['cache-mode'], undefined)
+  assert.equal(w['cache-mode'], 'none')
   assert.equal(w.concurrency['cancel-in-progress'], true)
   const job = w.jobs['auto-merge']
   assert.equal(job.if, undefined)
