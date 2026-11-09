@@ -39,7 +39,7 @@ permissions:
 jobs:
   auto-merge:
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@328a361243060278af9765156e02ce77ee9aab29 # main
+    uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@cb409dae951643580bd7e3d427f8fcdcd7536958 # main
     with:
       allowed-ecosystems: 'github_actions,npm_and_yarn'
       phase: '2' # Verified PATCH and MINOR; Source Safety must be required
