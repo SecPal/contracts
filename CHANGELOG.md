@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep immutable Dependabot caller updates independent of copied test SHAs and
+  accept reordered JSON object keys in the unchanged Site CostCenter baseline.
+
 - Clarified the transactional customer-edit ETag contract so persisted
   representation or visibility-authority mutations remain protected through
   commit with `412` and rollback, operation-authority loss remains a `403`, and

@@ -53,7 +53,7 @@ const SITE_PATHS = [
   '/sites/{site}/cost-centers/{costCenter}',
 ]
 const SITE_COST_CENTER_BASELINE =
-  '0419840fe205601716adcb961d27cd33417066754fc91478f7bc9726e2718be6'
+  'bd112517ccf9e66b3b7ef927da5dc85100f69b9a2147faa646ddb024a0ede9b2'
 const NONBLANK_PATTERN = '.*\\S.*'
 
 function rejectUnless(condition, message) {
@@ -154,6 +154,18 @@ rejectUnless(
   'Service Booking allocations must expose exactly complete-snapshot GET and PUT.'
 )
 
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [key, canonical(value[key])])
+    )
+  }
+  return value
+}
+
 const siteBaseline = {
   paths: Object.fromEntries(
     SITE_PATHS.map((pathKey) => [pathKey, paths[pathKey]])
@@ -162,7 +174,7 @@ const siteBaseline = {
 }
 const siteDigest = crypto
   .createHash('sha256')
-  .update(JSON.stringify(siteBaseline))
+  .update(JSON.stringify(canonical(siteBaseline)))
   .digest('hex')
 rejectUnless(
   siteDigest === SITE_COST_CENTER_BASELINE,
