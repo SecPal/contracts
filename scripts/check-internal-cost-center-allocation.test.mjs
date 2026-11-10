@@ -45,6 +45,22 @@ test('accepts the authoritative Internal Cost Center and allocation contract', (
   )
 })
 
+test('accepts the same Site CostCenter contract with reordered object keys', () => {
+  const reorder = (value) => {
+    if (Array.isArray(value)) return value.map(reorder)
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value)
+          .reverse()
+          .map(([key, child]) => [key, reorder(child)])
+      )
+    }
+    return value
+  }
+  const result = runGuard(reorder(contract))
+  assert.equal(result.status, 0, result.stderr)
+})
+
 test('rejects drift across Internal Cost Center and allocation trust boundaries', () => {
   const cases = [
     {
