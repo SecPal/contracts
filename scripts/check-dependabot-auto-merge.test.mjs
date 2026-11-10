@@ -28,9 +28,10 @@ test('immutable enrollment reconciles every PR without executing its source', ()
   const job = w.jobs['auto-merge']
   assert.equal(job.if, undefined)
   assert.equal(
-    job.uses,
-    'SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@31555f23d459031248006f77785d872bc3947127'
+    job.uses.split('@')[0],
+    'SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml'
   )
+  assert.match(job.uses.split('@')[1] ?? '', /^[0-9a-f]{40}$/)
   assert.equal(job.steps, undefined)
   assert.equal(job.secrets, undefined)
   assert.equal(job.with.phase, '2')
