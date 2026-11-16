@@ -25,10 +25,10 @@
     "validate": "npm run lint && npm run format:check"
   },
   "devDependencies": {
-    "@redocly/cli": "^2.77.0",
+    "@redocly/cli": "^2.78.0",
     "js-yaml": "^5.5.0",
     "markdownlint-cli": "0.50.0",
-    "prettier": "^3.9.10"
+    "prettier": "^3.10.1"
   },
   "overrides": {
     "@redocly/cli": {
