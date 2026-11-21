@@ -6,6 +6,9 @@ name: Local OpenAPI Lint
 
 on:
   workflow_call:
+  schedule:
+    - cron: '47 2 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,6 +19,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Admit main source assessment
+        if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REPOSITORY" != SecPal/contracts ||
+                "$GITHUB_REF" != refs/heads/main || "$GITHUB_REF_PROTECTED" != true ||
+                ! "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'Scheduled and manual source assessment requires the protected Contracts main event SHA.' >&2
+            exit 1
+          fi
+          printf 'Source subject: %s@%s\n\n' "$GITHUB_REPOSITORY" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -38,13 +53,16 @@ jobs:
           test "$GATE_STATE" = CLEAN
 
       - name: Setup Node.js
+        if: ${{ github.event_name != 'schedule' && github.event_name != 'workflow_dispatch' }}
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: '26'
           cache: 'npm'
 
       - name: Install dependencies
+        if: ${{ github.event_name != 'schedule' && github.event_name != 'workflow_dispatch' }}
         run: npm ci
 
       - name: Validate OpenAPI specification
+        if: ${{ github.event_name != 'schedule' && github.event_name != 'workflow_dispatch' }}
         run: npm run lint
