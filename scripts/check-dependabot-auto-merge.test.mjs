@@ -40,6 +40,10 @@ test('immutable enrollment reconciles every PR without executing its source', ()
     'github_actions,npm_and_yarn,pre_commit'
   )
   assert.equal(job.with['pre-commit-path'], '.pre-commit-config.yaml')
+  assert.deepEqual(JSON.parse(job.with['shared-sha-workflow-paths']), [
+    '.github/workflows/check-conflict-markers.yml',
+    '.github/workflows/pr-size.yml',
+  ])
   assert.deepEqual(w.permissions, {
     contents: 'write',
     'pull-requests': 'write',
