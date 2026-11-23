@@ -89,6 +89,13 @@ test('Actions groups retain a single verified semantic class and exclude shared 
   const actions = config.updates.find(
     (entry) => entry['package-ecosystem'] === 'github-actions'
   )
+  assert.equal(Object.keys(actions.groups)[0], 'shared-no-op-workflow-pins')
+  assert.deepEqual(actions.groups['shared-no-op-workflow-pins'], {
+    patterns: [
+      'SecPal/.github/.github/workflows/reusable-check-conflict-markers.yml',
+      'SecPal/.github/.github/workflows/reusable-pr-size.yml',
+    ],
+  })
   assert.deepEqual(actions.groups['shared-workflow-pins'].patterns, [
     'SecPal/.github*',
   ])
@@ -101,6 +108,13 @@ test('Actions groups retain a single verified semantic class and exclude shared 
 
 test('configuration guard rejects mixed classes and shared-pin grouping', () => {
   for (const mutation of [
+    (config) => {
+      const groups = config.updates[0].groups
+      const exact = groups['shared-no-op-workflow-pins']
+      delete groups['shared-no-op-workflow-pins']
+      groups['shared-no-op-workflow-pins'] = exact
+    },
+    (config) => delete config.updates[0].groups['shared-no-op-workflow-pins'],
     (config) =>
       config.updates[0].groups['github-actions-minor']['update-types'].push(
         'patch'
