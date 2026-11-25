@@ -6,8 +6,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 # SecPal/contracts Agent Instructions
 
 This file is the authoritative, provider-neutral runtime baseline for the
-`contracts` repository. Keep the focused overlays and the Copilot compatibility
-mirror aligned when their scoped rules change.
+`contracts` repository. Focused overlays apply where scoped.
+`.github/copilot-instructions.md` provides the GitHub code-review criteria.
 
 ## GitHub Collaboration
 
