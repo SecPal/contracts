@@ -11,7 +11,7 @@ applyTo: '**'
 This file auto-applies to all files in this repository.
 
 - `AGENTS.md` is the authoritative runtime baseline for this repository.
-  `.github/copilot-instructions.md` is only a compatibility mirror.
+  `.github/copilot-instructions.md` provides GitHub code-review criteria.
 - Use GitHub issues and native relationships for scope and dependencies, and
   pull requests, reviews, conversations, and required checks for delivery.
 - Apply the pull request review guidance from `AGENTS.md`.
