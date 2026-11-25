@@ -11198,7 +11198,7 @@ paths:
         1. Tenant isolation (mandatory)
         2. Permission check (activity_log.read)
         3. Organizational scope filtering (ADR-010)
-        4. Leadership level filtering (ADR-009)
+        4. Leadership level filtering
 
         **Access Control Logic:**
         - Users with NO organizational scopes: See ALL activities (global access)
