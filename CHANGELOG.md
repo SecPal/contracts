@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Customer and site addresses use `street` for the street name and
+  `house_number` for the building number. Send the building number in
+  `house_number` when present.
+
 ### Fixed
 
 - Keep immutable Dependabot caller updates independent of copied test SHAs and
