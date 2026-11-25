@@ -24,17 +24,17 @@ jobs:
     permissions:
       contents: read
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/reusable-dependabot-manifest-coverage.yml@70c90d00ce8f293c217ea8fe4bc5caf0554a6c43 # main
+    uses: SecPal/.github/.github/workflows/reusable-dependabot-manifest-coverage.yml@1010593808ca85a67f8ae66af79b8b256a586f63 # main
 
   reuse:
     name: REUSE Compliance
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/reusable-reuse.yml@70c90d00ce8f293c217ea8fe4bc5caf0554a6c43 # main
+    uses: SecPal/.github/.github/workflows/reusable-reuse.yml@1010593808ca85a67f8ae66af79b8b256a586f63 # main
 
   license-compatibility:
     name: License Compatibility
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/reusable-license-compatibility.yml@70c90d00ce8f293c217ea8fe4bc5caf0554a6c43 # main
+    uses: SecPal/.github/.github/workflows/reusable-license-compatibility.yml@1010593808ca85a67f8ae66af79b8b256a586f63 # main
 
   prettier:
     name: Prettier Formatting
@@ -43,7 +43,7 @@ jobs:
   markdown-lint:
     name: Markdown Lint
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/reusable-markdown-lint.yml@70c90d00ce8f293c217ea8fe4bc5caf0554a6c43 # main
+    uses: SecPal/.github/.github/workflows/reusable-markdown-lint.yml@1010593808ca85a67f8ae66af79b8b256a586f63 # main
     with:
       # yamllint disable-line rule:line-length
       governance-ref: '6f8e13a7a62cee356811a7f58d6b92119941652f'
@@ -51,7 +51,7 @@ jobs:
   ai-instructions:
     name: AI Instructions
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/reusable-ai-instructions.yml@70c90d00ce8f293c217ea8fe4bc5caf0554a6c43 # main
+    uses: SecPal/.github/.github/workflows/reusable-ai-instructions.yml@1010593808ca85a67f8ae66af79b8b256a586f63 # main
 
   openapi-lint:
     name: OpenAPI Lint
@@ -60,4 +60,4 @@ jobs:
   actionlint:
     name: Actionlint
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/reusable-actionlint.yml@70c90d00ce8f293c217ea8fe4bc5caf0554a6c43 # main
+    uses: SecPal/.github/.github/workflows/reusable-actionlint.yml@1010593808ca85a67f8ae66af79b8b256a586f63 # main
