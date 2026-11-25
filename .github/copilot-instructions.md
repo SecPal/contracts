@@ -3,67 +3,17 @@ SPDX-FileCopyrightText: 2026 SecPal Contributors
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
-# SecPal/contracts Copilot Instructions
+# SecPal/contracts review instructions
 
-`AGENTS.md` is the authoritative Contracts runtime baseline. This compatibility
-mirror summarizes the same repository constraints for tools that load this path.
+Follow the repository runtime instructions in [AGENTS.md](../AGENTS.md) and the
+applicable [focused instructions](instructions/).
 
-Use GitHub issues and native relationships for scope and dependencies, and
-pull requests, reviews, conversations, and required checks for delivery.
-Follow the pull request review and SSH signing guidance in `AGENTS.md`.
-
-## Contracts Runtime Constraints
-
-- Run `git status --short --branch` before writing; preserve existing topic work.
-- Never bypass hooks, force-push, or push directly from a protected branch.
-- Keep work inside the requested scope. Record a real prerequisite or
-  independent responsibility using GitHub issues and native relationships.
-- For an observable OpenAPI or API-contract change, start with the smallest
-  meaningful failing contract, validation, or example evidence where it can
-  demonstrate the changed contract.
-- For governance-only prose, behavior-preserving formatting or refactoring,
-  dependency metadata-only updates, and source-shape changes, existing
-  structural evidence may suffice; do not manufacture a failing behavior test.
-- Use the smallest applicable evidence set. Assess automated findings against
-  a reproduction or named invariant before changing code; explain invalid or
-  immaterial observations with concise evidence.
-
-## OpenAPI, Validation, And Supply Chain
-
-- SecPal/contracts is the contract-first source of truth for the SecPal API. Use
-  OpenAPI 3.1 and keep `docs/openapi.yaml` primary unless a real contract requires
-  decomposition.
-- Prefer reusable `$ref` components and preserve coherent security schemes,
-  errors, parameters, examples, required fields, and response coverage.
-- Keep external API breakage deliberate and evidenced. Preserve compatibility
-  unless the owning pre-`1.x` contract explicitly removes an insecure or
-  obsolete path.
-- Preserve the `package.json` validation pipeline: Redocly, Node validators,
-  verified-endpoint checks, domain-contract checks, and formatting.
-- Keep policy matchers narrow and prove allowed and rejected cases when changing
-  them. Do not silently broaden security-related allowlists.
-- Pin external actions and reusable workflows to immutable full 40-character
-  SHAs with reviewed source refs retained in same-line comments.
-- Preserve intentional dependency overrides and security pins; isolate unrelated
-  supply-chain updates from manual contract changes.
-- Follow the workflow overlay for timeouts, least privilege, reusable workflows,
-  secret handling, and `yamllint`.
-
-## Delivery Hygiene
-
-- Run the smallest complete applicable validation, formatting, Markdown, REUSE,
-  changed-file hook, and `git diff --check` checks.
-- Update `CHANGELOG.md` for product fixes, features, or breaking changes, not
-  automatically for governance-only prose.
-- Keep new SecPal commits SSH-signed with the existing identity and use no
-  bypass. Require GitHub verification for every PR commit.
-- Link related issues and use closing references only for completed work. Keep
-  GitHub communication in English, SPDX years current, and project artifacts
-  free of AI attribution unless explicitly required.
-
-## Domain Policy
-
-Use `secpal.app` for the public homepage and real email addresses,
-`apk.secpal.app` for Android artifacts, `api.secpal.dev` for the API,
-`app.secpal.dev` for the PWA, `secpal.dev` for development, staging, testing,
-and examples, and `app.secpal` only as the Android application identifier.
+- Review OpenAPI changes for caller compatibility, authorization, schema and
+  error semantics, complete operation coverage and valid examples.
+- Require evidence for observable contract changes at the smallest boundary
+  that could detect the regression. Check the Redocly and Node validation
+  surfaces when they own the affected rule.
+- Reject broadened policy matchers or dependency and workflow changes that
+  relax review, immutable pins, least privilege or intentional security pins.
+- Ground findings in the changed code, a violated contract and its impact.
+  Verify signature and provenance claims against the actual GitHub PR commit.
