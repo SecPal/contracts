@@ -14,7 +14,6 @@ import * as yaml from 'js-yaml'
 const contractPath = fileURLToPath(
   new URL('../docs/openapi.yaml', import.meta.url)
 )
-const changelogPath = fileURLToPath(new URL('../CHANGELOG.md', import.meta.url))
 const guardPath = fileURLToPath(
   new URL('./check-domain-contracts.mjs', import.meta.url)
 )
@@ -22,7 +21,6 @@ const redoclyPath = fileURLToPath(
   new URL('../node_modules/.bin/redocly', import.meta.url)
 )
 const contractSource = readFileSync(contractPath, 'utf8')
-const changelogSource = readFileSync(changelogPath, 'utf8')
 const contract = yaml.load(contractSource)
 const schemas = contract.components.schemas
 const paths = contract.paths
@@ -96,7 +94,7 @@ const transactionalValidationErrorRules = [
   [/^request$/, 'The request body is invalid.'],
   [/^customer$/, 'The customer payload is invalid.'],
   [
-    /^customer\.(legal_entity_id|vat_id|name|billing_address(?:\.(?:street|city|postal_code|country|latitude|longitude))?|is_active)$/,
+    /^customer\.(vat_id|name|billing_address(?:\.(?:street|city|postal_code|country|latitude|longitude))?|is_active)$/,
     'The customer field is invalid.',
   ],
   [/^customer_establishments$/, 'The assignment collection is invalid.'],
@@ -173,19 +171,15 @@ function acceptsTransactionalValidationEvidence(example, semantics) {
   )
 }
 
-function runGuard(candidate, candidateChangelog = changelogSource) {
+function runGuard(candidate) {
   const directory = mkdtempSync(join(tmpdir(), 'domain-contracts-'))
   const candidatePath = join(directory, 'openapi.yaml')
-  const candidateChangelogPath = join(directory, 'CHANGELOG.md')
   writeFileSync(candidatePath, yaml.dump(candidate))
-  writeFileSync(candidateChangelogPath, candidateChangelog)
 
   try {
-    return spawnSync(
-      process.execPath,
-      [guardPath, candidatePath, candidateChangelogPath],
-      { encoding: 'utf8' }
-    )
+    return spawnSync(process.execPath, [guardPath, candidatePath], {
+      encoding: 'utf8',
+    })
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
@@ -614,14 +608,12 @@ test('defines one transactional customer edit aggregate contract', () => {
         active: true,
         non_deleted: true,
         same_tenant: true,
-        resulting_legal_entity: true,
         caller_authorized: true,
       },
       indistinguishable_invalid_states: [
         'missing',
         'inaccessible',
         'cross_tenant',
-        'wrong_legal_entity',
         'inactive',
         'deleted',
       ],
@@ -637,36 +629,6 @@ test('defines one transactional customer edit aggregate contract', () => {
     },
     dependency_conflicts: {
       remove_link_used_by_site: 'rejected',
-      change_legal_entity_while_any_site_exists: {
-        condition: {
-          legal_entity_changes: true,
-          remaining_customer_site_count: 'greater_than_zero',
-        },
-        result: 'rejected',
-        no_site_category_bypass: true,
-      },
-      legal_entity_site_state_matrix: [
-        {
-          legal_entity_changes: false,
-          remaining_customer_site_count: 'greater_than_zero',
-          result: 'no-reassignment-conflict',
-        },
-        {
-          legal_entity_changes: true,
-          remaining_customer_site_count: 0,
-          result: 'no-site-conflict',
-        },
-        {
-          legal_entity_changes: true,
-          remaining_customer_site_count: 1,
-          result: 'rejected',
-        },
-        {
-          legal_entity_changes: true,
-          remaining_customer_site_count: 'greater_than_one',
-          result: 'rejected',
-        },
-      ],
       failure: {
         status: 409,
         response: '#/components/responses/CustomerTransactionalEditConflict',
@@ -676,8 +638,8 @@ test('defines one transactional customer edit aggregate contract', () => {
     authorization_precedence: {
       required_authority: {
         customers_update: true,
-        unrestricted_customers_read: true,
-        organizational_scopes: false,
+        tenant_scoped_customers_read: true,
+        active_membership: true,
         complete_snapshot_authority: true,
       },
       operation_authorization_before_path_lookup: true,
@@ -1009,7 +971,6 @@ test('defines one transactional customer edit aggregate contract', () => {
       'unexpected-error-key',
       'arbitrary-string',
       'cross-tenant-detail',
-      'wrong-legal-entity-detail',
       'resource-existence-hint',
       'unexpected-assignment-field',
       'contact-arbitrary-string',
@@ -1300,42 +1261,33 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
             '#/components/responses/Forbidden'
         },
       },
-      ...[
-        'active',
-        'non_deleted',
-        'same_tenant',
-        'resulting_legal_entity',
-        'caller_authorized',
-      ].flatMap((constraint) => [
-        {
-          name: `eligibility ${constraint} false`,
-          mutate(semantics) {
-            semantics.assignment_eligibility.required[constraint] = false
+      ...['active', 'non_deleted', 'same_tenant', 'caller_authorized'].flatMap(
+        (constraint) => [
+          {
+            name: `eligibility ${constraint} false`,
+            mutate(semantics) {
+              semantics.assignment_eligibility.required[constraint] = false
+            },
           },
-        },
-        {
-          name: `eligibility ${constraint} absent`,
-          mutate(semantics) {
-            delete semantics.assignment_eligibility.required[constraint]
+          {
+            name: `eligibility ${constraint} absent`,
+            mutate(semantics) {
+              delete semantics.assignment_eligibility.required[constraint]
+            },
           },
-        },
-      ]),
-      ...[
-        'missing',
-        'inaccessible',
-        'cross_tenant',
-        'wrong_legal_entity',
-        'inactive',
-        'deleted',
-      ].map((state) => ({
-        name: `eligibility invalid state ${state} removed`,
-        mutate(semantics) {
-          semantics.assignment_eligibility.indistinguishable_invalid_states =
-            semantics.assignment_eligibility.indistinguishable_invalid_states.filter(
-              (candidate) => candidate !== state
-            )
-        },
-      })),
+        ]
+      ),
+      ...['missing', 'inaccessible', 'cross_tenant', 'inactive', 'deleted'].map(
+        (state) => ({
+          name: `eligibility invalid state ${state} removed`,
+          mutate(semantics) {
+            semantics.assignment_eligibility.indistinguishable_invalid_states =
+              semantics.assignment_eligibility.indistinguishable_invalid_states.filter(
+                (candidate) => candidate !== state
+              )
+          },
+        })
+      ),
       {
         name: 'eligibility invalid states distinguished',
         mutate(semantics) {
@@ -1380,33 +1332,6 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
         mutate(semantics) {
           semantics.dependency_conflicts.remove_link_used_by_site =
             'delete dependent Site'
-        },
-      },
-      {
-        name: 'Legal Entity reassignment conflict becomes allowed',
-        mutate(semantics) {
-          semantics.dependency_conflicts.change_legal_entity_while_any_site_exists.result =
-            'allowed'
-        },
-      },
-      {
-        name: 'Legal Entity Site conflict weakens ANY Site to multiple Sites',
-        mutate(semantics) {
-          semantics.dependency_conflicts.change_legal_entity_while_any_site_exists.condition.remaining_customer_site_count =
-            'greater_than_one'
-        },
-      },
-      {
-        name: 'Legal Entity Site conflict allows a single remaining Site',
-        mutate(semantics) {
-          semantics.dependency_conflicts.legal_entity_site_state_matrix[2].result =
-            'allowed'
-        },
-      },
-      {
-        name: 'Legal Entity Site conflict permits a Site category bypass',
-        mutate(semantics) {
-          semantics.dependency_conflicts.change_legal_entity_while_any_site_exists.no_site_category_bypass = false
         },
       },
       {
@@ -2068,7 +1993,6 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
       'unexpected-error-key',
       'arbitrary-string',
       'cross-tenant-detail',
-      'wrong-legal-entity-detail',
       'resource-existence-hint',
       'unexpected-assignment-field',
       'contact-arbitrary-string',
@@ -2217,45 +2141,6 @@ test('guard rejects weakened transactional customer edit semantics', async (t) =
   }
 })
 
-test('defines OU-free customer, site, and employee domain relationships', () => {
-  assert.deepEqual(schemas.Customer.required.includes('legal_entity_id'), true)
-  assert.deepEqual(
-    schemas.Site.required.filter((field) =>
-      ['customer_id', 'legal_entity_id', 'establishment_id'].includes(field)
-    ),
-    ['customer_id', 'legal_entity_id', 'establishment_id']
-  )
-  assert.deepEqual(
-    schemas.Employee.required.filter((field) =>
-      ['legal_entity_id', 'establishment_id'].includes(field)
-    ),
-    ['legal_entity_id', 'establishment_id']
-  )
-
-  for (const schemaName of [
-    'Customer',
-    'CustomerCreateRequest',
-    'CustomerUpdateRequest',
-    'Site',
-    'SiteCreateRequest',
-    'SiteUpdateRequest',
-    'Employee',
-    'EmployeeCreateRequest',
-    'EmployeeUpdateRequest',
-  ]) {
-    assert.equal(
-      Object.hasOwn(schemas[schemaName].properties, 'organizational_unit_id'),
-      false,
-      `${schemaName} must not expose organizational_unit_id`
-    )
-    assert.equal(
-      Object.hasOwn(schemas[schemaName].properties, 'organizational_unit'),
-      false,
-      `${schemaName} must not expose an organizational_unit relationship`
-    )
-  }
-})
-
 test('aligns migrated collection filters with the domain APIs', () => {
   const cases = [
     {
@@ -2280,16 +2165,9 @@ test('aligns migrated collection filters with the domain APIs', () => {
     },
     {
       path: '/employees',
-      names: [
-        'page',
-        'per_page',
-        'status',
-        'search',
-        'legal_entity_id',
-        'establishment_id',
-      ],
-      uuidNames: ['legal_entity_id', 'establishment_id'],
-      search: /email and employee_number/i,
+      names: ['page', 'per_page', 'status', 'search', 'establishment_id'],
+      uuidNames: ['establishment_id'],
+      search: /exact.*employee email or employee number.*authorized/i,
     },
   ]
 
@@ -2357,7 +2235,7 @@ test('retains supported customer and site business identifier inputs', () => {
   )
 })
 
-test('keeps employee creation audit examples aligned with domain assignments', () => {
+test('keeps employee creation audit examples free of hierarchy and assignment details', () => {
   const employeeCreationActivities = [
     paths['/activity-logs'].get.responses['200'].content['application/json']
       .examples.paginatedResponse.value.data[0],
@@ -2376,16 +2254,10 @@ test('keeps employee creation audit examples aligned with domain assignments', (
       null,
       'employee creation audit subjects must not expose a personal name'
     )
-    assert.match(
-      activity.properties.attributes.legal_entity_id,
-      /^[0-9a-f-]{36}$/i
-    )
-    assert.match(
-      activity.properties.attributes.establishment_id,
-      /^[0-9a-f-]{36}$/i
-    )
     for (const forbiddenField of [
       'organizational_unit_id',
+      'legal_entity_id',
+      'establishment_id',
       'name',
       'first_name',
       'last_name',
@@ -2548,7 +2420,7 @@ test('models every conditional customer and site resource field', () => {
   )
   assert.match(
     schemas.CustomerEstablishmentRelationship.description,
-    /visible to the current caller.*site-only access.*active site assignments/is
+    /visible to the current caller.*limited to a Site.*only authorized links/is
   )
   assert.match(
     schemas.SiteCustomerRelationship.description,
@@ -2778,68 +2650,13 @@ test('limits customer-establishment uniqueness to the relationship pair', () => 
   assert.equal(duplicatePair.status, 409)
 })
 
-test('keeps tenant-local domain lifecycle independent from OU role flags', () => {
-  const domainDescriptions = [
-    schemas.CustomerCreateRequest.properties.legal_entity_id.description,
-    schemas.CustomerUpdateRequest.properties.legal_entity_id.description,
-    schemas.EmployeeUpdateRequest.description,
-    schemas.SiteUpdateRequest.description,
-    paths['/customers'].post.description,
-    paths['/customers/{customer}'].patch.description,
-    paths['/customer-establishments'].post.description,
-    paths['/sites'].post.description,
-    paths['/employees'].post.description,
-    paths['/employees/{employee}'].patch.description,
-    paths['/lookups/legal-entities'].get.description,
-    paths['/lookups/legal-entities/{legal_entity}/establishments'].get
-      .description,
-    paths['/lookups/establishments/{establishment}/customers'].get.description,
-    paths['/lookups/establishments/{establishment}/customer-candidates'].get
-      .description,
-  ]
-  for (const description of domainDescriptions) {
-    assert.doesNotMatch(
-      description,
-      /active, assignable|assignable (?:Legal Entit|establishment)|(?:Legal Entit|establishment)[^.]*assignable/i
-    )
-  }
-
-  const organizationalUnit =
-    paths['/organizational-units/{organizational_unit}']
-  assert.doesNotMatch(
-    `${organizationalUnit.patch.description}\n${organizationalUnit.delete.description}`,
-    /customers|customer-establishment|sites|employees/i
-  )
-  assert.equal(organizationalUnit.patch.responses['409'], undefined)
-  assert.equal(
-    organizationalUnit.delete.responses['409'].$ref,
-    '#/components/responses/OrganizationalUnitHasChildrenConflict'
-  )
-  assert.doesNotMatch(changelogSource, /role-downgraded or deleted.*conflict/is)
-})
-
-test('defines minimal legal entity, establishment, and customer lookups', () => {
-  assert.deepEqual(Object.keys(schemas.LegalEntityLookup.properties), [
-    'id',
-    'name',
-  ])
-  assert.deepEqual(Object.keys(schemas.EstablishmentLookup.properties), [
-    'id',
-    'name',
-  ])
+test('keeps linked-customer lookup rows minimal', () => {
   assert.deepEqual(Object.keys(schemas.CustomerLookup.properties), [
     'id',
     'name',
   ])
-
-  for (const schemaName of [
-    'LegalEntityLookup',
-    'EstablishmentLookup',
-    'CustomerLookup',
-  ]) {
-    assert.deepEqual(schemas[schemaName].required, ['id', 'name'])
-    assert.equal(schemas[schemaName].additionalProperties, false)
-  }
+  assert.deepEqual(schemas.CustomerLookup.required, ['id', 'name'])
+  assert.equal(schemas.CustomerLookup.additionalProperties, false)
 })
 
 test('uses one neutral duplicate response for every domain create operation', () => {
@@ -2912,28 +2729,16 @@ test('models pagination links for customer establishment collections', () => {
   )
 })
 
-test('documents accepted and rejected site and employee domain assignments', () => {
-  for (const schemaName of ['SiteCreateRequest', 'EmployeeCreateRequest']) {
-    const examples = schemas[schemaName]['x-validation-examples']
-
-    assert.ok(examples?.accepted?.length > 0, `${schemaName} accepted example`)
-    assert.ok(examples?.rejected?.length > 0, `${schemaName} rejected example`)
-    assert.equal(examples.rejected[0].status, 422, schemaName)
-  }
-})
-
 test('documents evidence for every relationship-writing workflow', () => {
   for (const schemaName of [
-    'CustomerCreateRequest',
-    'CustomerUpdateRequest',
     'ContractCreateRequest',
     'ContractUpdateRequest',
     'ServiceBookingCreateRequest',
     'CustomerEstablishmentCreateRequest',
     'SiteCreateRequest',
     'SiteUpdateRequest',
-    'EmployeeCreateRequest',
-    'EmployeeUpdateRequest',
+    'EmploymentPeriodCreateRequest',
+    'EmployeeEstablishmentAssignmentCreateRequest',
   ]) {
     const examples = schemas[schemaName]['x-validation-examples']
     assert.ok(examples?.accepted?.length > 0, `${schemaName} accepted evidence`)
@@ -2941,13 +2746,8 @@ test('documents evidence for every relationship-writing workflow', () => {
   }
 
   for (const [schemaName, relationshipFields] of [
-    ['CustomerUpdateRequest', ['legal_entity_id']],
     ['ContractUpdateRequest', ['customer_id']],
-    [
-      'SiteUpdateRequest',
-      ['customer_id', 'legal_entity_id', 'establishment_id'],
-    ],
-    ['EmployeeUpdateRequest', ['legal_entity_id', 'establishment_id']],
+    ['SiteUpdateRequest', ['customer_id', 'establishment_id']],
   ]) {
     const examples = schemas[schemaName]['x-validation-examples']
     for (const example of [examples.accepted[0], examples.rejected[0]]) {
@@ -2990,334 +2790,6 @@ test('documents tenant-consistent customer establishment links', () => {
   assert.equal(examples.rejected[0].status, 422)
 })
 
-test('keeps customer and site domain mutations outside OU entitlement', () => {
-  const domainMutations = [
-    [paths['/customers'].post, 'customers.create'],
-    [paths['/customers/{customer}'].patch, 'customers.update'],
-    [paths['/customers/{customer}'].delete, 'customers.delete'],
-    [paths['/customer-establishments'].post, 'customers.update'],
-    [
-      paths['/customer-establishments/{customer_establishment}'].patch,
-      'customers.update',
-    ],
-    [
-      paths['/customer-establishments/{customer_establishment}'].delete,
-      'customers.update',
-    ],
-    [paths['/sites'].post, 'sites.create'],
-    [paths['/sites/{site}'].patch, 'sites.update'],
-    [paths['/sites/{site}'].delete, 'sites.delete'],
-  ]
-  for (const [operation, permission] of domainMutations) {
-    assert.match(
-      operation.description,
-      /OU scopes do not grant access to customer or site domain writes.*callers with any organizational scopes.*403/is
-    )
-    assert.match(
-      operation.description,
-      new RegExp(
-        'unscoped callers require `' + permission.replace('.', '\\.') + '`',
-        'i'
-      )
-    )
-    assert.doesNotMatch(operation.description, /organizational write access/i)
-    assert.equal(
-      operation.responses['403'].$ref,
-      '#/components/responses/Forbidden'
-    )
-  }
-
-  assert.match(
-    paths['/customers/{customer}'].patch.description,
-    /legal_entity_id.*same-tenant, active, non-deleted Legal Entity/is
-  )
-  assert.match(
-    schemas.SiteUpdateRequest.description,
-    /resulting customer, Legal Entity, and establishment combination/is
-  )
-  assert.doesNotMatch(
-    schemas.SiteUpdateRequest.description,
-    /organizational scopes.*403/is
-  )
-})
-
-test('documents customer record read authorization without OU entitlement', () => {
-  for (const operation of [
-    paths['/customers/{customer}'].get,
-    paths['/customer-establishments/{customer_establishment}'].get,
-  ]) {
-    assert.match(
-      operation.description,
-      /active customer or site assignment.*customers\.read.*without organizational scopes.*OU scopes alone do not grant record access/is
-    )
-    assert.equal(
-      operation.responses['403'].$ref,
-      '#/components/responses/Forbidden'
-    )
-  }
-
-  for (const operation of [
-    paths['/customers'].get,
-    paths['/customer-establishments'].get,
-  ]) {
-    assert.match(
-      operation.description,
-      /customers\.read.*without organizational scopes.*active customer or site assignment.*OU scope alone.*empty authorized collection/is
-    )
-    assert.equal(
-      operation.responses['403'].$ref,
-      '#/components/responses/Forbidden'
-    )
-  }
-})
-
-test('documents site record read authorization without OU entitlement', () => {
-  assert.match(
-    paths['/sites'].get.description,
-    /sites\.read.*active customer or site assignment.*OU scope alone.*empty authorized collection/is
-  )
-  assert.equal(
-    paths['/sites'].get.responses['403'].$ref,
-    '#/components/responses/Forbidden'
-  )
-
-  assert.match(
-    paths['/sites/{site}'].get.description,
-    /sites\.read.*active customer or site assignment.*OU scopes alone do not grant record access/is
-  )
-  assert.equal(
-    paths['/sites/{site}'].get.responses['403'].$ref,
-    '#/components/responses/Forbidden'
-  )
-})
-
-test('documents all employee subresource authorization after OU decoupling', () => {
-  const noOuBoundary =
-    /OU scopes do not grant access to domain employees.*organizational scopes.*403/is
-  const qualificationOperations = [
-    [
-      paths['/employees/{employee}/qualifications'].get,
-      'employee_qualification.read',
-      true,
-    ],
-    [
-      paths['/employees/{employee}/qualifications'].post,
-      'employee_qualification.write',
-      false,
-    ],
-    [
-      paths['/employee-qualifications/{employeeQualification}'].get,
-      'employee_qualification.read',
-      true,
-    ],
-    [
-      paths['/employee-qualifications/{employeeQualification}'].patch,
-      'employee_qualification.write',
-      false,
-    ],
-    [
-      paths['/employee-qualifications/{employeeQualification}'].delete,
-      'employee_qualification.write',
-      false,
-    ],
-  ]
-  const documentOperations = [
-    [
-      paths['/employees/{employee}/documents'].get,
-      'employee_document.read',
-      true,
-    ],
-    [
-      paths['/employees/{employee}/documents'].post,
-      'employee_document.write',
-      false,
-    ],
-    [
-      paths['/employees/{employee}/documents/{document}'].get,
-      'employee_document.read',
-      true,
-    ],
-    [
-      paths['/employees/{employee}/documents/{document}'].delete,
-      'employee_document.write',
-      false,
-    ],
-    [
-      paths['/employees/{employee}/documents/{document}/download'].get,
-      'employee_document.read',
-      true,
-    ],
-  ]
-
-  for (const [operation, permission, selfService] of qualificationOperations) {
-    assert.match(operation.description, noOuBoundary)
-    assert.match(
-      operation.description,
-      new RegExp(permission.replace('.', '\\.'))
-    )
-    assert.equal(
-      /\*\*Self-service:\*\*/i.test(operation.description),
-      selfService
-    )
-    if (selfService) {
-      assert.match(
-        operation.description,
-        /non-self callers.*organizational scopes.*403/is
-      )
-    }
-    assert.equal(
-      operation.responses['403'].$ref,
-      '#/components/responses/SimpleForbidden'
-    )
-  }
-  for (const [operation, permission, selfService] of documentOperations) {
-    assert.match(operation.description, noOuBoundary)
-    assert.match(
-      operation.description,
-      new RegExp(permission.replace('.', '\\.'))
-    )
-    assert.equal(
-      /\*\*Self-service:\*\*/i.test(operation.description),
-      selfService
-    )
-    if (selfService) {
-      assert.match(
-        operation.description,
-        /non-self callers.*organizational scopes.*403/is
-      )
-    }
-    assert.equal(
-      operation.responses['403'].$ref,
-      '#/components/responses/Forbidden'
-    )
-  }
-  for (const schemaName of [
-    'AttachQualificationRequest',
-    'UpdateEmployeeQualificationRequest',
-  ]) {
-    assert.match(schemas[schemaName].description, noOuBoundary)
-  }
-})
-
-test('keeps lookup eligibility and dependent relationship lifecycle rules explicit', () => {
-  assert.match(
-    paths['/lookups/legal-entities'].get.description,
-    /customers\.create.*sites\.create.*employee\.create/i
-  )
-  assert.match(
-    paths['/lookups/legal-entities/{legal_entity}/establishments'].get
-      .description,
-    /same tenant, active, non-deleted/i
-  )
-  assert.match(paths['/sites'].post.description, /customer-establishment link/i)
-  assert.match(
-    paths['/lookups/establishments/{establishment}/customers'].get.description,
-    /existing customer-establishment link/i
-  )
-  assert.match(
-    paths['/customers/{customer}'].patch.description,
-    /no customer-establishment links or sites/i
-  )
-  assert.match(
-    paths['/customer-establishments/{customer_establishment}'].delete
-      .description,
-    /blocked.*sites/i
-  )
-  assert.equal(
-    paths['/customer-establishments/{customer_establishment}'].delete.responses[
-      '409'
-    ].$ref,
-    '#/components/responses/Conflict'
-  )
-})
-
-test('keeps create and update domain assignments closed and validates their final state', () => {
-  assert.equal(schemas.EmployeeCreateRequest.additionalProperties, false)
-  assert.equal(schemas.EmployeeUpdateRequest.additionalProperties, false)
-  assert.match(
-    paths['/employees'].post.description,
-    /active(?:,| and) non-deleted.*organizational write access/i
-  )
-  assert.match(
-    paths['/employees/{employee}'].patch.description,
-    /resulting.*same tenant.*Legal Entity.*active, non-deleted/i
-  )
-  assert.match(
-    schemas.SiteUpdateRequest.description,
-    /resulting.*existing customer-establishment link/i
-  )
-})
-
-test('enforces lookup eligibility when assignment UUIDs are submitted directly', () => {
-  assert.match(
-    paths['/customer-establishments'].post.description,
-    /active, non-deleted customer.*active, non-deleted establishment.*OU scopes do not grant.*organizational scopes.*403/is
-  )
-  assert.match(
-    paths['/sites'].post.description,
-    /active, non-deleted customer.*active, non-deleted Legal Entity and establishment.*OU scopes do not grant.*organizational scopes.*403/is
-  )
-  assert.match(
-    schemas.SiteUpdateRequest.description,
-    /active, non-deleted customer.*active, non-deleted Legal Entity and establishment.*existing customer-establishment link/is
-  )
-})
-
-test('separates customer link candidates from customers already linked for sites', () => {
-  const linkedCustomers =
-    paths['/lookups/establishments/{establishment}/customers'].get
-  assert.match(
-    linkedCustomers.description,
-    /active, non-deleted customers.*existing customer-establishment link/i
-  )
-
-  const linkCandidates =
-    paths['/lookups/establishments/{establishment}/customer-candidates']?.get
-  assert.ok(linkCandidates)
-  assert.match(linkCandidates.description, /customers\.update/i)
-  assert.match(
-    linkCandidates.description,
-    /active, non-deleted customers.*not yet linked/i
-  )
-  assert.equal(
-    linkCandidates.responses['200'].content['application/json'].schema.$ref,
-    '#/components/schemas/CustomerLookupCollectionResponse'
-  )
-})
-
-test('keeps lookup permissions aligned with every link and assignment workflow', () => {
-  assert.match(
-    paths['/lookups/legal-entities'].get.description,
-    /customers\.create.*customers\.update.*sites\.create.*sites\.update.*employee\.write.*employee\.create.*employee\.update/i
-  )
-  assert.match(
-    paths['/lookups/legal-entities/{legal_entity}/establishments'].get
-      .description,
-    /customers\.update.*sites\.create.*sites\.update.*employee\.write.*employee\.create.*employee\.update/i
-  )
-  assert.match(
-    paths['/lookups/establishments/{establishment}/customers'].get.description,
-    /sites\.create.*sites\.update.*active, non-deleted establishment.*authorized domain write access/i
-  )
-  assert.match(
-    paths['/lookups/establishments/{establishment}/customer-candidates'].get
-      .description,
-    /customers\.update.*active, non-deleted establishment.*authorized domain write access/i
-  )
-
-  const linkPath = paths['/customer-establishments/{customer_establishment}']
-  assert.match(linkPath.patch.description, /customers\.update/i)
-  assert.match(linkPath.delete.description, /customers\.update/i)
-  assert.match(
-    paths['/employees/{employee}'].patch.description,
-    /employee\.write.*employee\.update/i
-  )
-  assert.match(
-    paths['/employees'].post.description,
-    /employee\.write.*employee\.create/i
-  )
-})
-
 test('names the link-management permission', () => {
   assert.match(
     paths['/customer-establishments'].post.description,
@@ -3353,7 +2825,7 @@ test('guard rejects reopened writes and weakened final-state or deletion rules',
 
   assert.notEqual(result.status, 0, result.stdout)
   assert.match(result.stderr, /EmployeeUpdateRequest/)
-  assert.match(result.stderr, /PATCH site assignments/)
+  assert.match(result.stderr, /PATCH site relationships/)
   assert.match(result.stderr, /DELETE customers/)
 })
 
@@ -3471,32 +2943,10 @@ test('guard rejects widened lookup data', () => {
   assert.match(result.stderr, /CustomerLookup/)
 })
 
-test('guard rejects inherited OU lifecycle rules in tenant-local domains', () => {
-  const candidate = structuredClone(contract)
-  candidate.paths['/lookups/legal-entities'].get.description +=
-    ' Legal Entities must be assignable.'
-  candidate.paths[
-    '/organizational-units/{organizational_unit}'
-  ].patch.description +=
-    ' Clearing roles is blocked while customers or employees reference the unit.'
-
-  const result = runGuard(candidate)
-
-  assert.notEqual(result.status, 0, result.stdout)
-  assert.match(
-    result.stderr,
-    /tenant-local domain.*organizational-unit assignability/i
-  )
-  assert.match(result.stderr, /organizational-unit lifecycle.*tenant-local/i)
-})
-
 test('guard rejects weakened lookup and permission invariants', () => {
   const candidate = structuredClone(contract)
   candidate.paths[
     '/lookups/establishments/{establishment}/customers'
-  ].get.description = 'Returns authorized customer options.'
-  candidate.paths[
-    '/lookups/establishments/{establishment}/customer-candidates'
   ].get.description = 'Returns authorized customer options.'
   candidate.paths['/customer-establishments'].post.description =
     'Creates a customer-establishment link.'
@@ -3510,7 +2960,6 @@ test('guard rejects weakened lookup and permission invariants', () => {
 
   assert.notEqual(result.status, 0, result.stdout)
   assert.match(result.stderr, /GET linked customer lookups/)
-  assert.match(result.stderr, /GET customer link candidates/)
   assert.match(result.stderr, /POST customer-establishment links/)
   assert.match(result.stderr, /PATCH customer-establishment links/)
   assert.match(result.stderr, /DELETE customer-establishment links/)
@@ -3518,40 +2967,18 @@ test('guard rejects weakened lookup and permission invariants', () => {
 
 test('guard derives lookup permissions and conflict responses from workflows', () => {
   const candidate = structuredClone(contract)
-  for (const pathName of [
-    '/lookups/legal-entities',
-    '/lookups/legal-entities/{legal_entity}/establishments',
-  ]) {
-    candidate.paths[pathName].get.description = candidate.paths[
-      pathName
-    ].get.description.replace('`sites.update`, ', '')
-    candidate.paths[pathName].get.description = candidate.paths[
-      pathName
-    ].get.description.replace('`employee.update`', '`employee.read`')
-  }
   candidate.paths[
     '/lookups/establishments/{establishment}/customers'
   ].get.description = candidate.paths[
     '/lookups/establishments/{establishment}/customers'
   ].get.description.replace(' or `sites.update`', '')
-  delete candidate.paths['/customers/{customer}'].patch.responses['409']
-  candidate.paths['/employees/{employee}'].patch.description = candidate.paths[
-    '/employees/{employee}'
-  ].patch.description.replace('`employee.update`', '`employee.read`')
+  delete candidate.paths['/customers/{customer}'].delete.responses['409']
 
   const result = runGuard(candidate)
 
   assert.notEqual(result.status, 0, result.stdout)
-  assert.match(result.stderr, /GET Legal Entity lookups.*sites\.update/)
-  assert.match(result.stderr, /GET establishment lookups.*sites\.update/)
-  assert.match(result.stderr, /GET Legal Entity lookups.*employee\.update/)
-  assert.match(result.stderr, /GET establishment lookups.*employee\.update/)
   assert.match(result.stderr, /GET linked customer lookups.*sites\.update/)
-  assert.match(result.stderr, /PATCH employee assignments.*employee\.update/)
-  assert.match(
-    result.stderr,
-    /PATCH customer Legal Entity reassignment.*Conflict.*409/
-  )
+  assert.match(result.stderr, /DELETE customers.*Conflict.*409/)
 })
 
 test('guard rejects relationship-writing operations missing from the workflow model', () => {
@@ -3601,18 +3028,6 @@ test('guard rejects widened relationship uniqueness and missing evidence', () =>
   assert.match(result.stderr, /CustomerEstablishment uniqueness/)
 })
 
-test('guard rejects false OU-domain lifecycle coupling', () => {
-  const contradictoryChangelog = `${changelogSource}\nReferenced Legal Entities may not be role-downgraded or deleted; this conflict protects domain records.\n`
-
-  const result = runGuard(contract, contradictoryChangelog)
-
-  assert.notEqual(result.status, 0, result.stdout)
-  assert.match(
-    result.stderr,
-    /CHANGELOG must not couple.*organizational-unit roles/i
-  )
-})
-
 test('guard rejects incomplete customer-establishment read authorization', () => {
   const candidate = structuredClone(contract)
   candidate.paths['/customer-establishments'].get.description =
@@ -3660,17 +3075,8 @@ test('guard rejects OU-entitled customer or site domain mutations', () => {
     candidate.paths['/sites/{site}'].patch,
     candidate.paths['/sites/{site}'].delete,
   ]
-  domainMutations[0].description +=
-    ' Organizational write access also grants this write.'
-  domainMutations[1].description = domainMutations[1].description.replace(
-    'unscoped callers require `customers.update`',
-    'unscoped callers require `customers.read`'
-  )
-  for (const operation of domainMutations.slice(2)) {
-    operation.description = operation.description.replace(
-      /OU scopes do not grant access to customer or site domain writes/i,
-      'OU scopes grant access to this domain write'
-    )
+  for (const operation of domainMutations) {
+    operation.description = 'Organizational scope alone grants this write.'
   }
   candidate.paths['/customers/{customer}/archive'] = {
     post: {
@@ -3702,7 +3108,7 @@ test('guard rejects OU-entitled customer or site domain mutations', () => {
   }
   assert.match(
     result.stderr,
-    /POST \/customers\/\{customer\}\/archive.*no-OU domain mutation model/
+    /POST \/customers\/\{customer\}\/archive.*scoped domain mutation model/
   )
 })
 
@@ -3728,7 +3134,7 @@ test('guard rejects missing or invented employee self-service exceptions', () =>
       ''
     )
   candidate.paths['/employees/{employee}/qualifications'].post.description +=
-    '\n\n**Self-service:** the employee may attach their own qualifications.'
+    '\n\n**Self-service:** requires an explicitly granted permission with effective linked Employee scope.'
 
   const result = runGuard(candidate)
 
@@ -3941,7 +3347,7 @@ test('guard rejects incomplete pagination and domain-assignment examples', () =>
     .properties.links
   candidate.components.schemas.CustomerEstablishmentCollectionResponse.required =
     ['data', 'meta']
-  delete candidate.components.schemas.EmployeeCreateRequest[
+  delete candidate.components.schemas.EmploymentPeriodCreateRequest[
     'x-validation-examples'
   ].rejected
 
@@ -3949,7 +3355,7 @@ test('guard rejects incomplete pagination and domain-assignment examples', () =>
 
   assert.notEqual(result.status, 0, result.stdout)
   assert.match(result.stderr, /pagination links/)
-  assert.match(result.stderr, /EmployeeCreateRequest/)
+  assert.match(result.stderr, /POST employment periods/)
 })
 
 test('guard rejects malformed UUIDs in domain-assignment examples', () => {
@@ -3961,5 +3367,5 @@ test('guard rejects malformed UUIDs in domain-assignment examples', () => {
   const result = runGuard(candidate)
 
   assert.notEqual(result.status, 0, result.stdout)
-  assert.match(result.stderr, /SiteCreateRequest/)
+  assert.match(result.stderr, /POST site assignments/)
 })

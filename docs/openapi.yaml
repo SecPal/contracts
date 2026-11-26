@@ -31,7 +31,7 @@ info:
     ## API Policies
 
     - Response timestamps: unless a response field explicitly documents an approved exception, timestamps serialize as RFC 3339 / ISO 8601 UTC strings with a literal trailing `Z` and whole-second precision (`YYYY-MM-DDTHH:MM:SSZ`). Fractional seconds, including milliseconds, are not emitted.
-    - Timestamp exceptions: a response field may only emit a non-UTC offset or fractional seconds when that individual field schema explicitly opts out of the canonical UTC-second format and ships a matching example. Employee retention timestamps are the current approved exception and retain the six fractional digits emitted by the API.
+    - Timestamp exceptions: a response field may only emit a non-UTC offset or fractional seconds when that individual field schema explicitly opts out of the canonical UTC-second format and ships a matching example.
     - Pagination: offset-based (page/per_page) for most endpoints, cursor-based for large datasets
     - Maximum page size: 100 items
   version: 0.0.1
@@ -78,8 +78,8 @@ tags:
     description: Minimal authorized domain-assignment lookup endpoints.
   - name: Sites
     description: Site management endpoints and site-related nested resources.
-  - name: Organizational Units
-    description: Internal tenant-scoped organizational hierarchy, independent status flags, and parent relationships.
+  - name: Establishments
+    description: Flat organizational establishments within the active Tenant.
   - name: Assignments
     description: Customer, site, and self-service assignment operations.
   - name: Access Control
@@ -349,23 +349,6 @@ components:
           type: [object, 'null']
           description: Full subject object (when loaded)
           additionalProperties: true
-        organizational_unit_id:
-          type: [string, 'null']
-          format: uuid
-          description: Organizational unit this activity belongs to
-          example: '990e8400-e29b-41d4-a716-446655440004'
-        organizational_unit:
-          type: [object, 'null']
-          description: Full organizational unit object (when loaded)
-          properties:
-            id:
-              type: string
-              format: uuid
-            name:
-              type: string
-            parent_id:
-              type: [string, 'null']
-              format: uuid
         properties:
           type: [object, 'null']
           description: Additional properties stored with the activity
@@ -1473,20 +1456,6 @@ components:
         - type: 'null'
       example: null
 
-    MicrosecondApiTimestamp:
-      type: string
-      format: date-time
-      pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$'
-      description: Approved SecPal API timestamp exception with exactly six fractional digits.
-      example: '2026-05-06T00:00:00.000000Z'
-
-    NullableMicrosecondApiTimestamp:
-      description: Approved six-fractional-digit API timestamp exception, or `null` when no value is present.
-      oneOf:
-        - $ref: '#/components/schemas/MicrosecondApiTimestamp'
-        - type: 'null'
-      example: null
-
     # =============================================================================
     # Employee Management Schemas
     # =============================================================================
@@ -1584,6 +1553,7 @@ components:
 
     EmployeeDocumentResource:
       type: object
+      additionalProperties: false
       description: |
         Employee document metadata (`EmployeeDocumentResource`). Responses never include raw storage paths (`file_path` is omitted).
 
@@ -1633,7 +1603,7 @@ components:
         download_url:
           type: string
           format: uri
-          description: Absolute URL to download the encrypted document binary.
+          description: Authorized download endpoint for the document content. The URL alone grants no access.
         expiry_date:
           type: [string, 'null']
           format: date
@@ -1642,7 +1612,7 @@ components:
           $ref: '#/components/schemas/EmployeeDocumentStatus'
         visible_to_employee:
           type: boolean
-          description: When false, documents are hidden from the employee self-service view (HR/managers may still see them subject to policy).
+          description: Self-service visibility flag. Each operation still requires explicit permission, active membership scope and authorization for the document classification.
         uploader:
           $ref: '#/components/schemas/EmployeeUserSummary'
           description: Present when the `uploader` relationship is loaded (list, show, and create responses load it).
@@ -1800,7 +1770,7 @@ components:
 
         **Date rules:** `obtained_date` is required and cannot be after today; when `expiry_date` is sent it must be strictly after `obtained_date`.
 
-        **Authorization boundary:** OU scopes do not grant access to domain employees. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `employee_qualification.write`.
+        **Authorization boundary:** Mutation requires an explicit `employee_qualification.write` permission and effective scope for this Employee.
       required:
         - qualification_id
         - obtained_date
@@ -1839,7 +1809,7 @@ components:
 
         **Date rules:** Same as attach when `obtained_date` / `expiry_date` are present (`obtained_date` not in the future; `expiry_date` after `obtained_date` when set).
 
-        **Authorization boundary:** OU scopes do not grant access to domain employees. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `employee_qualification.write` through `EmployeeQualificationPolicy::update`.
+        **Authorization boundary:** Mutation requires an explicit `employee_qualification.write` permission and effective scope for this Employee.
       properties:
         obtained_date:
           type: string
@@ -3505,11 +3475,6 @@ components:
         - date_of_birth
         - email
         - status
-        - position
-        - contract_start_date
-        - contract_type
-        - legal_entity_id
-        - establishment_id
       properties:
         first_name:
           type: string
@@ -3524,9 +3489,6 @@ components:
           type: string
           format: email
         phone:
-          type: [string, 'null']
-          maxLength: 255
-        photo_path:
           type: [string, 'null']
           maxLength: 255
         bwr_id:
@@ -3594,12 +3556,6 @@ components:
         id_document_expiry:
           type: [string, 'null']
           format: date
-        employment_end_date:
-          type: [string, 'null']
-          format: date
-        retention_period_end:
-          type: [string, 'null']
-          format: date
         tax_id:
           type: [string, 'null']
           maxLength: 255
@@ -3608,48 +3564,10 @@ components:
           maxLength: 255
         status:
           $ref: '#/components/schemas/EmployeeStatus'
-        position:
-          type: string
-          maxLength: 255
-          description: Free-text job title or position.
-        management_level:
-          type: integer
-          minimum: 0
-          maximum: 255
-          description: Optional leadership rank. Omit or use `0` for non-management employees; `1-255` represent leadership ranks.
-        hire_date:
-          type: [string, 'null']
-          format: date
-        contract_start_date:
-          type: string
-          format: date
-        termination_date:
-          type: [string, 'null']
-          format: date
-        last_working_day:
-          type: [string, 'null']
-          format: date
-        contract_type:
-          type: string
-          enum: [full_time, part_time, minijob, freelance]
         send_invitation:
           type: boolean
           default: false
           description: If true, sends the onboarding invitation immediately after employee creation, subject to server-side validation rules for the employee's status.
-        weekly_hours:
-          type: [number, 'null']
-          format: float
-          minimum: 0
-          maximum: 60
-        monthly_hours:
-          type: [number, 'null']
-          format: float
-          minimum: 0
-          maximum: 300
-        hourly_rate:
-          type: [number, 'null']
-          format: float
-          minimum: 0
         health_insurance_type:
           type: [string, 'null']
           enum: [public, private, foreign]
@@ -3698,55 +3616,10 @@ components:
         criminal_record_check_date:
           type: [string, 'null']
           format: date
-        legal_entity_id:
-          type: string
-          format: uuid
-          description: Same-tenant Legal Entity assigned to the employee.
-        establishment_id:
-          type: string
-          format: uuid
-          description: Establishment assigned to the employee; it must belong to the selected Legal Entity and tenant.
-      x-validation-examples:
-        accepted:
-          - name: Employee assigned within one tenant and Legal Entity
-            employee_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            legal_entity_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            establishment_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            establishment_legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
-            value:
-              first_name: Max
-              last_name: Mustermann
-              date_of_birth: '1990-05-15'
-              email: max.mustermann@secpal.dev
-              status: active
-              position: Security Guard
-              contract_start_date: '2026-08-01'
-              contract_type: full_time
-              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
-              establishment_id: '780e8400-e29b-41d4-a716-446655440000'
-        rejected:
-          - name: Establishment belongs to another Legal Entity
-            employee_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            legal_entity_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            establishment_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            establishment_legal_entity_id: '770e8400-e29b-41d4-a716-446655440002'
-            status: 422
-            value:
-              first_name: Max
-              last_name: Mustermann
-              date_of_birth: '1990-05-15'
-              email: max.mustermann@secpal.dev
-              status: active
-              position: Security Guard
-              contract_start_date: '2026-08-01'
-              contract_type: full_time
-              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
-              establishment_id: '780e8400-e29b-41d4-a716-446655440002'
-
     EmployeeUpdateRequest:
       type: object
       additionalProperties: false
-      description: Partial employee update request. All properties are optional. If either domain relationship changes, validation uses the resulting Legal Entity and establishment pair after applying supplied values to the stored employee; the result must remain same tenant and same Legal Entity, use active, non-deleted targets, and stay within the caller's organizational write access.
+      description: Partial update of the personnel record within the active Tenant.
       properties:
         employee_number:
           type: [string, 'null']
@@ -3767,9 +3640,6 @@ components:
         date_of_birth:
           type: [string, 'null']
           format: date
-        photo_path:
-          type: [string, 'null']
-          maxLength: 255
         bwr_id:
           type: [string, 'null']
           maxLength: 255
@@ -3834,12 +3704,6 @@ components:
         id_document_expiry:
           type: [string, 'null']
           format: date
-        employment_end_date:
-          type: [string, 'null']
-          format: date
-        retention_period_end:
-          type: [string, 'null']
-          format: date
         tax_id:
           type: [string, 'null']
           maxLength: 255
@@ -3848,44 +3712,6 @@ components:
           maxLength: 255
         status:
           $ref: '#/components/schemas/EmployeeStatus'
-        position:
-          type: [string, 'null']
-          maxLength: 255
-          description: Free-text job title or position.
-        management_level:
-          type: integer
-          minimum: 0
-          maximum: 255
-          description: Optional leadership rank update. Use `0` for non-management employees; `1-255` represent leadership ranks.
-        hire_date:
-          type: [string, 'null']
-          format: date
-        contract_start_date:
-          type: [string, 'null']
-          format: date
-        termination_date:
-          type: [string, 'null']
-          format: date
-        last_working_day:
-          type: [string, 'null']
-          format: date
-        contract_type:
-          type: string
-          enum: [full_time, part_time, minijob, freelance]
-        weekly_hours:
-          type: [number, 'null']
-          format: float
-          minimum: 0
-          maximum: 60
-        monthly_hours:
-          type: [number, 'null']
-          format: float
-          minimum: 0
-          maximum: 300
-        hourly_rate:
-          type: [number, 'null']
-          format: float
-          minimum: 0
         health_insurance_type:
           type: [string, 'null']
           enum: [public, private, foreign]
@@ -3934,29 +3760,6 @@ components:
         criminal_record_check_date:
           type: [string, 'null']
           format: date
-        legal_entity_id:
-          type: string
-          format: uuid
-        establishment_id:
-          type: string
-          format: uuid
-      x-validation-examples:
-        accepted:
-          - name: Reassign the establishment within the stored Legal Entity
-            value:
-              establishment_id: '780e8400-e29b-41d4-a716-446655440001'
-            resulting:
-              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
-              establishment_id: '780e8400-e29b-41d4-a716-446655440001'
-        rejected:
-          - name: Reassign the establishment to another Legal Entity
-            value:
-              establishment_id: '780e8400-e29b-41d4-a716-446655440002'
-            resulting:
-              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
-              establishment_id: '780e8400-e29b-41d4-a716-446655440002'
-            status: 422
-
     EmployeeResponse:
       type: object
       required:
@@ -4059,7 +3862,8 @@ components:
 
     Employee:
       type: object
-      description: Employee entity with decrypted personal data
+      additionalProperties: false
+      description: Long-lived personnel record. Authorized personal values may be returned. Effective employment and establishment history have independent resources.
       required:
         - id
         - tenant_id
@@ -4070,7 +3874,6 @@ components:
         - date_of_birth
         - email
         - phone
-        - photo_path
         - bwr_id
         - bwr_status
         - bwr_registered_at
@@ -4087,18 +3890,8 @@ components:
         - intended_activities
         - id_document_type
         - id_document_expiry
-        - id_document_copy_path
         - id_document_copy_deleted_at
-        - employment_end_date
-        - retention_period_end
         - status
-        - hire_date
-        - contract_start_date
-        - termination_date
-        - last_working_day
-        - contract_type
-        - weekly_hours
-        - monthly_hours
         - health_insurance_type
         - health_insurance_provider
         - sachkunde_type
@@ -4107,7 +3900,6 @@ components:
         - sachkunde_issued_date
         - work_permit_type
         - work_permit_expiry
-        - work_permit_copy_path
         - work_permit_issued_by
         - work_permit_copy_deleted_at
         - firearms_license_expiry
@@ -4136,10 +3928,6 @@ components:
         - onboarding_completed_at
         - onboarding_workflow
         - onboarding_invitation
-        - legal_entity_id
-        - establishment_id
-        - position
-        - management_level
         - created_at
         - updated_at
         - deleted_at
@@ -4150,7 +3938,8 @@ components:
           example: '550e8400-e29b-41d4-a716-446655440000'
         tenant_id:
           type: string
-          example: 'tenant-12345-key'
+          description: Server-derived functional Tenant identifier.
+          example: '660e8400-e29b-41d4-a716-446655440001'
         employee_number:
           type: string
           example: 'EMP-2025-0042'
@@ -4177,9 +3966,6 @@ components:
         phone:
           type: [string, 'null']
           example: '+49 30 12345678'
-        photo_path:
-          type: [string, 'null']
-          example: 'employees/photos/550e8400.jpg'
         bwr_id:
           type: [string, 'null']
           example: '1234567'
@@ -4248,19 +4034,9 @@ components:
           type: [string, 'null']
           format: date
           description: Identity-document expiry date, when recorded.
-        id_document_copy_path:
-          type: [string, 'null']
-          description: Internal storage-path metadata for the identity-document copy; null after no copy was retained or after deletion.
-          example: id_documents/550e8400-id-card.pdf
         id_document_copy_deleted_at:
           $ref: '#/components/schemas/NullableApiTimestamp'
           description: Timestamp at which the retained identity-document copy was deleted.
-        employment_end_date:
-          $ref: '#/components/schemas/NullableMicrosecondApiTimestamp'
-          description: Lifecycle-managed employment end timestamp used for retention calculations. Serialized at UTC midnight with six fractional digits.
-        retention_period_end:
-          $ref: '#/components/schemas/NullableMicrosecondApiTimestamp'
-          description: Lifecycle-managed legal retention deadline timestamp. Serialized at UTC midnight with six fractional digits; this field is read-only.
         tax_id:
           type: [string, 'null']
           description: Decrypted. Omitted unless the caller has `employees.read_sensitive`.
@@ -4273,41 +4049,6 @@ components:
           allOf:
             - $ref: '#/components/schemas/EmployeeStatus'
           example: 'active'
-        hire_date:
-          type: [string, 'null']
-          format: date
-          example: '2025-01-15'
-        contract_start_date:
-          type: [string, 'null']
-          format: date
-          example: '2025-02-01'
-        termination_date:
-          type: [string, 'null']
-          format: date
-        last_working_day:
-          type: [string, 'null']
-          format: date
-        contract_type:
-          type: string
-          enum: [full_time, part_time, minijob, freelance]
-        position:
-          type: [string, 'null']
-          example: 'Security Guard'
-        management_level:
-          type: integer
-          minimum: 0
-          maximum: 255
-          example: 0
-        weekly_hours:
-          type: [number, 'null']
-          format: float
-        monthly_hours:
-          type: [number, 'null']
-          format: float
-        hourly_rate:
-          type: [number, 'null']
-          format: float
-          description: Decrypted. Omitted unless the caller has `employees.read_salary`.
         health_insurance_type:
           type: [string, 'null']
           enum: [public, private, foreign]
@@ -4339,9 +4080,6 @@ components:
         work_permit_expiry:
           type: [string, 'null']
           format: date
-        work_permit_copy_path:
-          type: [string, 'null']
-          description: Internal storage-path metadata for the work-permit copy; null when no copy is retained or it has been deleted.
         work_permit_issued_by:
           type: [string, 'null']
           maxLength: 255
@@ -4440,12 +4178,6 @@ components:
             `onboarding_workflow.status = ready_for_activation` signals activation readiness.
         onboarding_invitation:
           $ref: '#/components/schemas/EmployeeOnboardingInvitation'
-        legal_entity_id:
-          type: string
-          format: uuid
-        establishment_id:
-          type: string
-          format: uuid
         user:
           anyOf:
             - $ref: '#/components/schemas/EmployeeUserSummary'
@@ -6128,402 +5860,311 @@ components:
         details:
           $ref: '#/components/schemas/BootstrapUnsupportedClientVersionDetails'
 
-    # =============================================================================
-    # Organizational Unit Schemas
-    # =============================================================================
-
-    OrganizationalUnitType:
+    TenantResourceId:
       type: string
-      enum:
-        - holding
-        - company
-        - region
-        - branch
-        - division
-        - department
-        - custom
-      description: |
-        Structural type used for hierarchy validation only. Status flags are independent business facts and are not derived from this type.
+      format: uuid
+      description: Opaque identifier for a requested resource. The server resolves it inside the authenticated active membership and applicable scope. A foreign identifier grants no access and cannot select a Tenant.
+      example: '780e8400-e29b-41d4-a716-446655440000'
 
-        Parent-child hierarchy must move downward in rank: holding -> company -> region -> branch -> division -> department -> custom.
-      example: company
-
-    OrganizationalUnitPermissions:
+    EmploymentPeriodCreateRequest:
       type: object
       additionalProperties: false
-      required:
-        - create_child
-        - update
-        - delete
-        - manage_scopes
+      description: >
+        A half-open interval [valid_from, valid_until). A null end is open-ended.
+        The server rejects an end at or before the start and overlaps with another
+        period of the same Employee, including overlaps with an open end.
+        Rehire adds a period to the existing Employee.
+      required: [valid_from, valid_until, initial_terms, establishment_id]
       properties:
-        create_child:
-          type: boolean
-          description: Whether the caller can create a child unit below this unit.
-          example: true
-        update:
-          type: boolean
-          description: Whether the caller can update this unit.
-          example: true
-        delete:
-          type: boolean
-          description: Whether the caller can delete this unit.
-          example: false
-        manage_scopes:
-          type: boolean
-          description: Whether the caller can manage organizational scopes for this unit.
-          example: true
-
-    OrganizationalUnit:
-      type: object
-      additionalProperties: false
-      description: |
-        Tenant-scoped organizational unit response. `is_legal_entity`, `is_establishment`, `is_active`, and `is_assignable` are required, non-null booleans. `is_active` and `is_assignable` are independent: either may be `true` or `false` regardless of the other, hierarchy, soft-deletion state, parent status, or unit type.
-      required:
-        - id
-        - type
-        - name
-        - is_legal_entity
-        - is_establishment
-        - is_active
-        - is_assignable
-        - parent
-        - permissions
-        - created_at
-        - updated_at
-      properties:
-        id:
+        valid_from:
           type: string
-          format: uuid
-          description: Unique organizational unit identifier.
-          example: '880e8400-e29b-41d4-a716-446655440000'
-        type:
-          $ref: '#/components/schemas/OrganizationalUnitType'
-        name:
-          type: string
-          maxLength: 255
-          example: NRW Branch
-        custom_type_name:
+          format: date-time
+        valid_until:
           type: [string, 'null']
-          maxLength: 255
-          description: Required by validation when `type` is `custom`; otherwise nullable.
-          example: Special operations cell
-        description:
-          type: [string, 'null']
-          maxLength: 1000
-          example: Regional operating unit for North Rhine-Westphalia.
-        metadata:
-          type: [object, 'null']
-          additionalProperties: true
-          example:
-            cost_center: NRW-001
-        is_legal_entity:
-          type: boolean
-          description: Required, non-null legal-entity marker; not derived from `type`.
-          example: false
-        is_establishment:
-          type: boolean
-          description: Required, non-null establishment marker; not derived from `type`.
-          example: true
-        is_active:
-          type: boolean
-          description: Required, non-null administrative status; independent of `is_assignable`, hierarchy, soft deletion, parent status, and unit type.
-          example: true
-        is_assignable:
-          type: boolean
-          description: Required, non-null assignment eligibility for new operational assignments, scopes, and related workflows; independent of `is_active`, hierarchy, soft deletion, parent status, and unit type.
-          example: false
-        parent:
-          description: Need-to-know-filtered full parent resource. The API returns `null` when the unit has no parent or the parent is outside the caller's accessible organizational scope.
-          anyOf:
-            - $ref: '#/components/schemas/OrganizationalUnit'
-            - type: 'null'
-        permissions:
-          $ref: '#/components/schemas/OrganizationalUnitPermissions'
-        children:
-          type: array
-          description: Child units when the relationship is loaded.
-          items:
-            $ref: '#/components/schemas/OrganizationalUnit'
-        ancestors:
-          type: array
-          description: Ancestor units when the relationship is loaded.
-          items:
-            $ref: '#/components/schemas/OrganizationalUnit'
-        descendants:
-          type: array
-          description: Descendant units when the relationship is loaded.
-          items:
-            $ref: '#/components/schemas/OrganizationalUnit'
-        created_at:
-          allOf:
-            - $ref: '#/components/schemas/ApiTimestamp'
-          description: Creation timestamp.
-          example: '2026-07-10T10:00:00Z'
-        updated_at:
-          allOf:
-            - $ref: '#/components/schemas/ApiTimestamp'
-          description: Last update timestamp.
-          example: '2026-07-10T11:00:00Z'
-
-    OrganizationalUnitCreateRequest:
-      type: object
-      additionalProperties: false
-      required:
-        - name
-        - type
-      properties:
-        name:
-          type: string
-          maxLength: 255
-          example: NRW Branch
-        type:
-          $ref: '#/components/schemas/OrganizationalUnitType'
-        custom_type_name:
-          type: [string, 'null']
-          maxLength: 255
-          description: Required when `type` is `custom`.
-          example: Special operations cell
-        description:
-          type: [string, 'null']
-          maxLength: 1000
-          example: Regional operating unit for North Rhine-Westphalia.
-        metadata:
-          type: [object, 'null']
-          additionalProperties: true
-          example:
-            cost_center: NRW-001
-        parent_id:
-          type: [string, 'null']
-          format: uuid
-          description: Optional same-tenant parent. Omit or send `null` to create a root unit.
-          example: '770e8400-e29b-41d4-a716-446655440000'
-        is_legal_entity:
-          type: boolean
-          default: false
-          description: Optional independent legal-entity flag. Missing values are treated as `false`; not derived from `type`.
-          example: false
-        is_establishment:
-          type: boolean
-          default: false
-          description: Optional independent establishment flag. Missing values are treated as `false`; not derived from `type`.
-          example: true
-        is_active:
-          type: boolean
-          default: true
-          description: Optional administrative status. Missing values are treated as `true`; independent of `is_assignable`, hierarchy, soft deletion, parent status, and unit type.
-          example: true
-        is_assignable:
-          type: boolean
-          default: true
-          description: Optional eligibility for new operational assignments, scopes, and related workflows. Missing values are treated as `true`; independent of `is_active`, hierarchy, soft deletion, parent status, and unit type.
-          example: false
-      allOf:
-        - if:
-            properties:
-              type:
-                const: custom
-            required:
-              - type
-          then:
-            properties:
-              custom_type_name:
-                type: string
-                maxLength: 255
-            required:
-              - custom_type_name
-
-    OrganizationalUnitUpdateRequest:
-      type: object
-      additionalProperties: false
-      description: PATCH payload; all fields are optional and omitted fields keep their current values. When `type` is set to `custom`, `custom_type_name` is required and must contain a non-whitespace character. Clearing `custom_type_name` with `null`, an empty string, or whitespace-only text is invalid for an existing custom unit.
-      properties:
-        name:
-          type: string
-          maxLength: 255
-          example: NRW Branch West
-        type:
-          $ref: '#/components/schemas/OrganizationalUnitType'
-        custom_type_name:
-          type: [string, 'null']
-          maxLength: 255
-          description: Optional custom type label. It is required and must contain a non-whitespace character when this payload sets `type` to `custom`; an existing custom unit cannot clear it with `null`, an empty string, or whitespace-only text.
-          example: Special operations cell
-        description:
-          type: [string, 'null']
-          maxLength: 1000
-          example: Updated regional operating unit.
-        metadata:
-          type: [object, 'null']
-          additionalProperties: true
-          example:
-            cost_center: NRW-002
-        is_legal_entity:
-          type: boolean
-          description: Optional independent legal-entity flag. Omission preserves the current value; the flag is not derived from `type`.
-          example: true
-        is_establishment:
-          type: boolean
-          description: Optional independent establishment flag. Omission preserves the current value; the flag is not derived from `type`.
-          example: false
-        is_active:
-          type: boolean
-          description: Optional administrative status. Omission preserves the current value; independent of `is_assignable`, hierarchy, soft deletion, parent status, and unit type.
-          example: false
-        is_assignable:
-          type: boolean
-          description: Optional eligibility for new operational assignments, scopes, and related workflows. Omission preserves the current value; independent of `is_active`, hierarchy, soft deletion, parent status, and unit type.
-          example: true
-      allOf:
-        - if:
-            properties:
-              type:
-                const: custom
-            required:
-              - type
-          then:
-            properties:
-              custom_type_name:
-                type: string
-                minLength: 1
-                maxLength: 255
-                pattern: '.*\S.*'
-            required:
-              - custom_type_name
+          format: date-time
+        initial_terms:
+          $ref: '#/components/schemas/InitialEmploymentTerms'
+        establishment_id:
+          $ref: '#/components/schemas/TenantResourceId'
       x-validation-examples:
         accepted:
-          - name: Change a unit to a custom type
+          - active_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            target_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
             value:
-              type: custom
-              custom_type_name: Special operations cell
-          - name: Preserve the name while changing another field on a custom unit
-            existing_type: custom
-            value:
-              description: Updated regional operating unit.
+              establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+              valid_from: '2026-08-01T00:00:00Z'
+              valid_until: null
+              initial_terms:
+                contract_type: part_time
+                evidence_id: '550e8400-e29b-41d4-a716-446655440040'
+                weekly_hours: 32
         rejected:
-          - name: Missing name while changing to a custom type
+          - active_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            target_tenant_id: '660e8400-e29b-41d4-a716-446655440002'
+            status: 404
             value:
-              type: custom
-          - name: Null name while changing to a custom type
-            value:
-              type: custom
-              custom_type_name: null
-          - name: Empty name while changing to a custom type
-            value:
-              type: custom
-              custom_type_name: ''
-          - name: Whitespace-only name while changing to a custom type
-            value:
-              type: custom
-              custom_type_name: '   '
-          - name: Clear the name of an existing custom unit
-            existing_type: custom
-            value:
-              custom_type_name: null
+              establishment_id: '780e8400-e29b-41d4-a716-446655440001'
+              valid_from: '2026-08-01T00:00:00Z'
+              valid_until: null
+              initial_terms:
+                contract_type: part_time
+                evidence_id: '550e8400-e29b-41d4-a716-446655440040'
+                weekly_hours: 32
 
-    OrganizationalUnitHasChildrenConflict:
+    EmploymentContractType:
+      type: string
+      enum: [full_time, part_time, minijob, freelance]
+
+    InitialEmploymentTerms:
       type: object
       additionalProperties: false
+      description: Terms effective at the period start. The evidence reference must resolve to authorized personnel evidence for this Employee.
+      required: [evidence_id, contract_type]
+      properties:
+        evidence_id:
+          $ref: '#/components/schemas/TenantResourceId'
+        contract_type:
+          $ref: '#/components/schemas/EmploymentContractType'
+        position:
+          type: [string, 'null']
+          maxLength: 255
+        weekly_hours:
+          type: [number, 'null']
+          minimum: 0
+        monthly_hours:
+          type: [number, 'null']
+          minimum: 0
+
+    EmploymentPeriod:
+      type: object
+      additionalProperties: false
+      description: >
+        An employment relationship of a tenant-local Employee. Periods are
+        non-overlapping. Employment provides a membership basis only when the
+        period and its applicable terms establish one. It grants no permission.
+      required: [id, employee_id, valid_from, valid_until]
+      properties:
+        id:
+          $ref: '#/components/schemas/TenantResourceId'
+        employee_id:
+          $ref: '#/components/schemas/TenantResourceId'
+        valid_from:
+          type: string
+          format: date-time
+        valid_until:
+          type: [string, 'null']
+          format: date-time
+
+    EmploymentTermsVersion:
+      type: object
+      additionalProperties: false
+      description: >
+        Immutable conditions effective from the stated instant in this
+        EmploymentPeriod. Exactly one version applies at any effective instant
+        in the period. A future version never replaces the currently applicable
+        version early. Amendments and corrections retain earlier versions,
+        effective dates and source evidence. Evidence identifiers are returned
+        only when visible to the caller and grant no access to their contents.
       required:
-        - message
-        - child_count
-        - hint
+        [id, employment_period_id, effective_from, recorded_at, evidence_id]
+      properties:
+        id:
+          $ref: '#/components/schemas/TenantResourceId'
+        employment_period_id:
+          $ref: '#/components/schemas/TenantResourceId'
+        effective_from:
+          type: string
+          format: date-time
+        recorded_at:
+          type: string
+          format: date-time
+        evidence_id:
+          type: [string, 'null']
+          format: uuid
+          description: Authorized reference to supporting evidence, or null when the reference cannot be disclosed.
+        contract_type:
+          $ref: '#/components/schemas/EmploymentContractType'
+        position:
+          type: [string, 'null']
+        weekly_hours:
+          type: [number, 'null']
+          minimum: 0
+        monthly_hours:
+          type: [number, 'null']
+          minimum: 0
+
+    Establishment:
+      type: object
+      additionalProperties: false
+      description: >
+        Flat organizational branch of the active Tenant. Independent branches
+        may share an address. A closed Establishment remains available for
+        authorized historical reads.
+      required: [id, name, code, address, closed_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/TenantResourceId'
+        name:
+          type: string
+        code:
+          type: [string, 'null']
+        address:
+          $ref: '#/components/schemas/Address'
+        closed_at:
+          type: [string, 'null']
+          format: date-time
+
+    HistoricalEstablishment:
+      type: object
+      additionalProperties: false
+      description: >
+        Authorized establishment facts applicable at the requested historical
+        instant. Subsequent renames, address or code changes, and closure never
+        replace the facts that were effective at that instant.
+      required: [id, name, code, address]
+      properties:
+        id:
+          $ref: '#/components/schemas/TenantResourceId'
+        name:
+          type: string
+        code:
+          type: [string, 'null']
+        address:
+          $ref: '#/components/schemas/Address'
+
+    EmployeeEstablishmentAssignmentCreateRequest:
+      type: object
+      additionalProperties: false
+      description: >
+        Schedule an assignment for a same-Tenant, assignable establishment.
+        The server requires a positive duration for a bounded interval and
+        checks non-overlap and coverage of effective employment.
+      required: [establishment_id, valid_from, valid_until]
+      properties:
+        establishment_id:
+          $ref: '#/components/schemas/TenantResourceId'
+        valid_from:
+          type: string
+          format: date-time
+        valid_until:
+          type: [string, 'null']
+          format: date-time
+      x-validation-examples:
+        accepted:
+          - active_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            target_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            value:
+              establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+              valid_from: '2026-08-01T00:00:00Z'
+              valid_until: null
+        rejected:
+          - active_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            target_tenant_id: '660e8400-e29b-41d4-a716-446655440002'
+            status: 404
+            value:
+              establishment_id: '780e8400-e29b-41d4-a716-446655440001'
+              valid_from: '2026-08-01T00:00:00Z'
+              valid_until: null
+
+    EmployeeEstablishmentAssignment:
+      type: object
+      additionalProperties: false
+      description: >
+        Employee-to-Establishment assignment for [valid_from, valid_until).
+        Current employment has exactly one applicable assignment. A future
+        assignment can be scheduled. The assignment grants no access.
+      required: [id, employee_id, establishment, valid_from, valid_until]
+      properties:
+        id:
+          $ref: '#/components/schemas/TenantResourceId'
+        employee_id:
+          $ref: '#/components/schemas/TenantResourceId'
+        establishment:
+          $ref: '#/components/schemas/HistoricalEstablishment'
+        valid_from:
+          type: string
+          format: date-time
+        valid_until:
+          type: [string, 'null']
+          format: date-time
+
+    PersonnelEvidence:
+      description: >
+        Authorized personnel-evidence metadata. Each read, download and
+        mutation requires explicit permission, applicable membership scope and
+        permission for the document classification. A retained metadata record
+        does not guarantee available content. Category retention and holds
+        may prohibit removal of the content.
+      oneOf:
+        - $ref: '#/components/schemas/PersonnelDocumentEvidence'
+        - $ref: '#/components/schemas/PersonnelTerminationEvidence'
+
+    PersonnelDocumentEvidence:
+      type: object
+      additionalProperties: false
+      required: [id, employee_id, kind, recorded_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/TenantResourceId'
+        employee_id:
+          $ref: '#/components/schemas/TenantResourceId'
+        kind:
+          type: string
+          enum: [agreement, amendment, onboarding]
+        recorded_at:
+          type: string
+          format: date-time
+
+    PersonnelTerminationEvidence:
+      type: object
+      additionalProperties: false
+      description: >
+        Independent termination evidence. The actual employment end requires
+        its own validated basis. A draft, signature, dispatch, receipt or
+        elapsed notice period alone does not establish that end.
+      required: [id, employee_id, kind, recorded_at, termination_milestone]
+      properties:
+        id:
+          $ref: '#/components/schemas/TenantResourceId'
+        employee_id:
+          $ref: '#/components/schemas/TenantResourceId'
+        kind:
+          const: termination
+          type: string
+        recorded_at:
+          type: string
+          format: date-time
+        termination_milestone:
+          type: string
+          enum:
+            [
+              draft,
+              approved,
+              printed,
+              signed,
+              dispatched,
+              received,
+              notice_expired,
+              employment_ended,
+            ]
+
+    PersonnelConflict:
+      type: object
+      additionalProperties: false
+      description: Neutral conflict within the authorized scope, without record identifiers or policy details.
+      required: [message, code]
       properties:
         message:
           type: string
-          description: Localized explanation that non-deleted direct children block deletion, regardless of their `is_active` value.
-          example: 'Cannot delete: 2 child units exist'
-        child_count:
-          type: integer
-          minimum: 1
-          description: Number of non-deleted direct child units blocking deletion, regardless of their `is_active` value.
-          example: 2
-        hint:
+          enum:
+            [
+              The requested interval conflicts with existing effective history.,
+              Employment terms are unavailable at the requested instant.,
+              The requested removal is unavailable.,
+            ]
+        code:
           type: string
-          description: Localized remediation guidance.
-          example: Delete or move child units first
-
-    OrganizationalUnitAttachParentRequest:
-      type: object
-      additionalProperties: false
-      required:
-        - parent_id
-      properties:
-        parent_id:
-          type: string
-          format: uuid
-          description: Same-tenant, non-deleted parent organizational unit.
-          example: '770e8400-e29b-41d4-a716-446655440000'
-
-    OrganizationalUnitSingleResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - data
-      properties:
-        data:
-          $ref: '#/components/schemas/OrganizationalUnit'
-
-    OrganizationalUnitPaginationMeta:
-      type: object
-      additionalProperties: false
-      required:
-        - current_page
-        - last_page
-        - per_page
-        - total
-        - root_unit_ids
-      properties:
-        current_page:
-          type: integer
-          minimum: 1
-          example: 1
-        last_page:
-          type: integer
-          minimum: 1
-          example: 3
-        per_page:
-          type: integer
-          minimum: 1
-          maximum: 100
-          example: 15
-        total:
-          type: integer
-          minimum: 0
-          example: 42
-        root_unit_ids:
-          type: array
-          description: Unit IDs that are roots within the caller's accessible need-to-know tree.
-          items:
-            type: string
-            format: uuid
-          example:
-            - '880e8400-e29b-41d4-a716-446655440000'
-
-    OrganizationalUnitCollectionResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - data
-        - meta
-      properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/OrganizationalUnit'
-        meta:
-          $ref: '#/components/schemas/OrganizationalUnitPaginationMeta'
-
-    OrganizationalUnitHierarchyCollectionResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - data
-      properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/OrganizationalUnit'
+          enum: [TEMPORAL_CONFLICT, TERMS_NOT_APPLICABLE, RETENTION_CONFLICT]
 
     BootstrapConfigurationUnavailableDetails:
       type: object
@@ -6646,17 +6287,11 @@ components:
       type: object
       additionalProperties: false
       description: |
-        Customer (client organization) entity with an explicit Legal Entity assignment.
-        Relationship and count fields are emitted only when the corresponding relationship
-        is eager loaded or counted by the endpoint; clients must tolerate their omission.
-
-        No default Legal Entity assignment is permitted for existing customers. A customer
-        may be backfilled only after a product-approved deterministic tenant-consistent rule
-        identifies an explicit Legal Entity from the customer's own tenant.
+        Customer master record owned by the active Tenant. Relationship fields and
+        counts are emitted only when authorized and projected by the endpoint.
       required:
         - id
         - customer_number
-        - legal_entity_id
         - name
         - billing_address
         - is_active
@@ -6673,14 +6308,6 @@ components:
           maxLength: 50
           description: Auto-generated customer number (KD-YYYY-####)
           example: 'KD-2025-0001'
-        legal_entity_id:
-          type: string
-          format: uuid
-          description: |
-            Same-tenant Legal Entity explicitly assigned to this customer.
-            No default Legal Entity assignment is permitted for existing customers; backfill
-            requires a product-approved deterministic tenant-consistent rule.
-          example: '770e8400-e29b-41d4-a716-446655440000'
         vat_id:
           type: [string, 'null']
           maxLength: 32
@@ -6740,43 +6367,9 @@ components:
 
     CustomerEstablishmentRelationship:
       type: array
-      description: Customer-to-establishment assignments with local contact data that are visible to the current caller, emitted only when the `customer_establishments` relationship is eager loaded; omitted otherwise. Unrestricted customer readers and callers with an active customer assignment may see all links for that customer; site-only access returns only links matching the caller's active site assignments. No organizational-unit relationships are exposed.
+      description: Customer-to-establishment assignments with local contact data that are visible to the current caller, emitted only when the `customer_establishments` relationship is eager loaded; omitted otherwise. A tenant-scoped customer reader can see links covered by that grant. An access assignment limited to a Site exposes only authorized links applicable to that Site. Only explicitly authorized links, counts and local contacts are returned.
       items:
         $ref: '#/components/schemas/CustomerEstablishment'
-
-    LegalEntityLookup:
-      type: object
-      additionalProperties: false
-      description: Minimal authorized Legal Entity option for domain assignment workflows.
-      required:
-        - id
-        - name
-      properties:
-        id:
-          type: string
-          format: uuid
-          example: '770e8400-e29b-41d4-a716-446655440000'
-        name:
-          type: string
-          maxLength: 255
-          example: 'SecPal GmbH'
-
-    EstablishmentLookup:
-      type: object
-      additionalProperties: false
-      description: Minimal authorized establishment option belonging to the selected Legal Entity.
-      required:
-        - id
-        - name
-      properties:
-        id:
-          type: string
-          format: uuid
-          example: '780e8400-e29b-41d4-a716-446655440000'
-        name:
-          type: string
-          maxLength: 255
-          example: 'Berlin Establishment'
 
     CustomerLookup:
       type: object
@@ -6794,28 +6387,6 @@ components:
           type: string
           maxLength: 255
           example: 'ACME Corporation GmbH'
-
-    LegalEntityLookupCollectionResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - data
-      properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/LegalEntityLookup'
-
-    EstablishmentLookupCollectionResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - data
-      properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/EstablishmentLookup'
 
     CustomerLookupCollectionResponse:
       type: object
@@ -6902,26 +6473,6 @@ components:
         comments:
           type: [string, 'null']
           maxLength: 2000
-      x-validation-examples:
-        accepted:
-          - name: Customer and establishment belong to one tenant and Legal Entity
-            customer_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            customer_legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
-            establishment_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            establishment_legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
-            value:
-              customer_id: '550e8400-e29b-41d4-a716-446655440000'
-              establishment_id: '780e8400-e29b-41d4-a716-446655440000'
-        rejected:
-          - name: Establishment belongs to another Legal Entity
-            customer_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            customer_legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
-            establishment_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            establishment_legal_entity_id: '770e8400-e29b-41d4-a716-446655440002'
-            status: 422
-            value:
-              customer_id: '550e8400-e29b-41d4-a716-446655440000'
-              establishment_id: '780e8400-e29b-41d4-a716-446655440002'
       x-uniqueness-examples:
         accepted:
           - name: Local contact data may be reused for another relationship pair
@@ -6944,6 +6495,20 @@ components:
               establishment_id: '780e8400-e29b-41d4-a716-446655440000'
               email: 'replacement.contact@secpal.dev'
             status: 409
+      x-validation-examples:
+        accepted:
+          - active_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            target_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            value:
+              customer_id: '550e8400-e29b-41d4-a716-446655440000'
+              establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+        rejected:
+          - active_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            target_tenant_id: '660e8400-e29b-41d4-a716-446655440002'
+            status: 422
+            value:
+              customer_id: '550e8400-e29b-41d4-a716-446655440000'
+              establishment_id: '780e8400-e29b-41d4-a716-446655440001'
 
     CustomerEstablishmentUpdateRequest:
       type: object
@@ -7080,7 +6645,6 @@ components:
       type: object
       additionalProperties: false
       required:
-        - legal_entity_id
         - name
         - billing_address
       properties:
@@ -7089,11 +6653,6 @@ components:
           maxLength: 50
           description: Optional caller-supplied customer number. When omitted or null, the API generates a KD-YYYY-#### value.
           example: 'CUSTOM-001'
-        legal_entity_id:
-          type: string
-          format: uuid
-          description: Same-tenant active, non-deleted Legal Entity for the new customer
-          example: '770e8400-e29b-41d4-a716-446655440000'
         vat_id:
           type: [string, 'null']
           maxLength: 32
@@ -7108,44 +6667,10 @@ components:
         is_active:
           type: [boolean, 'null']
           default: true
-      x-validation-examples:
-        accepted:
-          - name: Explicit Legal Entity from the customer's tenant
-            customer_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            legal_entity_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            value:
-              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
-              name: ACME Corporation GmbH
-              billing_address:
-                street: Hauptstraße
-                house_number: '123'
-                city: Berlin
-                postal_code: '10115'
-                country: DE
-        rejected:
-          - name: Legal Entity from another tenant
-            customer_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            legal_entity_tenant_id: '660e8400-e29b-41d4-a716-446655440002'
-            status: 422
-            value:
-              legal_entity_id: '770e8400-e29b-41d4-a716-446655440002'
-              name: ACME Corporation GmbH
-              billing_address:
-                street: Hauptstraße
-                house_number: '123'
-                city: Berlin
-                postal_code: '10115'
-                country: DE
-
     CustomerUpdateRequest:
       type: object
       additionalProperties: false
       properties:
-        legal_entity_id:
-          type: string
-          format: uuid
-          description: Target Legal Entity for reassignment. When different from the customer's current value, it must be same-tenant, active, and non-deleted.
-          example: '770e8400-e29b-41d4-a716-446655440000'
         vat_id:
           type: [string, 'null']
           maxLength: 32
@@ -7158,25 +6683,6 @@ components:
           $ref: '#/components/schemas/Address'
         is_active:
           type: boolean
-      x-validation-examples:
-        accepted:
-          - name: Reassign to a Legal Entity from the customer's tenant
-            customer_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            legal_entity_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            value:
-              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
-            resulting:
-              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
-        rejected:
-          - name: Reassign to a Legal Entity from another tenant
-            customer_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            legal_entity_tenant_id: '660e8400-e29b-41d4-a716-446655440002'
-            status: 422
-            value:
-              legal_entity_id: '770e8400-e29b-41d4-a716-446655440002'
-            resulting:
-              legal_entity_id: '770e8400-e29b-41d4-a716-446655440002'
-
     CustomerTransactionalEditCustomerRequest:
       allOf:
         - $ref: '#/components/schemas/CustomerUpdateRequest'
@@ -7555,7 +7061,7 @@ components:
               $ref: '#/components/schemas/CustomerTransactionalEditInvalidRequestBodyErrors'
             '^customer$':
               $ref: '#/components/schemas/CustomerTransactionalEditInvalidCustomerPayloadErrors'
-            '^customer\.(legal_entity_id|vat_id|name|billing_address(?:\.(?:street|city|postal_code|country|latitude|longitude))?|is_active)$':
+            '^customer\.(vat_id|name|billing_address(?:\.(?:street|city|postal_code|country|latitude|longitude))?|is_active)$':
               $ref: '#/components/schemas/CustomerTransactionalEditCustomerFieldErrors'
             '^customer_establishments$':
               $ref: '#/components/schemas/CustomerTransactionalEditAssignmentCollectionErrors'
@@ -7751,13 +7257,6 @@ components:
               errors:
                 customer_establishments.0.establishment_id:
                   - The establishment belongs to tenant 660e8400-e29b-41d4-a716-446655440002.
-          - name: Wrong-Legal-Entity detail
-            category: wrong-legal-entity-detail
-            value:
-              message: The given data was invalid.
-              errors:
-                customer_establishments.0.establishment_id:
-                  - The establishment belongs to another Legal Entity.
           - name: Resource existence hint
             category: resource-existence-hint
             value:
@@ -7878,7 +7377,6 @@ components:
       required:
         - id
         - customer_id
-        - legal_entity_id
         - establishment_id
         - site_number
         - name
@@ -7900,11 +7398,6 @@ components:
           format: uuid
           description: Customer that owns this site
           example: '550e8400-e29b-41d4-a716-446655440000'
-        legal_entity_id:
-          type: string
-          format: uuid
-          description: Legal Entity responsible for this site
-          example: '770e8400-e29b-41d4-a716-446655440000'
         establishment_id:
           type: string
           format: uuid
@@ -8007,7 +7500,6 @@ components:
       required:
         - name
         - customer_id
-        - legal_entity_id
         - establishment_id
         - type
         - address
@@ -8025,15 +7517,10 @@ components:
           type: string
           format: uuid
           example: '550e8400-e29b-41d4-a716-446655440000'
-        legal_entity_id:
-          type: string
-          format: uuid
-          description: Same-tenant Legal Entity responsible for the site.
-          example: '770e8400-e29b-41d4-a716-446655440000'
         establishment_id:
           type: string
           format: uuid
-          description: Establishment responsible for the site; it must belong to the selected Legal Entity and tenant.
+          description: Active same-Tenant establishment linked to the customer.
           example: '780e8400-e29b-41d4-a716-446655440000'
         type:
           type: string
@@ -8063,51 +7550,39 @@ components:
           format: date
       x-validation-examples:
         accepted:
-          - name: Site relationships belong to one tenant and Legal Entity
-            site_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            customer_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            customer_legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
-            legal_entity_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            establishment_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            establishment_legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+          - active_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            target_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
             value:
-              name: Airport Terminal 1
               customer_id: '550e8400-e29b-41d4-a716-446655440000'
-              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
               establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+              name: Harbour gate
               type: permanent
               address:
-                street: Flughafenstraße
-                house_number: '1'
-                city: Berlin
-                postal_code: '10115'
+                street: Hafenstraße
+                house_number: '12'
+                city: Bremen
+                postal_code: '28217'
                 country: DE
         rejected:
-          - name: Customer belongs to another Legal Entity
-            site_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            customer_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            customer_legal_entity_id: '770e8400-e29b-41d4-a716-446655440002'
-            legal_entity_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            establishment_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
-            establishment_legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
+          - active_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            target_tenant_id: '660e8400-e29b-41d4-a716-446655440002'
             status: 422
             value:
-              name: Airport Terminal 1
-              customer_id: '550e8400-e29b-41d4-a716-446655440002'
-              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
-              establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+              customer_id: '550e8400-e29b-41d4-a716-446655440000'
+              establishment_id: '780e8400-e29b-41d4-a716-446655440001'
+              name: Harbour gate
               type: permanent
               address:
-                street: Flughafenstraße
-                house_number: '1'
-                city: Berlin
-                postal_code: '10115'
+                street: Hafenstraße
+                house_number: '12'
+                city: Bremen
+                postal_code: '28217'
                 country: DE
 
     SiteUpdateRequest:
       type: object
       additionalProperties: false
-      description: Partial site update. If any domain relationship changes, validation uses the resulting customer, Legal Entity, and establishment combination after applying supplied values to the stored site; the result must use an active, non-deleted customer plus an active, non-deleted Legal Entity and establishment, remain tenant- and Legal-Entity-consistent, and reference an existing customer-establishment link.
+      description: Partial update. The resulting active, non-deleted customer and active establishment must be authorized in the active Tenant and already have a customer-establishment link.
       properties:
         name:
           type: string
@@ -8116,9 +7591,6 @@ components:
           type: string
           maxLength: 50
         customer_id:
-          type: string
-          format: uuid
-        legal_entity_id:
           type: string
           format: uuid
         establishment_id:
@@ -8150,22 +7622,22 @@ components:
           format: date
       x-validation-examples:
         accepted:
-          - name: Reassign the establishment within the resulting domain combination
+          - active_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            target_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            value:
+              establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+            resulting:
+              customer_id: '550e8400-e29b-41d4-a716-446655440000'
+              establishment_id: '780e8400-e29b-41d4-a716-446655440000'
+        rejected:
+          - active_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            target_tenant_id: '660e8400-e29b-41d4-a716-446655440002'
+            status: 422
             value:
               establishment_id: '780e8400-e29b-41d4-a716-446655440001'
             resulting:
               customer_id: '550e8400-e29b-41d4-a716-446655440000'
-              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
               establishment_id: '780e8400-e29b-41d4-a716-446655440001'
-        rejected:
-          - name: Reassign the customer outside the resulting Legal Entity
-            value:
-              customer_id: '550e8400-e29b-41d4-a716-446655440002'
-            resulting:
-              customer_id: '550e8400-e29b-41d4-a716-446655440002'
-              legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
-              establishment_id: '780e8400-e29b-41d4-a716-446655440000'
-            status: 422
 
     AssignmentUser:
       type: object
@@ -8535,6 +8007,22 @@ components:
         type: string
         format: uuid
 
+    PersonnelEmployee:
+      name: employee
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/TenantResourceId'
+
+    PersonnelEffectiveAt:
+      name: effective_at
+      in: query
+      required: true
+      description: Effective instant with an explicit UTC offset.
+      schema:
+        type: string
+        format: date-time
+
     EmployeePage:
       name: page
       in: query
@@ -8576,30 +8064,31 @@ components:
       name: search
       in: query
       required: false
-      description: Search employees by email and employee_number.
+      description: Exact lookup by normalized employee email or employee number, restricted to records authorized in the active Tenant. Prefix, substring and fuzzy search are unsupported.
       schema:
         type: string
         maxLength: 255
-
-    EmployeeLegalEntityFilter:
-      name: legal_entity_id
-      in: query
-      required: false
-      description: Filter employees by Legal Entity.
-      schema:
-        type: string
-        format: uuid
 
     EmployeeEstablishmentFilter:
       name: establishment_id
       in: query
       required: false
-      description: Filter employees by establishment.
+      description: Filter authorized Employees by their currently effective establishment assignment.
       schema:
         type: string
         format: uuid
 
   responses:
+    PersonnelTemporalConflict:
+      description: The bounded change conflicts with existing authorized effective history.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PersonnelConflict'
+          example:
+            message: The requested interval conflicts with existing effective history.
+            code: TEMPORAL_CONFLICT
+
     BadRequest:
       description: Bad Request - Invalid input parameters
       content:
@@ -8705,13 +8194,6 @@ components:
                 errors:
                   customer_establishments.0.customer_id:
                     - The selected customer is invalid.
-
-    OrganizationalUnitHasChildrenConflict:
-      description: Conflict - Non-deleted direct child units must be moved or deleted first, regardless of their `is_active` values
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/OrganizationalUnitHasChildrenConflict'
 
     ContractNotFound:
       description: >-
@@ -11261,20 +10743,12 @@ paths:
       summary: List Activity Logs
       description: |
         Retrieve a paginated list of activity logs with comprehensive filtering options.
-        Access is automatically scoped based on the user's organizational units and leadership levels.
+        Each result requires an effective access assignment within the active Tenant and authorized scope.
 
         **Authorization Layers:**
         1. Tenant isolation (mandatory)
         2. Permission check (activity_log.read)
-        3. Organizational scope filtering (ADR-010)
-        4. Leadership level filtering
-
-        **Access Control Logic:**
-        - Users with NO organizational scopes: See ALL activities (global access)
-        - Users WITH organizational scopes: See ONLY scoped activities (NOT global)
-        - Leadership filtering: min/max_viewable_rank controls visibility
-        - System activities (no causer): Always visible within scoped units
-
+        3. Effective membership scope and explicit authorization for the activity.
         **Hash Chain & Merkle Tree:**
         - Each activity has `previous_hash` linking to previous activity (blockchain)
         - Activities are grouped in batches with Merkle tree proofs
@@ -11317,14 +10791,6 @@ paths:
             maxLength: 255
           description: Search term for description field (case-insensitive)
           example: 'created'
-        - name: organizational_unit_id
-          in: query
-          required: false
-          schema:
-            type: string
-            format: uuid
-          description: Filter by organizational unit UUID
-          example: '550e8400-e29b-41d4-a716-446655440000'
         - name: causer_type
           in: query
           required: false
@@ -11411,8 +10877,7 @@ paths:
                           attributes:
                             employee_number: EMP-2026-0001
                             status: active
-                            legal_entity_id: 770e8400-e29b-41d4-a716-446655440000
-                            establishment_id: 780e8400-e29b-41d4-a716-446655440000
+
                         ip_address: 192.0.2.1
                         user_agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36
                         batch_uuid: 550e8400-e29b-41d4-a716-446655440100
@@ -11537,13 +11002,6 @@ paths:
                     errors:
                       per_page:
                         - The per_page field must not be greater than 100.
-                invalidUUID:
-                  summary: Invalid UUID format
-                  value:
-                    message: The given data was invalid.
-                    errors:
-                      organizational_unit_id:
-                        - The organizational_unit_id field must be a valid UUID.
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -11602,8 +11060,7 @@ paths:
                         attributes:
                           employee_number: EMP-2026-0001
                           status: active
-                          legal_entity_id: 770e8400-e29b-41d4-a716-446655440000
-                          establishment_id: 780e8400-e29b-41d4-a716-446655440000
+
                         ip: 192.0.2.1
                         user_agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36
                       ip_address: 192.0.2.1
@@ -11672,22 +11129,22 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Forbidden - Activity outside organizational scope
+          description: Forbidden - Activity outside authorized scope
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               examples:
                 organizationalScope:
-                  summary: Activity outside user's organizational scope
+                  summary: Activity outside the caller's authorized scope
                   value:
-                    message: This action is unauthorized due to organizational scope restrictions.
+                    message: This action is unauthorized for the active access assignment.
                     code: FORBIDDEN
                     details:
                       reason: organizational_scope_violation
                       message: >-
                         You do not have access to this activity log.
-                        It belongs to an organizational unit outside your scope.
+                        The activity is outside the authorized scope.
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -11854,22 +11311,22 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Forbidden - Activity outside organizational scope
+          description: Forbidden - Activity outside authorized scope
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               examples:
                 organizationalScope:
-                  summary: Activity outside user's organizational scope
+                  summary: Activity outside the caller's authorized scope
                   value:
-                    message: This action is unauthorized due to organizational scope restrictions.
+                    message: This action is unauthorized for the active access assignment.
                     code: FORBIDDEN
                     details:
                       reason: organizational_scope_violation
                       message: >-
                         You do not have access to verify this activity log.
-                        It belongs to an organizational unit outside your scope.
+                        The activity is outside the authorized scope.
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -11882,7 +11339,7 @@ paths:
   /employees:
     get:
       summary: List Employees
-      description: Get paginated list of all employees in the tenant. Results can be filtered by the official employee lifecycle status as defined in the `EmployeeStatus` schema.
+      description: Get a paginated list of employees authorized in the active Tenant. Results can be filtered by the official employee lifecycle status as defined in the `EmployeeStatus` schema.
       operationId: listEmployees
       tags:
         - Employees
@@ -11893,11 +11350,10 @@ paths:
         - $ref: '#/components/parameters/EmployeePerPage'
         - $ref: '#/components/parameters/EmployeeStatusFilter'
         - $ref: '#/components/parameters/EmployeeSearchFilter'
-        - $ref: '#/components/parameters/EmployeeLegalEntityFilter'
         - $ref: '#/components/parameters/EmployeeEstablishmentFilter'
       responses:
         '200':
-          description: List of employees
+          description: List of authorized employees
           content:
             application/json:
               schema:
@@ -11913,7 +11369,7 @@ paths:
       summary: Create Employee
       description: |
         Create a new employee record. Onboarding invitations may only be requested during the `pre_contract` phase.
-        Requires `employee.write` or `employee.create`. The supplied Legal Entity and establishment must be same tenant and belong to the same Legal Entity, both targets must be active and non-deleted, and the caller must have organizational write access for them.
+        Requires explicit employee creation permission in the active Tenant. Employment and establishment assignments are independent of personnel-record creation.
         Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing which identifying field matched.
       operationId: createEmployee
       tags:
@@ -11950,7 +11406,7 @@ paths:
     get:
       summary: List Employees With Compliance Alerts
       description: |
-        Get a paginated collection of employees with active compliance alerts. The collection is limited to employees in `pre_contract`, `active`, or `on_leave` lifecycle status; if `status` is supplied it further narrows that set. Use `compliance_status` to filter employees by their highest active alert severity (`warning`, `critical`, or `expired`). Each returned employee still includes every document in its active 30-day alert window through `expiring_documents`.
+        Get a paginated collection of employees with active compliance alerts. The collection is limited to employees in `pre_contract`, `active`, or `on_leave` lifecycle status; if `status` is supplied it further narrows that set. Use `compliance_status` to filter employees by their highest active alert severity (`warning`, `critical`, or `expired`). Severity and inclusion are computed only from documents visible under the applicable effective permission, scope and classification. `expiring_documents` contains those visible documents in the active 30-day alert window.
       operationId: listEmployeesWithComplianceAlerts
       tags:
         - Employees
@@ -11962,7 +11418,6 @@ paths:
         - $ref: '#/components/parameters/EmployeeStatusFilter'
         - $ref: '#/components/parameters/EmployeeComplianceStatusFilter'
         - $ref: '#/components/parameters/EmployeeSearchFilter'
-        - $ref: '#/components/parameters/EmployeeLegalEntityFilter'
         - $ref: '#/components/parameters/EmployeeEstablishmentFilter'
       responses:
         '200':
@@ -11983,7 +11438,7 @@ paths:
   /employees/{employee}:
     get:
       summary: Get Employee
-      description: Get a single employee by UUID
+      description: Returns the authorized Employee projection. The UUID is resolved within the active Tenant and effective Employee scope.
       operationId: getEmployee
       tags:
         - Employees
@@ -12015,7 +11470,7 @@ paths:
 
     patch:
       summary: Update Employee
-      description: Requires `employee.write` or `employee.update` and updates employee details with partial-update semantics. If either domain relationship is supplied, the resulting stored Legal Entity and establishment pair must remain same tenant and same Legal Entity, use active, non-deleted targets, and remain within the caller's organizational write access.
+      description: Requires explicit employee update permission in the active Tenant and applicable Employee scope.
       operationId: updateEmployee
       tags:
         - Employees
@@ -12057,7 +11512,7 @@ paths:
 
     delete:
       summary: Delete Employee
-      description: Soft delete an employee record
+      description: Removes an authorized personnel record from ordinary use when its effective employment and retention constraints permit it. Retained employment history and personnel evidence remain subject to their own lifecycles.
       operationId: deleteEmployee
       tags:
         - Employees
@@ -12080,6 +11535,15 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: Effective employment or retention constraints prevent removal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonnelConflict'
+              example:
+                code: RETENTION_CONFLICT
+                message: The requested removal is unavailable.
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -12329,10 +11793,9 @@ paths:
 
         **Relations:** `employee` and `qualification` are eager-loaded; each `data[]` item includes both embeds.
 
-        **Self-service:** the employee may list their own qualification assignments.
+        **Self-service:** requires an explicitly granted permission with effective linked Employee scope.
 
-        **Authorization boundary:** OU scopes do not grant access to domain employees. Non-self callers with any organizational scopes
-        (`User::organizationalScopes`) receive HTTP **403** with “No organizational entitlement exists for this employee.” Unscoped non-self callers still require the permission below.
+        **Authorization boundary:** Read access to qualifications requires an explicit `employee_qualification.read` permission and effective scope for this Employee.
 
         **Authorization:** `employee_qualification.read` via `EmployeeQualificationPolicy::viewAny`.
       operationId: listEmployeeQualifications
@@ -12379,7 +11842,7 @@ paths:
 
         **Conflict:** attaching the same `qualification_id` twice for one employee yields HTTP **409** with a message-only JSON body.
 
-        **Authorization boundary:** OU scopes do not grant access to domain employees. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `employee_qualification.write`.
+        **Authorization boundary:** Mutation requires an explicit `employee_qualification.write` permission and effective scope for this Employee.
       operationId: attachEmployeeQualification
       tags:
         - Employees
@@ -12444,9 +11907,9 @@ paths:
         **Route binding:** `EmployeeQualification` is tenant-scoped via its employee (`TenantScopedRouteBindingTest`). Unknown UUID / wrong tenant → **404**
         `Resource not found.`
 
-        **Self-service:** the employee may view their own assignment.
+        **Self-service:** requires an explicitly granted permission with effective linked Employee scope.
 
-        **Authorization boundary:** OU scopes do not grant access to domain employees. Non-self callers with any organizational scopes receive HTTP **403**; unscoped non-self callers require `employee_qualification.read` through `EmployeeQualificationPolicy::view`.
+        **Authorization boundary:** Read access to qualifications requires an explicit `employee_qualification.read` permission and effective scope for this Employee.
       operationId: getEmployeeQualification
       tags:
         - Qualifications
@@ -12491,7 +11954,7 @@ paths:
 
         Response reloads `qualification`; `employee` is not guaranteed on success payloads.
 
-        **Authorization boundary:** OU scopes do not grant access to domain employees. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `employee_qualification.write` through `EmployeeQualificationPolicy::update`.
+        **Authorization boundary:** Mutation requires an explicit `employee_qualification.write` permission and effective scope for this Employee.
       operationId: updateEmployeeQualification
       tags:
         - Qualifications
@@ -12542,7 +12005,7 @@ paths:
       description: |
         Hard-delete the pivot (`EmployeeQualificationController::destroy`). Success is HTTP **204** with an empty body.
 
-        **Authorization boundary:** OU scopes do not grant access to domain employees. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `employee_qualification.write` through `EmployeeQualificationPolicy::delete`.
+        **Authorization boundary:** Mutation requires an explicit `employee_qualification.write` permission and effective scope for this Employee.
       operationId: deleteEmployeeQualification
       tags:
         - Qualifications
@@ -12582,9 +12045,9 @@ paths:
       description: |
         Returns metadata for documents belonging to the employee (`EmployeeDocumentPolicy::viewAny`).
 
-        **Self-service:** when the authenticated user is the employee (`User` matches `employee.user_id`), the list is filtered to rows with `visible_to_employee` **true**.
+        **Self-service:** requires an explicitly granted permission with effective linked Employee scope.
 
-        **Authorization boundary:** OU scopes do not grant access to domain employees. Non-self callers with any organizational scopes receive HTTP **403**; unscoped non-self callers require `employee_document.read`.
+        **Authorization boundary:** Every metadata or content read requires `employee_document.read`, effective membership scope and authorization for the document classification. Linked-Employee self-service also requires `visible_to_employee`.
 
         **Routing:** Lives under the authenticated `verified` middleware group alongside other `/v1` HR APIs; callers need a verified email address when that middleware applies.
       operationId: listEmployeeDocuments
@@ -12623,7 +12086,7 @@ paths:
 
         Files are encrypted at rest; responses mirror `EmployeeDocumentResource` and never expose `file_path`.
 
-        **Authorization boundary:** OU scopes do not grant access to domain employees. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `employee_document.write` through `EmployeeDocumentPolicy::create`.
+        **Authorization boundary:** Every document mutation requires `employee_document.write`, effective membership scope and authorization for the document classification. Retention and holds may prohibit destruction of content.
       operationId: createEmployeeDocument
       tags:
         - Employees
@@ -12680,9 +12143,9 @@ paths:
       description: |
         Returns a single document row (`EmployeeDocumentPolicy::view`). Route-model binding is scoped: a `{document}` UUID that does not belong to `{employee}` yields **404**.
 
-        **Self-service:** the employee may view their own document only when `visible_to_employee` is **true**.
+        **Self-service:** requires an explicitly granted permission with effective linked Employee scope.
 
-        **Authorization boundary:** OU scopes do not grant access to domain employees. Non-self callers with any organizational scopes receive HTTP **403**; unscoped non-self callers require `employee_document.read`.
+        **Authorization boundary:** Every metadata or content read requires `employee_document.read`, effective membership scope and authorization for the document classification. Linked-Employee self-service also requires `visible_to_employee`.
       operationId: getEmployeeDocument
       tags:
         - Employees
@@ -12722,9 +12185,9 @@ paths:
     delete:
       summary: Delete Employee Document
       description: |
-        Soft-deletes the record and removes ciphertext from storage (`EmployeeDocumentPolicy::delete`).
+        Removes document content only when its retention category and holds permit removal. The service can retain minimal metadata and audit evidence independently of the content.
 
-        **Authorization boundary:** OU scopes do not grant access to domain employees. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `employee_document.write`.
+        **Authorization boundary:** Every document mutation requires `employee_document.write`, effective membership scope and authorization for the document classification. Retention and holds may prohibit destruction of content.
       operationId: deleteEmployeeDocument
       tags:
         - Employees
@@ -12754,6 +12217,15 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: Category retention or an applicable hold prevents removal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonnelConflict'
+              example:
+                code: RETENTION_CONFLICT
+                message: The requested removal is unavailable.
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -12763,9 +12235,9 @@ paths:
       description: |
         Streams decrypted bytes with `Content-Type` set to the stored MIME type and `Content-Disposition: attachment` using a sanitized filename.
 
-        **Self-service:** the employee may download their own document only when `visible_to_employee` is **true**.
+        **Self-service:** requires an explicitly granted permission with effective linked Employee scope.
 
-        **Authorization boundary:** OU scopes do not grant access to domain employees. Non-self callers with any organizational scopes receive HTTP **403**; unscoped non-self callers require `employee_document.read`.
+        **Authorization boundary:** Every metadata or content read requires `employee_document.read`, effective membership scope and authorization for the document classification. Linked-Employee self-service also requires `visible_to_employee`.
 
         **404:** Returned when the ciphertext blob is missing from disk (`EmployeeDocumentFileNotFoundException` maps to *File not found*) — see feature tests.
 
@@ -12829,130 +12301,98 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  # =============================================================================
-  # Organizational Unit Endpoints
-  # =============================================================================
-
-  /organizational-units:
+  /establishments:
     get:
-      summary: List Organizational Units
-      description: |
-        Retrieve a paginated, tenant-isolated list of organizational units visible to the authenticated caller.
-
-        **Authorization and isolation:** The route requires Sanctum authentication, the `api-access` token ability, verified email middleware, and the API's tenant injection. `OrganizationalUnitPolicy::viewAny` requires at least one organizational scope. The query is additionally constrained to the active tenant.
-
-        **Need-to-know filtering:** Results are limited to units returned by the caller's organizational scopes. Parent data is filtered independently; when a parent exists but is outside the caller's accessible tree, `parent` is returned as `null`. `meta.root_unit_ids` contains roots of the caller's accessible tree, not necessarily global tenant roots.
-
-        **Status flags:** `is_legal_entity`, `is_establishment`, `is_active`, and `is_assignable` are required booleans on each response item. `is_active` and `is_assignable` are independent: neither is inferred from the other, hierarchy, soft deletion, parent status, or unit type.
-      operationId: listOrganizationalUnits
-      tags:
-        - Organizational Units
+      summary: List authorized organizational establishments
+      operationId: listEstablishments
+      tags: [Establishments]
+      description: Returns only branches in the active Tenant visible under an explicit effective access assignment.
       security:
         - BearerAuth: []
         - SessionAuth: []
-      parameters:
-        - name: page
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-          description: Page number.
-        - name: per_page
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 15
-          description: Items per page.
-        - name: type
-          in: query
-          required: false
-          schema:
-            $ref: '#/components/schemas/OrganizationalUnitType'
-          description: Filter by structural type.
-        - name: parent_id
-          in: query
-          required: false
-          description: Filter by accessible parent UUID. Use the literal query-string value `null` (`parent_id=null`) to list roots of the caller's accessible tree.
-          schema:
-            anyOf:
-              - type: string
-                const: 'null'
-              - type: string
-                format: uuid
-        - name: is_active
-          in: query
-          required: false
-          allowEmptyValue: true
-          schema:
-            type: boolean
-          description: Filter by independent administrative status. Omitted or empty values do not apply the filter. Non-empty query-string values may be `1` or `true` for `true`, and `0` or `false` for `false`. No other non-empty values are accepted.
-          x-wire-examples:
-            active:
-              summary: Filter for active units.
-              value: '1'
-            inactive:
-              summary: Filter for inactive units.
-              value: '0'
-            active_text:
-              summary: Filter for active units with textual encoding.
-              value: 'true'
-            inactive_text:
-              summary: Filter for inactive units with textual encoding.
-              value: 'false'
-        - name: is_assignable
-          in: query
-          required: false
-          allowEmptyValue: true
-          schema:
-            type: boolean
-          description: Filter by independent eligibility for new operational assignments, scopes, and related workflows. Omitted or empty values do not apply the filter. Non-empty query-string values may be `1` or `true` for `true`, and `0` or `false` for `false`. No other non-empty values are accepted.
-          x-wire-examples:
-            assignable:
-              summary: Filter for assignable units.
-              value: '1'
-            unassignable:
-              summary: Filter for unassignable units.
-              value: '0'
-            assignable_text:
-              summary: Filter for assignable units with textual encoding.
-              value: 'true'
-            unassignable_text:
-              summary: Filter for unassignable units with textual encoding.
-              value: 'false'
       responses:
         '200':
-          description: Organizational units retrieved successfully.
+          description: Authorized establishments
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrganizationalUnitCollectionResponse'
+                type: array
+                items:
+                  $ref: '#/components/schemas/Establishment'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
 
+  /establishments/{establishment}:
+    parameters:
+      - name: establishment
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/TenantResourceId'
+    get:
+      summary: Get an authorized organizational establishment
+      operationId: getEstablishment
+      tags: [Establishments]
+      description: Resolves the identifier inside the active membership's Tenant and applicable access scope.
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      responses:
+        '200':
+          description: Authorized establishment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Establishment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /employees/{employee}/employment-periods:
+    parameters:
+      - $ref: '#/components/parameters/PersonnelEmployee'
+    get:
+      summary: List authorized employment periods
+      operationId: listEmploymentPeriods
+      tags: [Employees]
+      description: Returns authorized ongoing, future and historical periods of the same Employee.
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      responses:
+        '200':
+          description: Authorized employment periods
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EmploymentPeriod'
+              example:
+                - id: '550e8400-e29b-41d4-a716-446655440010'
+                  employee_id: '550e8400-e29b-41d4-a716-446655440001'
+                  valid_from: '2026-01-01T00:00:00Z'
+                  valid_until: '2026-07-01T00:00:00Z'
+                - id: '550e8400-e29b-41d4-a716-446655440011'
+                  employee_id: '550e8400-e29b-41d4-a716-446655440001'
+                  valid_from: '2026-08-01T00:00:00Z'
+                  valid_until: null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
     post:
-      summary: Create Organizational Unit
-      description: |
-        Create a same-tenant organizational unit as either a root unit or a child below `parent_id`.
-
-        **Authorization and policies:** Creating a root unit requires `OrganizationalUnitPolicy::createRoot` (an existing manage-capable scope). Creating a child requires `OrganizationalUnitPolicy::create` on the selected parent. The parent lookup is tenant-scoped and excludes soft-deleted units.
-
-        **Type hierarchy:** Child `type` rank must be lower than the parent rank (`holding` -> `company` -> `region` -> `branch` -> `division` -> `department` -> `custom`). Same-level nesting is rejected with `422`.
-
-        **Status flags:** `is_legal_entity`, `is_establishment`, `is_active`, and `is_assignable` are optional request booleans. Missing `is_legal_entity` and `is_establishment` values are documented as `false`; missing `is_active` and `is_assignable` values are documented as `true`. The status flags are independent; in particular, neither `is_active` nor `is_assignable` is derived from the other, hierarchy, soft deletion, parent status, or unit type.
-      operationId: createOrganizationalUnit
-      tags:
-        - Organizational Units
+      summary: Add an employment period to an Employee
+      operationId: createEmploymentPeriod
+      tags: [Employees]
+      description: Records the period, its initial terms and a matching establishment assignment atomically. Requires explicit effective permission and scope for the Employee, establishment and evidence in the active Tenant. A foreign or inaccessible reference gives the same response as an absent reference. An overlap or assignment coverage conflict prevents all three writes.
       security:
         - BearerAuth: []
         - SessionAuth: []
@@ -12962,132 +12402,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/OrganizationalUnitCreateRequest'
+              $ref: '#/components/schemas/EmploymentPeriodCreateRequest'
       responses:
         '201':
-          description: Organizational unit created successfully.
+          description: Employment period recorded
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrganizationalUnitSingleResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /organizational-units/{organizational_unit}:
-    get:
-      summary: Get Organizational Unit
-      description: |
-        Retrieve one same-tenant organizational unit.
-
-        `OrganizationalUnitPolicy::view` enforces tenant isolation first, then read access through direct or inherited organizational scopes. Parent data remains need-to-know-filtered in the response.
-      operationId: getOrganizationalUnit
-      tags:
-        - Organizational Units
-      security:
-        - BearerAuth: []
-        - SessionAuth: []
-      parameters:
-        - name: organizational_unit
-          in: path
-          required: true
-          description: Organizational unit UUID.
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Organizational unit retrieved successfully.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrganizationalUnitSingleResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-    patch:
-      summary: Update Organizational Unit
-      description: |
-        Update organizational-unit fields with PATCH semantics.
-
-        `OrganizationalUnitPolicy::update` enforces same-tenant access plus write scope. If `type` is changed, the API validates the structural type enum; changing it to `custom` requires a `custom_type_name` containing a non-whitespace character in the same payload. The API returns `422` if the name is absent, `null`, empty, or whitespace-only when changing to `custom`, or if a caller clears the name of an existing custom unit. Status flags remain independent and are never inferred from `type`.
-
-      operationId: updateOrganizationalUnit
-      tags:
-        - Organizational Units
-      security:
-        - BearerAuth: []
-        - SessionAuth: []
-          CsrfToken: []
-      parameters:
-        - name: organizational_unit
-          in: path
-          required: true
-          description: Organizational unit UUID.
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OrganizationalUnitUpdateRequest'
-      responses:
-        '200':
-          description: Organizational unit updated successfully.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrganizationalUnitSingleResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-    delete:
-      summary: Delete Organizational Unit
-      description: |
-        Soft-delete an organizational unit.
-
-        `OrganizationalUnitPolicy::delete` requires same-tenant manage access. The API rejects deletion while non-deleted direct child units exist, regardless of each child's `is_active` value; callers must move or delete children first.
-      operationId: deleteOrganizationalUnit
-      tags:
-        - Organizational Units
-      security:
-        - BearerAuth: []
-        - SessionAuth: []
-          CsrfToken: []
-      parameters:
-        - name: organizational_unit
-          in: path
-          required: true
-          description: Organizational unit UUID.
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '204':
-          description: Organizational unit deleted successfully.
+                $ref: '#/components/schemas/EmploymentPeriod'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -13095,119 +12417,96 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          $ref: '#/components/responses/OrganizationalUnitHasChildrenConflict'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+          $ref: '#/components/responses/PersonnelTemporalConflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
 
-  /organizational-units/{organizational_unit}/descendants:
-    get:
-      summary: List Organizational Unit Descendants
-      description: |
-        Return descendants of one same-tenant organizational unit.
-
-        The base unit is authorized with `OrganizationalUnitPolicy::view`. Descendant rows belong to the same tenant through the closure-table hierarchy and use the reusable OU schema, including required independent `is_legal_entity`, `is_establishment`, `is_active`, and `is_assignable` flags.
-      operationId: listOrganizationalUnitDescendants
-      tags:
-        - Organizational Units
-      security:
-        - BearerAuth: []
-        - SessionAuth: []
-      parameters:
-        - name: organizational_unit
-          in: path
-          required: true
-          description: Organizational unit UUID.
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Descendants retrieved successfully.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrganizationalUnitHierarchyCollectionResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /organizational-units/{organizational_unit}/ancestors:
-    get:
-      summary: List Organizational Unit Ancestors
-      description: |
-        Return ancestors of one same-tenant organizational unit, ordered by closure-table depth with the closest parent first.
-
-        The base unit is authorized with `OrganizationalUnitPolicy::view`. Ancestor responses use the same reusable OU schema and therefore include required, non-null `is_legal_entity`, `is_establishment`, `is_active`, and `is_assignable` flags.
-      operationId: listOrganizationalUnitAncestors
-      tags:
-        - Organizational Units
-      security:
-        - BearerAuth: []
-        - SessionAuth: []
-      parameters:
-        - name: organizational_unit
-          in: path
-          required: true
-          description: Organizational unit UUID.
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Ancestors retrieved successfully.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrganizationalUnitHierarchyCollectionResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /organizational-units/{organizational_unit}/parent:
-    post:
-      summary: Attach Organizational Unit Parent
-      description: |
-        Attach or replace the direct parent of an organizational unit.
-
-        The child requires `OrganizationalUnitPolicy::update`; the selected same-tenant, non-deleted parent also requires `OrganizationalUnitPolicy::create` because reparenting creates a child under that parent. The reparent operation updates closure-table hierarchy and preserves tenant isolation.
-      operationId: attachOrganizationalUnitParent
-      tags:
-        - Organizational Units
-      security:
-        - BearerAuth: []
-        - SessionAuth: []
-          CsrfToken: []
-      parameters:
-        - name: organizational_unit
-          in: path
-          required: true
-          description: Organizational unit UUID.
-          schema:
-            type: string
-            format: uuid
-      requestBody:
+  /employees/{employee}/employment-periods/{period}/applicable-terms:
+    parameters:
+      - $ref: '#/components/parameters/PersonnelEmployee'
+      - name: period
+        in: path
         required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OrganizationalUnitAttachParentRequest'
+        schema:
+          $ref: '#/components/schemas/TenantResourceId'
+    get:
+      summary: Read the authorized terms applicable at an instant
+      operationId: getApplicableEmploymentTerms
+      tags: [Employees]
+      description: Resolves the period through the authorized same-Tenant Employee before examining applicability. Future versions never apply early.
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PersonnelEffectiveAt'
       responses:
         '200':
-          description: Parent attached successfully.
+          description: Applicable immutable version
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrganizationalUnitSingleResponse'
+                $ref: '#/components/schemas/EmploymentTermsVersion'
+              example:
+                id: '550e8400-e29b-41d4-a716-446655440020'
+                employment_period_id: '550e8400-e29b-41d4-a716-446655440011'
+                effective_from: '2026-08-01T00:00:00Z'
+                recorded_at: '2026-07-18T08:30:00Z'
+                evidence_id: null
+                position: Guard
+                weekly_hours: 32
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: The requested instant is outside the authorized period or its terms cannot be resolved unambiguously.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonnelConflict'
+              example:
+                code: TERMS_NOT_APPLICABLE
+                message: Employment terms are unavailable at the requested instant.
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /employees/{employee}/establishment-assignments:
+    parameters:
+      - $ref: '#/components/parameters/PersonnelEmployee'
+    get:
+      summary: Read the establishment assignment effective at an instant
+      operationId: getEffectiveEstablishmentAssignment
+      tags: [Employees]
+      description: A historical read returns the establishment facts effective at the requested instant.
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PersonnelEffectiveAt'
+      responses:
+        '200':
+          description: Authorized effective establishment assignment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeEstablishmentAssignment'
+              example:
+                id: '550e8400-e29b-41d4-a716-446655440030'
+                employee_id: '550e8400-e29b-41d4-a716-446655440001'
+                establishment:
+                  id: '780e8400-e29b-41d4-a716-446655440000'
+                  name: Harbour branch
+                  code: HB-01
+                  address:
+                    street: Hafenstraße
+                    house_number: '12'
+                    city: Bremen
+                    postal_code: '28217'
+                    country: DE
+                valid_from: '2026-01-01T00:00:00Z'
+                valid_until: '2026-07-01T00:00:00Z'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -13216,53 +12515,75 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /organizational-units/{organizational_unit}/parent/{parent}:
-    delete:
-      summary: Detach Organizational Unit Parent
-      description: |
-        Detach a parent relationship and make the organizational unit a root unit.
-
-        `OrganizationalUnitPolicy::update` must pass for the child. The API also verifies the caller keeps direct access to the child after detaching; if access would only have been inherited from the parent, the operation returns `403` instead of allowing accidental self-lockout.
-      operationId: detachOrganizationalUnitParent
-      tags:
-        - Organizational Units
+    post:
+      summary: Schedule an establishment assignment
+      operationId: createEmployeeEstablishmentAssignment
+      tags: [Employees]
+      description: >
+        Requires explicit write permission in the applicable Employee and
+        Establishment scope. An unavailable, foreign or out-of-scope
+        establishment produces the same error. Intervals cannot overlap or
+        leave a gap during employment.
       security:
         - BearerAuth: []
         - SessionAuth: []
           CsrfToken: []
-      parameters:
-        - name: organizational_unit
-          in: path
-          required: true
-          description: Child organizational unit UUID.
-          schema:
-            type: string
-            format: uuid
-        - name: parent
-          in: path
-          required: true
-          description: Current parent organizational unit UUID.
-          schema:
-            type: string
-            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeEstablishmentAssignmentCreateRequest'
       responses:
-        '200':
-          description: Parent detached successfully.
+        '201':
+          description: Assignment scheduled
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrganizationalUnitSingleResponse'
+                $ref: '#/components/schemas/EmployeeEstablishmentAssignment'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+        '409':
+          $ref: '#/components/responses/PersonnelTemporalConflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /employees/{employee}/personnel-evidence:
+    parameters:
+      - $ref: '#/components/parameters/PersonnelEmployee'
+    get:
+      summary: List authorized personnel evidence metadata
+      operationId: listPersonnelEvidence
+      tags: [Employees]
+      description: Returns only records visible under explicit permission, membership scope, and document classification. Hidden records produce neither metadata nor counts.
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      responses:
+        '200':
+          description: Authorized metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PersonnelEvidence'
+              example:
+                - id: '550e8400-e29b-41d4-a716-446655440040'
+                  employee_id: '550e8400-e29b-41d4-a716-446655440001'
+                  kind: termination
+                  recorded_at: '2026-06-15T10:00:00Z'
+                  termination_milestone: draft
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # =============================================================================
   # Contract Management
@@ -14088,7 +13409,7 @@ paths:
       summary: List Customers
       description: |
         Retrieve a paginated list of customers with optional filtering. The list eager loads a caller-visible `sites_count`, `assignments` with their users, and caller-visible `customer_establishments`; it does not eager load `sites`, which is omitted.
-        Full collection access requires `customers.read` without organizational scopes. Otherwise, records are visible only through an active customer or site assignment. An OU scope alone may authorize opening the collection but grants no customer-record access, so it yields an empty authorized collection.
+        Returns only records covered by `customers.read` with effective membership scope. Tenant-wide access requires a Tenant-scoped grant.
       operationId: listCustomers
       tags:
         - Customers
@@ -14149,7 +13470,6 @@ paths:
                     data:
                       - id: '550e8400-e29b-41d4-a716-446655440000'
                         customer_number: 'KD-2025-0001'
-                        legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
                         name: 'ACME Corporation GmbH'
                         billing_address:
                           street: Hauptstraße
@@ -14182,7 +13502,6 @@ paths:
                     data:
                       - id: '550e8400-e29b-41d4-a716-446655440001'
                         customer_number: 'KD-2025-0002'
-                        legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
                         name: 'Example Services GmbH'
                         billing_address:
                           street: Nebenstraße
@@ -14211,7 +13530,7 @@ paths:
       summary: Create Customer
       description: |
         Create a new customer. The optional `customer_number` is accepted as supplied; when omitted or null, the API generates a KD-YYYY-#### value. The response eager loads caller-visible `customer_establishments`; `sites`, `assignments`, and relationship count fields are omitted.
-        Requires `customers.create` and a same-tenant, active, non-deleted Legal Entity. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `customers.create`.
+        Requires `customers.create` in the active Tenant. The permission must have effective scope for all affected resources within the active Tenant.
         Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing which identifying field matched.
       operationId: createCustomer
       tags:
@@ -14249,62 +13568,6 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /lookups/legal-entities:
-    get:
-      summary: List Authorized Legal Entities
-      description: Requires at least one of `customers.create`, `customers.update`, `sites.create`, `sites.update`, `employee.write`, `employee.create`, or `employee.update` and returns only authorized, same tenant, active, non-deleted Legal Entity options within the caller's authorized domain write access. Each item contains only its UUID and display name; no hierarchy, RBAC, tenant, or status metadata is exposed.
-      operationId: listLegalEntityLookups
-      tags:
-        - Lookups
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Authorized Legal Entity lookup options
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LegalEntityLookupCollectionResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /lookups/legal-entities/{legal_entity}/establishments:
-    get:
-      summary: List Authorized Establishments
-      description: Requires at least one of `customers.update`, `sites.create`, `sites.update`, `employee.write`, `employee.create`, or `employee.update` and returns only same tenant, active, non-deleted establishments the caller is authorized to use under the selected authorized Legal Entity. Each item contains only its UUID and display name.
-      operationId: listEstablishmentLookups
-      tags:
-        - Lookups
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: legal_entity
-          in: path
-          required: true
-          description: Authorized Legal Entity UUID
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Authorized establishment lookup options
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EstablishmentLookupCollectionResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
   /lookups/establishments/{establishment}/customers:
     get:
       summary: List Authorized Customers
@@ -14338,43 +13601,10 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /lookups/establishments/{establishment}/customer-candidates:
-    get:
-      summary: List Customer Link Candidates
-      description: Requires `customers.update` and an active, non-deleted establishment within the caller's authorized domain write access. Returns only authorized, active, non-deleted customers from the same tenant and Legal Entity that are not yet linked to that establishment. Each item contains only its UUID and display name.
-      operationId: listCustomerLinkCandidateLookups
-      tags:
-        - Lookups
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: establishment
-          in: path
-          required: true
-          description: Authorized establishment UUID
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Authorized customer link candidates
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CustomerLookupCollectionResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
   /customer-establishments:
     get:
       summary: List Customer Establishments
-      description: Full collection access requires `customers.read` without organizational scopes. Otherwise, records are visible only through an active customer or site assignment. An OU scope alone may authorize opening the collection but grants no customer-record access, so it yields an empty authorized collection. The response exposes no organizational-unit relationships.
+      description: Returns only records covered by `customers.read` with effective membership scope. Tenant-wide access requires a Tenant-scoped grant.
       operationId: listCustomerEstablishments
       tags:
         - Customers
@@ -14423,7 +13653,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     post:
       summary: Link Customer to Establishment
-      description: Requires `customers.update` and creates a unique customer-to-establishment link with optional local contact data. The request must use an active, non-deleted customer and an active, non-deleted establishment; both must belong to the same tenant and Legal Entity. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `customers.update`. Duplicate identification for the tenant-scoped `customer_id` and `establishment_id` pair is evaluated atomically in the same transaction as creation. Every duplicate pair returns the neutral `DuplicateConflict` response without treating local contact data as a duplicate identifier.
+      description: Requires `customers.update` and creates a unique customer-to-establishment link with optional local contact data. The request must use an active, non-deleted customer and an active, non-deleted establishment; both must belong to the same Tenant. The permission must have effective scope for all affected resources within the active Tenant. Duplicate identification for the tenant-scoped `customer_id` and `establishment_id` pair is evaluated atomically in the same transaction as creation. Every duplicate pair returns the neutral `DuplicateConflict` response without treating local contact data as a duplicate identifier.
       operationId: createCustomerEstablishment
       tags:
         - Customers
@@ -14463,7 +13693,7 @@ paths:
           format: uuid
     get:
       summary: Get Customer Establishment
-      description: Requires an active customer or site assignment, or `customers.read` without organizational scopes. OU scopes alone do not grant record access. The response exposes no organizational-unit relationships.
+      description: Requires `customers.read` and effective scope for the record in the active Tenant.
       operationId: getCustomerEstablishment
       tags:
         - Customers
@@ -14486,7 +13716,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     patch:
       summary: Update Customer Establishment Contact Data
-      description: Requires `customers.update` and updates only the link's local contact data. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `customers.update`.
+      description: Requires `customers.update` and updates only the link's local contact data. The permission must have effective scope for all affected resources within the active Tenant.
       operationId: updateCustomerEstablishment
       tags:
         - Customers
@@ -14517,7 +13747,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     delete:
       summary: Delete Customer Establishment
-      description: Requires `customers.update`. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `customers.update`. Deletion is blocked while one or more sites use this customer-establishment link, preserving the relationship required by each site.
+      description: Requires `customers.update`. The permission must have effective scope for all affected resources within the active Tenant. Deletion is blocked while one or more sites use this customer-establishment link, preserving the relationship required by each site.
       operationId: deleteCustomerEstablishment
       tags:
         - Customers
@@ -14541,13 +13771,14 @@ paths:
     get:
       summary: Get Customer
       description: |
-        Retrieve a single customer's Legal-Entity-wide master data. The response eager loads caller-visible `sites`, `assignments`, and `customer_establishments`, and counts visible sites. Embedded relationships remain omitted on endpoints that do not eager load them.
-        Requires an active customer or site assignment, or `customers.read` without organizational scopes. OU scopes alone do not grant record access. The aggregate ETag is emitted only for callers with `customers.read` without organizational scopes, whose authority guarantees visibility of the complete customer-establishment collection. For an eligible caller, the strong ETag represents the entire actual `200` response representation emitted to that caller. Any observable change to any emitted data member invalidates it, including customer master data, `customer_establishments`, `sites`, `assignments`, `sites_count`, and every other emitted field. Using this full-representation validator for the transactional PUT may conservatively return `412` after an unrelated emitted relationship changes; that conservative precondition is intentional. Assignment-only and site-only callers receive their normal filtered representation without an aggregate ETag and cannot use the transactional edit operation.
+        Retrieve a single customer's Tenant-owned master data. The response eager loads caller-visible `sites`, `assignments`, and `customer_establishments`, and counts visible sites. Embedded relationships remain omitted on endpoints that do not eager load them.
+        Requires `customers.read` and effective scope for the record in the active Tenant. The aggregate ETag is emitted only for callers with `customers.read` with effective Tenant scope, whose authority guarantees visibility of the complete customer-establishment collection. For an eligible caller, the strong ETag represents the entire actual `200` response representation emitted to that caller. Any observable change to any emitted data member invalidates it, including customer master data, `customer_establishments`, `sites`, `assignments`, `sites_count`, and every other emitted field. Using this full-representation validator for the transactional PUT may conservatively return `412` after an unrelated emitted relationship changes; that conservative precondition is intentional. Assignment-only and site-only callers receive their normal filtered representation without an aggregate ETag and cannot use the transactional edit operation.
       x-aggregate-etag-authorization-examples:
         accepted:
           - name: Unrestricted customer reader receives the complete snapshot ETag
             customers_read: true
-            organizational_scopes: false
+            active_membership: true
+            tenant_scope: true
             complete_assignment_visibility: true
             aggregate_etag: true
         rejected:
@@ -14584,7 +13815,7 @@ paths:
           description: Customer retrieved successfully
           headers:
             ETag:
-              description: Strong entity tag for the entire actual `200` response representation emitted to this caller. Every observable change to any emitted member invalidates it. Emitted only when `customers.read` without organizational scopes guarantees complete assignment visibility; callers must return it in `If-Match` when submitting the transactional edit operation.
+              description: Strong entity tag for the entire actual `200` response representation emitted to this caller. Every observable change to any emitted member invalidates it. Emitted only when `customers.read` with effective Tenant scope guarantees complete assignment visibility; callers must return it in `If-Match` when submitting the transactional edit operation.
               schema:
                 $ref: '#/components/schemas/StrongEntityTag'
               example: '"customer-edit-8f14e45fceea167a5a36dedd4bea2543"'
@@ -14604,7 +13835,6 @@ paths:
                     data:
                       id: '550e8400-e29b-41d4-a716-446655440000'
                       customer_number: 'KD-2025-0001'
-                      legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
                       name: 'ACME Corporation GmbH'
                       billing_address:
                         street: Hauptstraße
@@ -14634,7 +13864,6 @@ paths:
                     data:
                       id: '550e8400-e29b-41d4-a716-446655440001'
                       customer_number: 'KD-2025-0002'
-                      legal_entity_id: '770e8400-e29b-41d4-a716-446655440000'
                       name: 'Example Services GmbH'
                       billing_address:
                         street: Nebenstraße
@@ -14662,7 +13891,7 @@ paths:
       summary: Update Customer
       description: |
         Update customer fields (PATCH semantics - all fields optional). The response eager loads caller-visible `customer_establishments`; `sites`, `assignments`, and relationship count fields are omitted.
-        Requires `customers.update` and view access to the customer. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `customers.update` and view access. If `legal_entity_id` differs from the customer's current value, it must identify a same-tenant, active, non-deleted Legal Entity. Reassignment is allowed only when the customer has no customer-establishment links or sites; clients must migrate or delete dependent records first.
+        Requires `customers.update` with effective scope for the customer in the active Tenant.
       operationId: updateCustomer
       tags:
         - Customers
@@ -14712,7 +13941,7 @@ paths:
     delete:
       summary: Delete Customer
       description: |
-        Soft delete a customer. Requires `customers.delete`. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `customers.delete`.
+        Soft delete a customer. Requires `customers.delete`. The permission must have effective scope for all affected resources within the active Tenant.
         Deletion is blocked while customer-establishment links or sites reference the customer; callers must move or delete dependents first.
       operationId: deleteCustomer
       tags:
@@ -14747,13 +13976,13 @@ paths:
       description: |
         Applies customer master-data changes and reconciles the complete desired `customer_establishments` collection in one transaction. A present existing pair is retained, a present new pair is created, and an absent existing pair is deleted subject to the documented conflicts. For `contact_name`, `phone`, `email`, and `comments` on a retained pair, an omitted field preserves its stored value, explicit `null` clears it, and a value replaces it. On a new pair, omission and explicit `null` initialize the field to null, while a value initializes the supplied value. The `200` response is the committed customer with its complete committed customer-establishment assignment snapshot; it omits `sites`, `assignments`, and relationship counts.
 
-        Requires `customers.update`, `customers.read` without organizational scopes, and the exact strong `ETag` from `GET /customers/{customer}` in `If-Match`. That validator represents the entire actual GET `200` response emitted to the eligible caller. Any observable change to any member of that GET representation makes the validator stale and returns the neutral **412** response, including a represented change unrelated to the requested mutation. The initial protected `If-Match` evaluation compares the supplied validator with the current actual emitted GET representation, including its current temporal state; a temporal boundary crossed before that evaluation is reflected in the representation and an older validator is stale normally. After a successful initial comparison, commit-coupling state revalidation protects persisted representation state and representation-visibility authority state through commit while required transactional-edit operation authority remains valid. If a concurrent mutation to either protected state changes the actual GET representation before commit, the edit does not commit, rolls back, and returns the same neutral **412** response. Separately, loss of required transactional-edit operation authority before mutation or before commit returns **403** with complete rollback under authorization revalidation and is not an `If-Match` stale condition. Passage of wall-clock time alone after the successful initial comparison is not a concurrent aggregate mutation, does not retroactively invalidate the comparison, and does not independently invalidate commit-coupling state revalidation or require **412** or rollback. Implementations may satisfy the state coupling with a lock and scoped state revalidation, a compare-and-swap or version predicate, or a serializable equivalent; no frozen wall clock is required. This unrestricted read authority guarantees visibility of the complete customer-establishment collection represented by the tag. Assignment-only and site-only callers receive **403** even when they may view a filtered customer representation. Authorization and tenant access are revalidated inside the transaction before mutation and before commit; stale authorization returns **403**. Every non-success response rolls back the complete edit. A successful transactional PUT does not return an `ETag` because its reduced committed response is not the complete GET representation. A client needing the next conditional validator must refetch `GET /customers/{customer}` and use that response's fresh strong `ETag`.
+        Requires `customers.update`, `customers.read` with effective Tenant scope, and the exact strong `ETag` from `GET /customers/{customer}` in `If-Match`. That validator represents the entire actual GET `200` response emitted to the eligible caller. Any observable change to any member of that GET representation makes the validator stale and returns the neutral **412** response, including a represented change unrelated to the requested mutation. The initial protected `If-Match` evaluation compares the supplied validator with the current actual emitted GET representation, including its current temporal state; a temporal boundary crossed before that evaluation is reflected in the representation and an older validator is stale normally. After a successful initial comparison, commit-coupling state revalidation protects persisted representation state and representation-visibility authority state through commit while required transactional-edit operation authority remains valid. If a concurrent mutation to either protected state changes the actual GET representation before commit, the edit does not commit, rolls back, and returns the same neutral **412** response. Separately, loss of required transactional-edit operation authority before mutation or before commit returns **403** with complete rollback under authorization revalidation and is not an `If-Match` stale condition. Passage of wall-clock time alone after the successful initial comparison is not a concurrent aggregate mutation, does not retroactively invalidate the comparison, and does not independently invalidate commit-coupling state revalidation or require **412** or rollback. Implementations may satisfy the state coupling with a lock and scoped state revalidation, a compare-and-swap or version predicate, or a serializable equivalent; no frozen wall clock is required. This unrestricted read authority guarantees visibility of the complete customer-establishment collection represented by the tag. Callers limited to a filtered or Site-scoped representation receive **403**. Authorization and tenant access are revalidated inside the transaction before mutation and before commit; stale authorization returns **403**. Every non-success response rolls back the complete edit. A successful transactional PUT does not return an `ETag` because its reduced committed response is not the complete GET representation. A client needing the next conditional validator must refetch `GET /customers/{customer}` and use that response's fresh strong `ETag`.
 
-        **Request validation:** malformed or unparseable JSON and equivalent request syntax or protocol failures return **400**. Syntactically valid JSON that violates the request schema or domain rules returns the dedicated closed neutral **422** response. Missing, null, or non-object `customer`; missing, null, or non-array `customer_establishments`; and null, scalar, array, or otherwise non-object assignment items use their fixed structural field messages. Every item must repeat the path `customer` as `customer_id`; a different nested customer ID returns the neutral **422** customer field error and is never used to select or mutate a customer. Each `establishment_id` may occur at most once, independent of local contact data; and every target must be active, non-deleted, in the same tenant, in the customer's resulting Legal Entity, and authorized for the caller. Missing, inaccessible, cross-tenant, wrong-Legal-Entity, inactive, and deleted assignment targets use the same information-poor **422** field error. Duplicate establishment targets also return **422**. Removing a customer-establishment link used by a Site returns the neutral **409** response without identifying the dependent resource. Changing Legal Entity while any one or more Sites remain also returns that same neutral **409**; an unchanged Legal Entity or a changed Legal Entity with zero remaining Sites does not create this Site reassignment conflict. No Site category bypasses the rule, and the response never identifies a dependent resource.
+        **Request validation:** malformed or unparseable JSON and equivalent request syntax or protocol failures return **400**. Syntactically valid JSON that violates the request schema or domain rules returns the dedicated closed neutral **422** response. Missing, null, or non-object `customer`; missing, null, or non-array `customer_establishments`; and null, scalar, array, or otherwise non-object assignment items use their fixed structural field messages. Every item must repeat the path `customer` as `customer_id`; a different nested customer ID returns the neutral **422** customer field error and is never used to select or mutate a customer. Each `establishment_id` may occur at most once, independent of local contact data; and every target must be active, non-deleted, in the same Tenant as the Customer and authorized for the caller. Missing, inaccessible, cross-tenant, inactive, and deleted assignment targets use the same information-poor **422** field error. Duplicate establishment targets also return **422**. Removing a customer-establishment link used by a Site returns the neutral **409** response without identifying the dependent resource. No Site category bypasses the rule.
 
         **Forbidden extra properties:** unknown properties at the request root, inside `customer`, or inside an assignment item map respectively to the fixed `request`, `customer`, or indexed assignment-item **422** error. The unknown property name is never exposed and never becomes a dynamic error path.
 
-        **Authorization boundary:** authentication and path UUID syntax handling precede operation authorization. Before any path-customer lookup that could select an existence-dependent response, require `customers.update`, unrestricted `customers.read`, no organizational scopes, and complete-snapshot authority. Unauthorized existing, missing, and tenant-inaccessible IDs all return the same closed neutral **403** without a path-existence lookup. Only authorized callers perform tenant-scoped lookup; authorized missing and tenant-inaccessible customers return the identical information-poor **404**. OU scopes do not grant access to customer or site domain writes; callers with any organizational scopes receive **403**, and unscoped callers require `customers.update` together with unrestricted `customers.read`. Legal Entity, Establishment, Site, and customer-establishment relationships remain tenant scoped and expose no organizational-unit relationship. The separate `CustomerEstablishment` CRUD operations remain available for intentional single-link changes; they are not a second transactional customer-edit path.
+        **Authorization boundary:** authentication and path UUID syntax handling precede operation authorization. Before any path-customer lookup that could select an existence-dependent response, require `customers.update`, tenant-scoped `customers.read` and complete-snapshot authority. Unauthorized existing, missing, and tenant-inaccessible IDs all return the same closed neutral **403** without a path-existence lookup. Only authorized callers perform tenant-scoped lookup; authorized missing and tenant-inaccessible customers return the identical information-poor **404**. Each mutation requires explicit permission and applicable effective membership scope. Establishments, Sites and customer-establishment relationships are resolved inside the active Tenant. The separate `CustomerEstablishment` CRUD operations remain available for intentional single-link changes; they are not a second transactional customer-edit path.
 
         **Failure precedence:** after path syntax handling, the operation evaluates authentication, operation authorization, tenant-scoped customer lookup, the `If-Match` precondition, request-content schema and domain validation, dependency conflicts, and mutation in that order. A stale `If-Match` terminates with **412** before malformed or parsed-invalid content and dependency conflicts are evaluated. With a current validator, malformed content returns **400**, parsed schema or domain invalidity returns **422** before dependency-conflict evaluation, and a valid request with a dependency conflict returns **409**. Mutation begins only after every prior stage passes.
       x-etag-precondition-semantics:
@@ -14845,13 +14074,11 @@ paths:
             active: true
             non_deleted: true
             same_tenant: true
-            resulting_legal_entity: true
             caller_authorized: true
           indistinguishable_invalid_states:
             - missing
             - inaccessible
             - cross_tenant
-            - wrong_legal_entity
             - inactive
             - deleted
           failure:
@@ -14863,25 +14090,6 @@ paths:
             disclosure: none
         dependency_conflicts:
           remove_link_used_by_site: rejected
-          change_legal_entity_while_any_site_exists:
-            condition:
-              legal_entity_changes: true
-              remaining_customer_site_count: greater_than_zero
-            result: rejected
-            no_site_category_bypass: true
-          legal_entity_site_state_matrix:
-            - legal_entity_changes: false
-              remaining_customer_site_count: greater_than_zero
-              result: no-reassignment-conflict
-            - legal_entity_changes: true
-              remaining_customer_site_count: 0
-              result: no-site-conflict
-            - legal_entity_changes: true
-              remaining_customer_site_count: 1
-              result: rejected
-            - legal_entity_changes: true
-              remaining_customer_site_count: greater_than_one
-              result: rejected
           failure:
             status: 409
             response: '#/components/responses/CustomerTransactionalEditConflict'
@@ -14889,8 +14097,8 @@ paths:
         authorization_precedence:
           required_authority:
             customers_update: true
-            unrestricted_customers_read: true
-            organizational_scopes: false
+            tenant_scoped_customers_read: true
+            active_membership: true
             complete_snapshot_authority: true
           operation_authorization_before_path_lookup: true
           unauthorized:
@@ -15026,7 +14234,8 @@ paths:
           - name: Unrestricted customer updater can edit the complete snapshot
             customers_update: true
             customers_read: true
-            organizational_scopes: false
+            active_membership: true
+            tenant_scope: true
             complete_assignment_visibility: true
             status: 200
         rejected:
@@ -15184,7 +14393,7 @@ paths:
       summary: List Sites
       description: |
         Retrieve a paginated list of sites with comprehensive filtering. Each item eager loads `customer` and `assignments`; relationship counts are omitted because they are not counted by this endpoint. `access_instructions` and `notes` are included only for callers authorized to update the individual site.
-        `sites.read` grants tenant-wide access. Otherwise, records are visible only through an active customer or site assignment. An OU scope alone may authorize opening the collection but grants no site-record access, so it yields an empty authorized collection.
+        Requires `sites.read` with effective scope for each returned Site in the active Tenant.
       operationId: listSites
       tags:
         - Sites
@@ -15268,7 +14477,7 @@ paths:
       summary: Create Site
       description: |
         Create a new site. The optional `site_number` is accepted as supplied; when omitted or null, the API generates an OBJ-YYYY-#### value. The creation response does not eager load relationship or count fields. `access_instructions` and `notes` are included only when the caller is authorized to update the created site.
-        Requires `sites.create`, an active, non-deleted customer, an active, non-deleted Legal Entity and establishment, and a tenant- and Legal-Entity-consistent combination with an existing customer-establishment link for the selected customer and establishment. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `sites.create`. Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing which identifying field matched.
+        Requires `sites.create`, an active, non-deleted customer, an active establishment, and a same-Tenant combination with an existing customer-establishment link for the selected customer and establishment. The permission must have effective scope for all affected resources within the active Tenant. Duplicate identification is evaluated atomically in the same transaction as creation. Every duplicate case returns the neutral `DuplicateConflict` response without disclosing which identifying field matched.
       operationId: createSite
       tags:
         - Sites
@@ -15310,7 +14519,7 @@ paths:
       summary: Get Site
       description: |
         Retrieve a single site by ID. The response eager loads `customer` and `assignments`; relationship counts are omitted because they are not counted by this endpoint. `access_instructions` and `notes` are included only for callers authorized to update this site.
-        Requires `sites.read` or an active customer or site assignment. OU scopes alone do not grant record access.
+        Requires `sites.read` and effective scope for the record in the active Tenant.
       operationId: getSite
       tags:
         - Sites
@@ -15349,7 +14558,7 @@ paths:
       summary: Update Site
       description: |
         Update site fields (PATCH semantics - all fields optional). The update response does not eager load relationship or count fields. `access_instructions` and `notes` are included only when the caller is authorized to update the site.
-        Requires `sites.update` and view access to the site. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `sites.update` and view access.
+        Requires `sites.update` with effective scope for the site and any resulting relationship in the active Tenant.
       operationId: updateSite
       tags:
         - Sites
@@ -15397,7 +14606,7 @@ paths:
     delete:
       summary: Delete Site
       description: |
-        Soft delete a site. Requires `sites.delete`. **Authorization boundary:** OU scopes do not grant access to customer or site domain writes. Callers with any organizational scopes receive HTTP **403**; unscoped callers require `sites.delete`.
+        Soft delete a site. Requires `sites.delete`. The permission must have effective scope for all affected resources within the active Tenant.
         Will fail if site has active cost centers.
       operationId: deleteSite
       tags:
