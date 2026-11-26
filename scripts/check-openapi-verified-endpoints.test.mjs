@@ -364,27 +364,31 @@ test('rejects widening browser switch authentication or losing its neutral error
   )
 })
 
-test('rejects cacheable browser and native sign-in responses', () => {
+test('rejects cacheable authentication, membership, and email step-up responses', () => {
   const candidate = structuredClone(parsedContract)
-  for (const [path, status] of [
-    ['/auth/login', '200'],
-    ['/auth/token', '201'],
-  ]) {
-    delete candidate.paths[path].post.responses[status].headers?.[
+  const operations = [
+    ['post', '/auth/login', '200'],
+    ['post', '/auth/token', '201'],
+    ['get', '/auth/membership-context', '200'],
+    ['put', '/auth/membership-context', '200'],
+    ['put', '/auth/token/membership-context', '200'],
+    ['post', '/me/email-change-requests/passkey-challenge', '201'],
+  ]
+  for (const [method, pathKey, status] of operations) {
+    delete candidate.paths[pathKey][method].responses[status].headers[
       'Cache-Control'
     ]
   }
 
   const result = runGuard(yaml.dump(candidate))
   assert.notEqual(result.status, 0, result.stdout)
-  assert.match(
-    result.stderr,
-    /POST \/auth\/login 200 must require Cache-Control: no-store/
-  )
-  assert.match(
-    result.stderr,
-    /POST \/auth\/token 201 must require Cache-Control: no-store/
-  )
+  for (const [method, pathKey, status] of operations) {
+    const label = `${method.toUpperCase()} ${pathKey} ${status}`
+    assert.ok(
+      result.stderr.includes(`${label} must require Cache-Control: no-store.`),
+      label
+    )
+  }
 })
 
 test('rejects omission of public invitation proof consumption', () => {

@@ -299,24 +299,28 @@ if (
   contractErrors.push('IdentityNoStore must require Cache-Control: no-store.')
 }
 
-const credentialResponses = [
-  ['/auth/login', ['200', '202']],
-  ['/auth/token', ['201', '202']],
-  ['/auth/token/passkeys/challenges', ['201']],
-  ['/auth/token/passkeys/challenges/{challengeId}/verify', ['200']],
-  ['/auth/passkeys/challenges', ['201']],
-  ['/auth/passkeys/challenges/{challengeId}/verify', ['200']],
-  ['/auth/mfa-challenges/{challengeId}/verify', ['200']],
+const uncachedIdentityResponses = [
+  ['post', '/auth/login', '200'],
+  ['post', '/auth/login', '202'],
+  ['post', '/auth/token', '201'],
+  ['post', '/auth/token', '202'],
+  ['post', '/auth/token/passkeys/challenges', '201'],
+  ['post', '/auth/token/passkeys/challenges/{challengeId}/verify', '200'],
+  ['post', '/auth/passkeys/challenges', '201'],
+  ['post', '/auth/passkeys/challenges/{challengeId}/verify', '200'],
+  ['post', '/auth/mfa-challenges/{challengeId}/verify', '200'],
+  ['get', '/auth/membership-context', '200'],
+  ['put', '/auth/membership-context', '200'],
+  ['put', '/auth/token/membership-context', '200'],
+  ['post', '/me/email-change-requests/passkey-challenge', '201'],
 ]
-for (const [pathKey, statuses] of credentialResponses) {
-  for (const status of statuses) {
-    const header =
-      paths[pathKey].post.responses?.[status]?.headers?.['Cache-Control']
-    if (header?.$ref !== '#/components/headers/IdentityNoStore') {
-      contractErrors.push(
-        `POST ${pathKey} ${status} must require Cache-Control: no-store.`
-      )
-    }
+for (const [method, pathKey, status] of uncachedIdentityResponses) {
+  const header =
+    paths[pathKey][method].responses?.[status]?.headers?.['Cache-Control']
+  if (header?.$ref !== '#/components/headers/IdentityNoStore') {
+    contractErrors.push(
+      `${method.toUpperCase()} ${pathKey} ${status} must require Cache-Control: no-store.`
+    )
   }
 }
 
