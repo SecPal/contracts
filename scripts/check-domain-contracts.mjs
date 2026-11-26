@@ -101,6 +101,34 @@ if (
   )
 }
 
+const membershipUniqueByValidation = membershipList?.['x-unique-by-validation']
+const deniedMembershipLists =
+  membershipList?.['x-uniqueness-examples']?.rejected
+
+if (
+  membershipList?.uniqueItems !== true ||
+  membershipUniqueByValidation?.validator !== 'secpal-keyed-uniqueness' ||
+  membershipUniqueByValidation?.authority !==
+    'SecPal semantic validation and server enforcement' ||
+  membershipUniqueByValidation?.json_schema_scope !==
+    'uniqueItems compares complete array items only' ||
+  membershipUniqueByValidation?.violation?.status !== 500 ||
+  membershipUniqueByValidation?.violation?.action !== 'reject-entire-context' ||
+  !Array.isArray(deniedMembershipLists) ||
+  !deniedMembershipLists.some(
+    ({ value, status }) =>
+      value?.length === 2 &&
+      value[0]?.membership_id === value[1]?.membership_id &&
+      value[0]?.status !== value[1]?.status &&
+      !satisfiesUniqueBy(membershipList, value) &&
+      status === membershipUniqueByValidation.violation.status
+  )
+) {
+  errors.push(
+    'Membership context must reject duplicate membership_id before publishing any partial context or credential.'
+  )
+}
+
 function matchesSchemaPattern(schema, value) {
   try {
     return (

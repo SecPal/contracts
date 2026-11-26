@@ -291,6 +291,35 @@ for (const [
   }
 }
 
+const identityNoStore = doc.components?.headers?.IdentityNoStore
+if (
+  identityNoStore?.required !== true ||
+  identityNoStore?.schema?.const !== 'no-store'
+) {
+  contractErrors.push('IdentityNoStore must require Cache-Control: no-store.')
+}
+
+const credentialResponses = [
+  ['/auth/login', ['200', '202']],
+  ['/auth/token', ['201', '202']],
+  ['/auth/token/passkeys/challenges', ['201']],
+  ['/auth/token/passkeys/challenges/{challengeId}/verify', ['200']],
+  ['/auth/passkeys/challenges', ['201']],
+  ['/auth/passkeys/challenges/{challengeId}/verify', ['200']],
+  ['/auth/mfa-challenges/{challengeId}/verify', ['200']],
+]
+for (const [pathKey, statuses] of credentialResponses) {
+  for (const status of statuses) {
+    const header =
+      paths[pathKey].post.responses?.[status]?.headers?.['Cache-Control']
+    if (header?.$ref !== '#/components/headers/IdentityNoStore') {
+      contractErrors.push(
+        `POST ${pathKey} ${status} must require Cache-Control: no-store.`
+      )
+    }
+  }
+}
+
 const membershipAccessPaths = new Set(
   MEMBERSHIP_IDENTITY_OPERATIONS.map(([, pathKey]) => pathKey).filter(
     (pathKey) => pathKey.startsWith('/memberships/')

@@ -2085,7 +2085,10 @@ components:
         Only active memberships are selectable. The selected entry, if present, is the active
         context of the current credential. With one active membership, it is selected
         automatically. With no active memberships, only global flows are available.
-        Suspended and ended memberships are excluded.
+        Suspended and ended memberships are excluded. Before publishing any context, the server
+        must reject repeated membership IDs using the keyed uniqueness rule below. A duplicate
+        rejects the whole response with a generic server error before issuing a credential or
+        committing a membership switch.
       required: [preference, memberships]
       properties:
         preference:
@@ -2094,6 +2097,26 @@ components:
           type: array
           uniqueItems: true
           x-unique-by: [membership_id]
+          x-unique-by-validation:
+            validator: secpal-keyed-uniqueness
+            authority: SecPal semantic validation and server enforcement
+            json_schema_scope: uniqueItems compares complete array items only
+            violation:
+              status: 500
+              action: reject-entire-context
+          x-uniqueness-examples:
+            rejected:
+              - name: The same membership cannot appear as both active and planned
+                value:
+                  - membership_id: '550e8400-e29b-41d4-a716-446655440010'
+                    tenant_name: North Security
+                    status: active
+                    selected: true
+                  - membership_id: '550e8400-e29b-41d4-a716-446655440010'
+                    tenant_name: North Security
+                    status: planned
+                    selected: false
+                status: 500
           items:
             $ref: '#/components/schemas/MembershipSummary'
           contains:
@@ -9263,7 +9286,7 @@ components:
 
   headers:
     IdentityNoStore:
-      description: Do not store this credential or membership context in an HTTP cache.
+      description: Do not store this authentication response or membership context in an HTTP cache.
       required: true
       schema:
         type: string
@@ -9500,12 +9523,18 @@ paths:
       responses:
         '200':
           description: Browser session established successfully
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SessionLoginResponse'
         '202':
           description: Primary credentials accepted, but MFA challenge verification is required before the session is established
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
           content:
             application/json:
               schema:
@@ -9550,12 +9579,18 @@ paths:
       responses:
         '201':
           description: Bearer token created successfully
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TokenLoginResponse'
         '202':
           description: Primary credentials accepted, but MFA challenge verification is required before the token is issued
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
           content:
             application/json:
               schema:
@@ -9593,6 +9628,9 @@ paths:
       responses:
         '201':
           description: Token passkey sign-in challenge created successfully
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
           content:
             application/json:
               schema:
@@ -9634,6 +9672,9 @@ paths:
       responses:
         '200':
           description: Passkey sign-in verified and bearer token created successfully
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
           content:
             application/json:
               schema:
@@ -9673,6 +9714,9 @@ paths:
       responses:
         '201':
           description: Browser passkey sign-in challenge created successfully
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
           content:
             application/json:
               schema:
@@ -9714,6 +9758,9 @@ paths:
       responses:
         '200':
           description: Passkey sign-in verified and browser session established successfully
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
           content:
             application/json:
               schema:
@@ -9757,6 +9804,9 @@ paths:
       responses:
         '200':
           description: MFA challenge verified and the login flow completed successfully
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
           content:
             application/json:
               schema:

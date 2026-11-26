@@ -258,6 +258,20 @@ test('rejects duplicate membership IDs even when their state and display fields 
   assert.match(result.stderr, /must represent each membership_id once/)
 })
 
+test('requires fail-closed server enforcement for duplicate membership IDs', () => {
+  const candidate = structuredClone(contract)
+  delete candidate.components.schemas.MembershipContext.properties.memberships[
+    'x-unique-by-validation'
+  ]
+
+  const result = runGuard(candidate)
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(
+    result.stderr,
+    /must reject duplicate membership_id before publishing/
+  )
+})
+
 test('accepts the repository domain contract', () => {
   const result = runGuard(contract)
 

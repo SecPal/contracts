@@ -364,6 +364,29 @@ test('rejects widening browser switch authentication or losing its neutral error
   )
 })
 
+test('rejects cacheable browser and native sign-in responses', () => {
+  const candidate = structuredClone(parsedContract)
+  for (const [path, status] of [
+    ['/auth/login', '200'],
+    ['/auth/token', '201'],
+  ]) {
+    delete candidate.paths[path].post.responses[status].headers?.[
+      'Cache-Control'
+    ]
+  }
+
+  const result = runGuard(yaml.dump(candidate))
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(
+    result.stderr,
+    /POST \/auth\/login 200 must require Cache-Control: no-store/
+  )
+  assert.match(
+    result.stderr,
+    /POST \/auth\/token 201 must require Cache-Control: no-store/
+  )
+})
+
 test('rejects omission of public invitation proof consumption', () => {
   const candidate = structuredClone(parsedContract)
   delete candidate.paths['/auth/invitations/{operationId}/register']

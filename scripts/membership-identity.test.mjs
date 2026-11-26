@@ -136,7 +136,9 @@ test('validates allowed and denied wire values with the locked OpenAPI validator
   }
   const explicitSelection = structuredClone(chooseAfterSignIn.value)
   explicitSelection.memberships[0].selected = true
-  candidateContext.examples.explicitSelection = { value: explicitSelection }
+  candidateContext.examples.readAfterExplicitSelection = {
+    value: explicitSelection,
+  }
   candidateContext.examples.doubleSelection = {
     value: {
       ...explicitSelection,
@@ -166,7 +168,7 @@ test('validates allowed and denied wire values with the locked OpenAPI validator
     signedInAsk: signIn(chooseAfterSignIn.value),
     signedInResume: signIn(resumeLast.value),
     signedInStaleResume: signIn(staleResume.value),
-    askWithAutomaticSelection: signIn(explicitSelection),
+    loginAskWithAutomaticSelection: signIn(explicitSelection),
   }
 
   const switchBody = request(candidate.paths[contextPath].put)
@@ -241,7 +243,7 @@ test('validates allowed and denied wire values with the locked OpenAPI validator
       'endedSelected',
       'plannedSelected',
       'doubleSelection',
-      'askWithAutomaticSelection',
+      'loginAskWithAutomaticSelection',
       'singleWithoutActivation',
       'tenantAlias',
       'tenantOverride',
@@ -260,7 +262,7 @@ test('validates allowed and denied wire values with the locked OpenAPI validator
     }
     for (const name of [
       ...Object.keys(context.examples),
-      'explicitSelection',
+      'readAfterExplicitSelection',
       'signedInGlobalOnly',
       'signedInWithOne',
       'signedInAsk',
