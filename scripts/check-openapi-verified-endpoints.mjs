@@ -128,6 +128,7 @@ const MEMBERSHIP_IDENTITY_OPERATIONS = [
     '409',
     'IdentityOperationUnavailable',
   ],
+  ['post', '/me/email-change-requests/passkey-challenge', writeSecurity],
   [
     'post',
     '/me/email-change-requests',
@@ -290,8 +291,16 @@ for (const [
   }
 }
 
+const membershipAccessPaths = new Set(
+  MEMBERSHIP_IDENTITY_OPERATIONS.map(([, pathKey]) => pathKey).filter(
+    (pathKey) => pathKey.startsWith('/memberships/')
+  )
+)
 for (const pathKey of Object.keys(paths)) {
   if (
+    (/\/(?:tenant-memberships|access-assignments)(?:\/|$)/.test(pathKey) &&
+      !membershipAccessPaths.has(pathKey)) ||
+    /^\/permissions(?:\/|$)/.test(pathKey) ||
     pathKey === '/me/organizational-scopes' ||
     /^\/roles(?:\/|$)/.test(pathKey) ||
     /^\/users\/\{[^/]+\}\/(?:roles|permissions)(?:\/|$)/.test(pathKey)

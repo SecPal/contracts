@@ -2032,10 +2032,12 @@ components:
     MembershipSummary:
       type: object
       additionalProperties: false
-      required: [membership_id, tenant_name, status]
+      required: [membership_id, tenant_name, status, selected]
       properties:
         membership_id:
           $ref: '#/components/schemas/IdentityIdentifier'
+          pattern: '^[0-9a-f-]+$'
+          description: Canonical lowercase membership UUID.
         tenant_name:
           type: string
           minLength: 1
@@ -2043,79 +2045,93 @@ components:
         status:
           type: string
           enum: [active, planned]
+        selected:
+          type: boolean
+          description: Whether this active membership provides the current credential's tenant context.
         employee_id:
           $ref: '#/components/schemas/IdentityIdentifier'
           description: Present only when this membership links to a tenant-local Employee. The link confers no rights.
+      if:
+        properties:
+          status:
+            const: planned
+      then:
+        additionalProperties: true
+        properties:
+          selected:
+            const: false
 
-    ActiveMembership:
-      allOf:
-        - $ref: '#/components/schemas/MembershipSummary'
-        - properties:
-            status:
-              const: active
+    ActiveMembershipPredicate:
+      type: object
+      additionalProperties: true
+      required: [status]
+      properties:
+        status:
+          const: active
 
-    PlannedMembership:
-      allOf:
-        - $ref: '#/components/schemas/MembershipSummary'
-        - properties:
-            status:
-              const: planned
+    SelectedMembershipPredicate:
+      type: object
+      additionalProperties: true
+      required: [selected]
+      properties:
+        selected:
+          const: true
 
     MembershipContext:
       type: object
       additionalProperties: false
       description: |
-        Caller-owned memberships only. One active membership is selected automatically.
-        With several, sign-in leaves the context unset for `ask` or resumes the last membership
-        for `resume_last` only if it is still active and belongs to this caller. Otherwise selection
-        is required. After selection, the active entry must match exactly one selectable membership
-        by ID, and membership IDs are unique across both lists. With no active memberships, only
-        global flows are available. Planned memberships are visible but never selectable.
-        Suspended and ended memberships are excluded from this projection.
-      required:
-        [
-          preference,
-          active_membership,
-          selectable_memberships,
-          planned_memberships,
-        ]
+        The caller's active and planned memberships, each represented once by membership_id.
+        Only active memberships are selectable. The selected entry, if present, is the active
+        context of the current credential. With one active membership, it is selected
+        automatically. With no active memberships, only global flows are available.
+        Suspended and ended memberships are excluded.
+      required: [preference, memberships]
       properties:
         preference:
           $ref: '#/components/schemas/MembershipPreference'
-        active_membership:
-          oneOf:
-            - $ref: '#/components/schemas/ActiveMembership'
-            - type: 'null'
-        selectable_memberships:
+        memberships:
           type: array
           uniqueItems: true
+          x-unique-by: [membership_id]
           items:
-            $ref: '#/components/schemas/ActiveMembership'
-        planned_memberships:
-          type: array
-          uniqueItems: true
-          items:
-            $ref: '#/components/schemas/PlannedMembership'
+            $ref: '#/components/schemas/MembershipSummary'
+          contains:
+            $ref: '#/components/schemas/SelectedMembershipPredicate'
+          minContains: 0
+          maxContains: 1
+          if:
+            contains:
+              $ref: '#/components/schemas/ActiveMembershipPredicate'
+            minContains: 1
+            maxContains: 1
+          then:
+            contains:
+              $ref: '#/components/schemas/SelectedMembershipPredicate'
+
+    SignInMembershipContext:
+      description: |
+        Selection at the end of sign-in. With several active memberships, ask waits for an
+        explicit choice. Resume_last selects only the last still-active membership for this
+        session or device. If it is no longer selectable, an explicit choice is required.
       allOf:
+        - $ref: '#/components/schemas/MembershipContext'
         - if:
             properties:
-              selectable_memberships:
-                maxItems: 0
+              preference:
+                const: ask
+              memberships:
+                contains:
+                  $ref: '#/components/schemas/ActiveMembershipPredicate'
+                minContains: 2
           then:
             additionalProperties: true
             properties:
-              active_membership:
-                type: 'null'
-        - if:
-            properties:
-              selectable_memberships:
-                minItems: 1
-                maxItems: 1
-          then:
-            additionalProperties: true
-            properties:
-              active_membership:
-                $ref: '#/components/schemas/ActiveMembership'
+              memberships:
+                contains:
+                  $ref: '#/components/schemas/SelectedMembershipPredicate'
+                minContains: 0
+                maxContains: 0
 
     SelectMembershipRequest:
       type: object
@@ -2239,6 +2255,66 @@ components:
           type: string
           format: email
           maxLength: 254
+
+    EmailChangeRequest:
+      type: object
+      additionalProperties: false
+      required: [email, current_password, second_factor]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        current_password:
+          type: string
+          format: password
+          writeOnly: true
+        second_factor:
+          description: Fresh proof allowed by the current User's account policy, verified in this credential context.
+          oneOf:
+            - title: TOTP proof
+              type: object
+              additionalProperties: false
+              required: [method, code]
+              properties:
+                method:
+                  type: string
+                  const: totp
+                code:
+                  type: string
+                  minLength: 1
+                  writeOnly: true
+            - title: Passkey proof
+              type: object
+              additionalProperties: false
+              required: [method, challenge_id, credential]
+              properties:
+                method:
+                  type: string
+                  const: passkey
+                challenge_id:
+                  $ref: '#/components/schemas/IdentityIdentifier'
+                  description: An unused challenge created specifically for email changes in this authenticated credential context.
+                credential:
+                  $ref: '#/components/schemas/PasskeyAuthenticationCredential'
+
+    EmailChangePasskeyChallenge:
+      type: object
+      additionalProperties: false
+      required: [challenge_id, public_key, expires_at]
+      properties:
+        challenge_id:
+          $ref: '#/components/schemas/IdentityIdentifier'
+        public_key:
+          description: Discoverable WebAuthn assertion options for the authenticated User's email-change step-up.
+          allOf:
+            - $ref: '#/components/schemas/PasskeyAuthenticationPublicKeyOptions'
+            - type: object
+              properties:
+                user_verification:
+                  const: required
+        expires_at:
+          $ref: '#/components/schemas/ApiTimestamp'
 
     IdentityOperationToken:
       type: string
@@ -2394,7 +2470,7 @@ components:
         user:
           $ref: '#/components/schemas/GlobalIdentity'
         membership_context:
-          $ref: '#/components/schemas/MembershipContext'
+          $ref: '#/components/schemas/SignInMembershipContext'
 
     TokenLoginResponse:
       type: object
@@ -2411,7 +2487,7 @@ components:
         user:
           $ref: '#/components/schemas/GlobalIdentity'
         membership_context:
-          $ref: '#/components/schemas/MembershipContext'
+          $ref: '#/components/schemas/SignInMembershipContext'
 
     MfaChallenge:
       type: object
@@ -2478,7 +2554,7 @@ components:
             user:
               $ref: '#/components/schemas/GlobalIdentity'
             membership_context:
-              $ref: '#/components/schemas/MembershipContext'
+              $ref: '#/components/schemas/SignInMembershipContext'
             authentication:
               type: object
               required:
@@ -2508,7 +2584,7 @@ components:
             user:
               $ref: '#/components/schemas/GlobalIdentity'
             membership_context:
-              $ref: '#/components/schemas/MembershipContext'
+              $ref: '#/components/schemas/SignInMembershipContext'
             authentication:
               type: object
               required:
@@ -3203,7 +3279,7 @@ components:
         user:
           $ref: '#/components/schemas/GlobalIdentity'
         membership_context:
-          $ref: '#/components/schemas/MembershipContext'
+          $ref: '#/components/schemas/SignInMembershipContext'
         authentication:
           $ref: '#/components/schemas/PasskeySessionAuthenticationResult'
 
@@ -3223,7 +3299,7 @@ components:
         user:
           $ref: '#/components/schemas/GlobalIdentity'
         membership_context:
-          $ref: '#/components/schemas/MembershipContext'
+          $ref: '#/components/schemas/SignInMembershipContext'
         authentication:
           $ref: '#/components/schemas/PasskeyTokenAuthenticationResult'
 
@@ -9773,68 +9849,60 @@ paths:
                   summary: No active context even when a future employment membership exists
                   value:
                     preference: ask
-                    active_membership: null
-                    selectable_memberships: []
-                    planned_memberships:
+                    memberships:
                       - membership_id: '550e8400-e29b-41d4-a716-446655440019'
                         tenant_name: Future Security
                         status: planned
+                        selected: false
                 singleActive:
-                  summary: Automatically selected membership for an external adviser without an Employee link
+                  summary: Automatic selection for an external adviser without an Employee link
                   value:
                     preference: ask
-                    active_membership:
-                      membership_id: '550e8400-e29b-41d4-a716-446655440010'
-                      tenant_name: North Security
-                      status: active
-                    selectable_memberships:
+                    memberships:
                       - membership_id: '550e8400-e29b-41d4-a716-446655440010'
                         tenant_name: North Security
                         status: active
-                    planned_memberships: []
+                        selected: true
                 chooseAfterSignIn:
                   summary: Several active memberships with ask
                   value:
                     preference: ask
-                    active_membership: null
-                    selectable_memberships:
+                    memberships:
                       - membership_id: '550e8400-e29b-41d4-a716-446655440010'
                         tenant_name: North Security
                         status: active
+                        selected: false
                       - membership_id: '550e8400-e29b-41d4-a716-446655440011'
                         tenant_name: Port Security
                         status: active
+                        selected: false
                         employee_id: '550e8400-e29b-41d4-a716-446655440020'
-                    planned_memberships: []
                 resumeLast:
                   summary: Several active memberships with a still-active last selection
                   value:
                     preference: resume_last
-                    active_membership:
-                      membership_id: '550e8400-e29b-41d4-a716-446655440010'
-                      tenant_name: North Security
-                      status: active
-                    selectable_memberships:
+                    memberships:
                       - membership_id: '550e8400-e29b-41d4-a716-446655440010'
                         tenant_name: North Security
                         status: active
+                        selected: true
                       - membership_id: '550e8400-e29b-41d4-a716-446655440011'
                         tenant_name: Port Security
                         status: active
-                    planned_memberships: []
+                        selected: false
                 staleResume:
                   summary: A suspended or ended previous selection requires a new choice
                   value:
                     preference: resume_last
-                    active_membership: null
-                    selectable_memberships:
+                    memberships:
                       - membership_id: '550e8400-e29b-41d4-a716-446655440010'
                         tenant_name: North Security
                         status: active
+                        selected: false
                       - membership_id: '550e8400-e29b-41d4-a716-446655440011'
                         tenant_name: Port Security
                         status: active
-                    planned_memberships: []
+                        selected: false
         '401':
           $ref: '#/components/responses/Unauthorized'
         '429':
@@ -10828,10 +10896,15 @@ paths:
     post:
       summary: Request a change to my email address
       description: |
-        Require recent step-up in the current credential context using password and the
-        MFA or passkey proof required by account policy. The candidate never replaces the
-        active address before proof. The accepted response does not disclose whether
-        the candidate is reserved, belongs to another identity, or receives mail.
+        Submit the current password and fresh second-factor proof allowed by the account
+        policy. For passkeys, first obtain a challenge from
+        `/me/email-change-requests/passkey-challenge` in the same session or native credential
+        context and verify the assertion for the authenticated User. A sign-in challenge or
+        proof for a different credential context cannot be used here. Consume successful
+        step-up proof once before creating a pending reservation. Failure divulges nothing
+        about the candidate. The active address changes only after mailbox verification.
+        The accepted response does not disclose whether the candidate is reserved, belongs
+        to another identity, or receives mail.
       operationId: requestEmailChange
       tags: [Me]
       security:
@@ -10843,7 +10916,32 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/StartIdentityEmailOperation'
+              $ref: '#/components/schemas/EmailChangeRequest'
+            examples:
+              totpProof:
+                summary: Current password and a fresh TOTP code
+                value:
+                  email: candidate@secpal.app
+                  current_password: synthetic-example-password
+                  second_factor:
+                    method: totp
+                    code: '123456'
+              passkeyProof:
+                summary: Current password and a WebAuthn assertion for an email-change challenge
+                value:
+                  email: candidate@secpal.app
+                  current_password: synthetic-example-password
+                  second_factor:
+                    method: passkey
+                    challenge_id: '550e8400-e29b-41d4-a716-446655440010'
+                    credential:
+                      id: Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE
+                      raw_id: Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE
+                      type: public-key
+                      response:
+                        client_data_json: eyJ0eXBlIjoid2ViYXV0aG4uZ2V0In0
+                        authenticator_data: SZYN5YgOjGh0NBcP1b4K2Xc1d5SxJp7bL9M0qA
+                        signature: MEYCIQDjWQ8FZ8E6pK1f7Y5k8dL6U7R9T0pQ1wX2yZ3a4b5c6gIh
       responses:
         '202':
           $ref: '#/components/responses/IdentityRequestAccepted'
@@ -10851,8 +10949,43 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+          description: The supplied step-up proof was not accepted by the current account policy.
         '422':
           $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+
+  /me/email-change-requests/passkey-challenge:
+    post:
+      summary: Start passkey proof for an email change
+      description: |
+        Prepare an expiring, single-use WebAuthn challenge bound to the authenticated User,
+        the current browser session or bearer/device context, and the email-change purpose.
+        It does not accept a candidate address, grant step-up by itself, or create a pending
+        email change. Submit the resulting assertion and current password with the email-change
+        request through the same credential context.
+      operationId: prepareEmailChangePasskeyChallenge
+      tags: [Me]
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      responses:
+        '201':
+          description: Passkey challenge for the current User and credential context.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailChangePasskeyChallenge'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':

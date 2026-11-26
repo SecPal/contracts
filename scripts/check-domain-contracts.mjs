@@ -81,6 +81,26 @@ function satisfiesUniqueBy(schema, value) {
   return true
 }
 
+const membershipList = schemas.MembershipContext?.properties?.memberships
+const membershipExamples = Object.values(
+  paths['/auth/membership-context']?.get?.responses?.['200']?.content?.[
+    'application/json'
+  ]?.examples ?? {}
+)
+
+if (
+  JSON.stringify(membershipList?.['x-unique-by']) !==
+    JSON.stringify(['membership_id']) ||
+  membershipExamples.length === 0 ||
+  !membershipExamples.every((example) =>
+    satisfiesUniqueBy(membershipList, example?.value?.memberships)
+  )
+) {
+  errors.push(
+    'Membership context must represent each membership_id once in its validated wire examples.'
+  )
+}
+
 function matchesSchemaPattern(schema, value) {
   try {
     return (

@@ -333,6 +333,9 @@ test('rejects reintroduction of retired user authorization paths', () => {
     '/roles/{id}',
     '/users/{userId}/permissions',
     '/me/organizational-scopes',
+    '/permissions',
+    '/tenant-memberships',
+    '/users/{user}/access-assignments',
   ]) {
     const candidate = structuredClone(parsedContract)
     candidate.paths[pathKey] = { get: { operationId: 'legacyAuthorization' } }
