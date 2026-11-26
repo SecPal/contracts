@@ -46,5 +46,6 @@ test('immutable enrollment reconciles every PR without executing its source', ()
     'pull-requests': 'write',
     checks: 'read',
     statuses: 'read',
+    attestations: 'read',
   })
 })
