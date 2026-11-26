@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Published the OpenAPI contracts for browser and native membership selection,
   explicit access assignments, invitations and registration, password reset,
   and verification and activation of an email change.
+- Defined the OpenAPI projections for employment periods, immutable applicable
+  terms, flat establishments and assignment history, and restricted personnel
+  evidence.
 
 ### Changed
 
@@ -30,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Customer and site addresses use `street` for the street name and
   `house_number` for the building number. Send the building number in
   `house_number` when present.
+- **Breaking:** Removed Legal Entity and Organizational Unit routes, hierarchy
+  selectors, and employee-level employment and establishment fields. Tenant
+  scope comes from the active membership. Employee search matches normalized
+  email or employee number exactly. Customer and Site links resolve in the
+  active Tenant, and personnel document access requires both effective scope
+  and classification permission.
 
 ### Fixed
 
