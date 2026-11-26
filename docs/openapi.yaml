@@ -12,7 +12,18 @@ info:
 
     - **Authentication Modes:** Browser clients use Laravel Sanctum's first-party session flow from approved SPA origins, while native and mobile clients use Personal Access Tokens limited to the `api-access` ability.
     - **Session Lifetime and Re-authentication:** Stateful browser sessions expire after 120 minutes of inactivity. SPA logins also set a remember-me cookie, but explicit logout and password reset flows revoke the active browser session and require a fresh login.
-    - **Bearer Token Lifetime and Rotation:** Personal Access Tokens are stored hashed at rest, expire after 1440 minutes (24 hours), and are not rotated automatically on use. SecPal also uses `sec_`-prefixed secret identifiers for secret-scanning and credential-handling workflows. New token logins mint an additional device-scoped token, so clients must re-authenticate after expiry or explicit revocation.
+    - **Bearer Token Lifetime and Rotation:** Personal Access Tokens are stored hashed at rest, expire after 1440
+      minutes (24 hours), and are not rotated automatically on use. SecPal also uses `sec_`-prefixed secret
+      identifiers for secret-scanning and credential-handling workflows. A native membership switch replaces the old
+      bearer credential atomically. The token does not establish device approval. Where Work assurance is required,
+      online access additionally depends on authenticated endpoint authority, resource scope and current server
+      policy.
+    - **Identity Disclosure:** Identity responses never include delivery, key, ciphertext or blind-index data. Error
+      details must not echo passwords, tokens or other sensitive input. Identity-based abuse limits apply without
+      exposing account existence.
+    - **Membership Context:** Functional requests use the server-bound active membership. Tenant hints in routes,
+      headers, queries, or bodies cannot set or override it. A successful membership switch invalidates the previous
+      tenant-dependent state.
     - **Rate Limiting:** The default authenticated API bucket is 60 requests per minute keyed by authenticated user ID, falling back to client IP when no authenticated principal is available. Higher-risk endpoints use stricter route categories: login failures are limited to 5 attempts per 5 minutes per account and per IP-plus-account pair, password reset requests to 5 per 60 minutes per IP, MFA and passkey verification/challenge endpoints to 5 per 10 minutes, and onboarding completion/validation plus privileged MFA resets to 3 per 10 minutes, with a few additional route-specific bootstrap and verification caps.
     - **CORS:** Allowed origins must be configured in application settings
     - **Security Headers:** HSTS, CSP, X-Frame-Options enforced
@@ -73,9 +84,9 @@ tags:
     description: Customer, site, and self-service assignment operations.
   - name: Access Control
     description: >-
-      Current tenant-scoped role management, user-role assignment, and direct user-permission operations. Every
-      operation requires a verified Sanctum context with the `api-access` ability; Bearer tokens and first-party
-      browser sessions are supported, and session-authenticated writes additionally require the CSRF token.
+      Tenant-local membership access assignments and delegated invitations. Every operation requires an active
+      membership and explicit authorization; bearer credentials require the `api-access` ability and browser writes
+      require the CSRF token.
   - name: Me
     description: Canonical self-service endpoints for the authenticated caller under the `/me` namespace.
   - name: Cost Centers
@@ -1986,59 +1997,459 @@ components:
           type: integer
           minimum: 0
 
-    AuthenticatedUser:
+    GlobalIdentity:
       type: object
-      description: Authenticated user profile and authorization context returned by auth and self-service endpoints.
-      required:
-        - id
-        - name
-        - email
-        - emailVerified
-        - roles
-        - permissions
-        - hasOrganizationalScopes
-        - hasCustomerAccess
-        - hasSiteAccess
+      additionalProperties: false
+      description: Authenticated caller's global identity. Functional authorization belongs to the active membership.
+      required: [id, name, email, emailVerified]
       properties:
         id:
-          type: string
-          format: uuid
-          example: '550e8400-e29b-41d4-a716-446655440001'
+          $ref: '#/components/schemas/IdentityIdentifier'
         name:
           type: string
-          example: 'John Doe'
+          example: John Doe
         email:
           type: string
           format: email
-          example: 'john.doe@secpal.app'
+          example: john.doe@secpal.app
         emailVerified:
           type: boolean
-          description: Whether the authenticated user's email address has been verified.
+          description: Whether the caller's current email version has been verified.
           example: true
-        roles:
+
+    IdentityIdentifier:
+      type: string
+      format: uuid
+      example: '550e8400-e29b-41d4-a716-446655440001'
+
+    MembershipPreference:
+      type: string
+      enum: [ask, resume_last]
+      description: >-
+        For several active memberships, ask after sign-in or resume the last still-active membership of this
+        session or device.
+
+    MembershipSummary:
+      type: object
+      additionalProperties: false
+      required: [membership_id, tenant_name, status, selected]
+      properties:
+        membership_id:
+          $ref: '#/components/schemas/IdentityIdentifier'
+          pattern: '^[0-9a-f-]+$'
+          description: Canonical lowercase membership UUID.
+        tenant_name:
+          type: string
+          minLength: 1
+          description: Display name of the tenant represented by the caller's own membership.
+        status:
+          type: string
+          enum: [active, planned]
+        selected:
+          type: boolean
+          description: Whether this active membership provides the current credential's tenant context.
+        employee_id:
+          $ref: '#/components/schemas/IdentityIdentifier'
+          description: Present only when this membership links to a tenant-local Employee. The link confers no rights.
+      if:
+        properties:
+          status:
+            const: planned
+      then:
+        additionalProperties: true
+        properties:
+          selected:
+            const: false
+
+    ActiveMembershipPredicate:
+      type: object
+      additionalProperties: true
+      required: [status]
+      properties:
+        status:
+          const: active
+
+    SelectedMembershipPredicate:
+      type: object
+      additionalProperties: true
+      required: [selected]
+      properties:
+        selected:
+          const: true
+
+    MembershipContext:
+      type: object
+      additionalProperties: false
+      description: |
+        The caller's active and planned memberships, each represented once by membership_id.
+        Only active memberships are selectable. The selected entry, if present, is the active
+        context of the current credential. With one active membership, it is selected
+        automatically. With no active memberships, only global flows are available.
+        Suspended and ended memberships are excluded. Before publishing any context, the server
+        must reject repeated membership IDs using the keyed uniqueness rule below. A duplicate
+        rejects the whole response with a generic server error before issuing a credential or
+        committing a membership switch.
+      required: [preference, memberships]
+      properties:
+        preference:
+          $ref: '#/components/schemas/MembershipPreference'
+        memberships:
+          type: array
+          uniqueItems: true
+          x-unique-by: [membership_id]
+          x-unique-by-validation:
+            validator: secpal-keyed-uniqueness
+            authority: SecPal semantic validation and server enforcement
+            json_schema_scope: uniqueItems compares complete array items only
+            violation:
+              status: 500
+              action: reject-entire-context
+          x-uniqueness-examples:
+            rejected:
+              - name: The same membership cannot appear as both active and planned
+                value:
+                  - membership_id: '550e8400-e29b-41d4-a716-446655440010'
+                    tenant_name: North Security
+                    status: active
+                    selected: true
+                  - membership_id: '550e8400-e29b-41d4-a716-446655440010'
+                    tenant_name: North Security
+                    status: planned
+                    selected: false
+                status: 500
+          items:
+            $ref: '#/components/schemas/MembershipSummary'
+          contains:
+            $ref: '#/components/schemas/SelectedMembershipPredicate'
+          minContains: 0
+          maxContains: 1
+          if:
+            contains:
+              $ref: '#/components/schemas/ActiveMembershipPredicate'
+            minContains: 1
+            maxContains: 1
+          then:
+            contains:
+              $ref: '#/components/schemas/SelectedMembershipPredicate'
+
+    SignInMembershipContext:
+      description: |
+        Selection at the end of sign-in. With several active memberships, ask waits for an
+        explicit choice. Resume_last selects only the last still-active membership for this
+        session or device. If it is no longer selectable, an explicit choice is required.
+      allOf:
+        - $ref: '#/components/schemas/MembershipContext'
+        - if:
+            properties:
+              preference:
+                const: ask
+              memberships:
+                contains:
+                  $ref: '#/components/schemas/ActiveMembershipPredicate'
+                minContains: 2
+          then:
+            additionalProperties: true
+            properties:
+              memberships:
+                contains:
+                  $ref: '#/components/schemas/SelectedMembershipPredicate'
+                minContains: 0
+                maxContains: 0
+
+    SelectMembershipRequest:
+      type: object
+      additionalProperties: false
+      required: [membership_id]
+      properties:
+        membership_id:
+          $ref: '#/components/schemas/IdentityIdentifier'
+          description: Membership to resolve within the authenticated caller's currently selectable memberships.
+
+    UpdateMembershipPreferenceRequest:
+      type: object
+      additionalProperties: false
+      required: [preference]
+      properties:
+        preference:
+          $ref: '#/components/schemas/MembershipPreference'
+
+    NativeMembershipSwitchResponse:
+      type: object
+      additionalProperties: false
+      required: [token, membership_context]
+      properties:
+        token:
+          type: string
+          minLength: 1
+          description: >-
+            Replacement bearer token bound to the selected membership and the existing native credential
+            context.
+        membership_context:
+          $ref: '#/components/schemas/MembershipContext'
+
+    AccessRight:
+      type: object
+      additionalProperties: false
+      required: [kind, name]
+      properties:
+        kind:
+          type: string
+          enum: [permission, role]
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Server-defined permission or role in the tenant's delegable catalog.
+
+    AccessScope:
+      oneOf:
+        - title: Derived target
+          type: object
+          additionalProperties: false
+          required: [kind]
+          properties:
+            kind:
+              type: string
+              enum: [tenant, linked_employee]
+        - title: Concrete resource
+          type: object
+          additionalProperties: false
+          required: [kind, target_id]
+          properties:
+            kind:
+              type: string
+              enum: [establishment, customer, site]
+            target_id:
+              $ref: '#/components/schemas/IdentityIdentifier'
+              description: The target must exist in the active tenant.
+
+    AccessGrant:
+      type: object
+      additionalProperties: false
+      description: |
+        One right paired with all listed scopes and one validity interval, `[valid_from, valid_until)`.
+        A non-null end must follow the start. The server validates the complete grant against
+        the actor's explicit delegation authority, including every target and the entire interval.
+        Tenant and linked Employee targets derive from the membership. A linked Employee is required
+        for linked_employee scope. Employment, a membership or a scope by itself authorizes no action.
+      required: [right, scopes, valid_from, valid_until]
+      properties:
+        right:
+          $ref: '#/components/schemas/AccessRight'
+        scopes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/AccessScope'
+        valid_from:
+          $ref: '#/components/schemas/ApiTimestamp'
+        valid_until:
+          $ref: '#/components/schemas/NullableApiTimestamp'
+
+    AccessAssignment:
+      type: object
+      additionalProperties: false
+      required: [id, grant, revoked_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/IdentityIdentifier'
+        grant:
+          $ref: '#/components/schemas/AccessGrant'
+        revoked_at:
+          $ref: '#/components/schemas/NullableApiTimestamp'
+
+    AccessAssignmentList:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
           type: array
           items:
-            type: string
-          example: ['Employee']
-        permissions:
+            $ref: '#/components/schemas/AccessAssignment'
+
+    StartIdentityEmailOperation:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+
+    EmailChangeRequest:
+      type: object
+      additionalProperties: false
+      required: [email, current_password, second_factor]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        current_password:
+          type: string
+          format: password
+          writeOnly: true
+        second_factor:
+          description: Fresh proof allowed by the current User's account policy, verified in this credential context.
+          oneOf:
+            - title: TOTP proof
+              type: object
+              additionalProperties: false
+              required: [method, code]
+              properties:
+                method:
+                  type: string
+                  const: totp
+                code:
+                  type: string
+                  minLength: 1
+                  writeOnly: true
+            - title: Passkey proof
+              type: object
+              additionalProperties: false
+              required: [method, challenge_id, credential]
+              properties:
+                method:
+                  type: string
+                  const: passkey
+                challenge_id:
+                  $ref: '#/components/schemas/IdentityIdentifier'
+                  description: An unused challenge created specifically for email changes in this authenticated credential context.
+                credential:
+                  $ref: '#/components/schemas/PasskeyAuthenticationCredential'
+
+    EmailChangePasskeyChallenge:
+      type: object
+      additionalProperties: false
+      required: [challenge_id, public_key, expires_at]
+      properties:
+        challenge_id:
+          $ref: '#/components/schemas/IdentityIdentifier'
+        public_key:
+          description: Discoverable WebAuthn assertion options for the authenticated User's email-change step-up.
+          allOf:
+            - $ref: '#/components/schemas/PasskeyAuthenticationPublicKeyOptions'
+            - type: object
+              properties:
+                user_verification:
+                  const: required
+        expires_at:
+          $ref: '#/components/schemas/ApiTimestamp'
+
+    IdentityOperationToken:
+      type: string
+      minLength: 1
+      description: >-
+        Opaque, single-use verifier from the application-origin email link. Transmit only in the request
+        body.
+
+    ConsumeIdentityOperation:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token:
+          $ref: '#/components/schemas/IdentityOperationToken'
+
+    ResetPasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [token, password]
+      properties:
+        token:
+          $ref: '#/components/schemas/IdentityOperationToken'
+        password:
+          type: string
+          format: password
+
+    InviteMemberRequest:
+      type: object
+      additionalProperties: false
+      required: [email, grants]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        employee_id:
+          $ref: '#/components/schemas/IdentityIdentifier'
+          description: Optional tenant-local Employee link, subject to separate authorization and validity checks.
+        grants:
           type: array
+          uniqueItems: true
           items:
-            type: string
-          example: ['employees.read', 'reports.generate']
-        hasOrganizationalScopes:
-          type: boolean
-          example: true
-        hasCustomerAccess:
-          type: boolean
-          description: Whether the authenticated user may access customer collections either globally or through scoped assignments.
-          example: true
-        hasSiteAccess:
-          type: boolean
-          description: Whether the authenticated user may access site collections either globally or through scoped assignments.
-          example: true
+            $ref: '#/components/schemas/AccessGrant'
+      anyOf:
+        - required: [employee_id]
+        - properties:
+            grants:
+              minItems: 1
+
+    RegisterInvitedIdentityRequest:
+      type: object
+      additionalProperties: false
+      required: [token, name, password]
+      properties:
+        token:
+          $ref: '#/components/schemas/IdentityOperationToken'
+        name:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          format: password
+
+    IdentityRequestAccepted:
+      type: object
+      additionalProperties: false
+      required: [message]
+      properties:
+        message:
+          type: string
+          const: Request accepted.
+
+    IdentityOperationUnavailable:
+      type: object
+      additionalProperties: false
+      required: [message, code]
+      properties:
+        message:
+          type: string
+          const: This operation is unavailable.
+        code:
+          type: string
+          const: IDENTITY_OPERATION_UNAVAILABLE
+
+    MembershipUnavailable:
+      type: object
+      additionalProperties: false
+      required: [message, code]
+      properties:
+        message:
+          type: string
+          const: This membership is unavailable.
+        code:
+          type: string
+          const: MEMBERSHIP_UNAVAILABLE
+
+    InvalidCredentials:
+      type: object
+      additionalProperties: false
+      required: [message, code]
+      properties:
+        message:
+          type: string
+          const: The supplied credentials are invalid.
+        code:
+          type: string
+          const: INVALID_CREDENTIALS
 
     SessionLoginRequest:
       type: object
+      additionalProperties: false
       required:
         - email
         - password
@@ -2054,6 +2465,7 @@ components:
 
     TokenLoginRequest:
       type: object
+      additionalProperties: false
       required:
         - email
         - password
@@ -2068,32 +2480,41 @@ components:
           example: 'CorrectHorseBatteryStaple!'
         device_name:
           type: string
-          description: Friendly client identifier for the created personal access token.
+          description: Friendly label for the personal access token. This label provides no device identity or approval.
           example: 'android-phone'
 
     SessionLoginResponse:
       type: object
+      additionalProperties: false
       required:
         - user
+        - membership_context
       properties:
         user:
-          $ref: '#/components/schemas/AuthenticatedUser'
+          $ref: '#/components/schemas/GlobalIdentity'
+        membership_context:
+          $ref: '#/components/schemas/SignInMembershipContext'
 
     TokenLoginResponse:
       type: object
+      additionalProperties: false
       required:
         - token
         - user
+        - membership_context
       properties:
         token:
           type: string
           description: Plain-text Laravel Sanctum personal access token.
           example: '1|abcdefghijklmnopqrstuvwxyz1234567890'
         user:
-          $ref: '#/components/schemas/AuthenticatedUser'
+          $ref: '#/components/schemas/GlobalIdentity'
+        membership_context:
+          $ref: '#/components/schemas/SignInMembershipContext'
 
     MfaChallenge:
       type: object
+      additionalProperties: false
       description: Pending MFA login challenge created after primary credentials are accepted.
       required:
         - id
@@ -2134,6 +2555,7 @@ components:
 
     LoginMfaChallengeResponse:
       type: object
+      additionalProperties: false
       description: Primary credentials were accepted, but MFA must be completed before an authenticated context is issued.
       required:
         - challenge
@@ -2146,12 +2568,16 @@ components:
       oneOf:
         - title: SessionCompletion
           type: object
+          additionalProperties: false
           required:
             - user
+            - membership_context
             - authentication
           properties:
             user:
-              $ref: '#/components/schemas/AuthenticatedUser'
+              $ref: '#/components/schemas/GlobalIdentity'
+            membership_context:
+              $ref: '#/components/schemas/SignInMembershipContext'
             authentication:
               type: object
               required:
@@ -2167,8 +2593,10 @@ components:
                   example: true
         - title: TokenCompletion
           type: object
+          additionalProperties: false
           required:
             - user
+            - membership_context
             - authentication
             - token
           properties:
@@ -2177,7 +2605,9 @@ components:
               description: Bearer token for the completed token-based login.
               example: '1|abcdefghijklmnopqrstuvwxyz1234567890'
             user:
-              $ref: '#/components/schemas/AuthenticatedUser'
+              $ref: '#/components/schemas/GlobalIdentity'
+            membership_context:
+              $ref: '#/components/schemas/SignInMembershipContext'
             authentication:
               type: object
               required:
@@ -2863,20 +3293,26 @@ components:
 
     PasskeySessionLoginResponse:
       type: object
+      additionalProperties: false
       required:
         - user
+        - membership_context
         - authentication
       properties:
         user:
-          $ref: '#/components/schemas/AuthenticatedUser'
+          $ref: '#/components/schemas/GlobalIdentity'
+        membership_context:
+          $ref: '#/components/schemas/SignInMembershipContext'
         authentication:
           $ref: '#/components/schemas/PasskeySessionAuthenticationResult'
 
     PasskeyTokenLoginResponse:
       type: object
+      additionalProperties: false
       required:
         - token
         - user
+        - membership_context
         - authentication
       properties:
         token:
@@ -2884,7 +3320,9 @@ components:
           description: Bearer token for the completed token-based passkey login.
           example: '1|abcdefghijklmnopqrstuvwxyz1234567890'
         user:
-          $ref: '#/components/schemas/AuthenticatedUser'
+          $ref: '#/components/schemas/GlobalIdentity'
+        membership_context:
+          $ref: '#/components/schemas/SignInMembershipContext'
         authentication:
           $ref: '#/components/schemas/PasskeyTokenAuthenticationResult'
 
@@ -2941,79 +3379,6 @@ components:
             preferred_locale:
               type: ['null', string]
               example: 'de'
-
-    MyOrganizationalScope:
-      type: object
-      required:
-        - id
-        - user_id
-        - organizational_unit_id
-        - access_level
-        - include_descendants
-        - min_viewable_rank
-        - max_viewable_rank
-        - min_assignable_rank
-        - max_assignable_rank
-        - allow_self_access
-        - created_at
-        - updated_at
-        - organizational_unit
-      properties:
-        id:
-          type: integer
-          example: 1
-        user_id:
-          type: integer
-          example: 42
-        organizational_unit_id:
-          type: string
-          format: uuid
-          example: '550e8400-e29b-41d4-a716-446655440010'
-        access_level:
-          type: string
-          enum: [none, read, write, manage]
-          example: 'manage'
-        include_descendants:
-          type: boolean
-          example: true
-        min_viewable_rank:
-          type: [integer, 'null']
-          example: 1
-        max_viewable_rank:
-          type: [integer, 'null']
-          example: 10
-        min_assignable_rank:
-          type: [integer, 'null']
-          example: 1
-        max_assignable_rank:
-          type: [integer, 'null']
-          example: 5
-        allow_self_access:
-          type: boolean
-          example: true
-        created_at:
-          $ref: '#/components/schemas/ApiTimestamp'
-          example: '2026-03-27T10:15:00Z'
-        updated_at:
-          $ref: '#/components/schemas/ApiTimestamp'
-          example: '2026-03-27T10:15:00Z'
-        organizational_unit:
-          type: object
-          required:
-            - id
-            - name
-            - type
-          properties:
-            id:
-              type: string
-              format: uuid
-              example: '550e8400-e29b-41d4-a716-446655440010'
-            name:
-              type: string
-              example: 'Operations'
-            type:
-              type: string
-              example: 'department'
 
     EmployeeAddress:
       type: object
@@ -8095,469 +8460,6 @@ components:
           description: Soft deletion timestamp
           example: null
 
-    RoleNameValue:
-      type: string
-      minLength: 1
-      maxLength: 255
-      description: Tenant-scoped role name. The accepted values are database-backed and are not a closed enum.
-      example: Manager
-
-    PermissionNameValue:
-      type: string
-      minLength: 1
-      maxLength: 255
-      description: Permission name from the server-managed permission inventory. The inventory is not a closed OpenAPI enum.
-      example: employees.read
-
-    RoleSummary:
-      type: object
-      additionalProperties: false
-      required:
-        - id
-        - name
-        - permissions_count
-        - users_count
-        - created_at
-        - updated_at
-      properties:
-        id:
-          type: integer
-          minimum: 1
-          example: 12
-        name:
-          $ref: '#/components/schemas/RoleNameValue'
-        permissions_count:
-          type: integer
-          minimum: 0
-          example: 4
-        users_count:
-          type: integer
-          minimum: 0
-          example: 8
-        created_at:
-          $ref: '#/components/schemas/ApiTimestamp'
-        updated_at:
-          $ref: '#/components/schemas/ApiTimestamp'
-
-    RoleWithPermissions:
-      type: object
-      additionalProperties: false
-      required:
-        - id
-        - name
-        - permissions
-        - created_at
-        - updated_at
-      properties:
-        id:
-          type: integer
-          minimum: 1
-          example: 12
-        name:
-          $ref: '#/components/schemas/RoleNameValue'
-        permissions:
-          type: array
-          items:
-            $ref: '#/components/schemas/PermissionNameValue'
-          example: [employees.read, shifts.read]
-        users_count:
-          type: integer
-          minimum: 0
-          description: Present on the role-detail response and omitted from create and update responses.
-          example: 8
-        created_at:
-          $ref: '#/components/schemas/ApiTimestamp'
-        updated_at:
-          $ref: '#/components/schemas/ApiTimestamp'
-
-    RoleListResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - data
-      properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/RoleSummary'
-
-    RoleMutationResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - data
-      properties:
-        data:
-          allOf:
-            - $ref: '#/components/schemas/RoleWithPermissions'
-            - not:
-                properties:
-                  users_count:
-                    type: integer
-                required:
-                  - users_count
-
-    RoleDetailResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - data
-      properties:
-        data:
-          allOf:
-            - $ref: '#/components/schemas/RoleWithPermissions'
-            - required:
-                - users_count
-
-    RoleCreateRequest:
-      type: object
-      required:
-        - name
-      properties:
-        name:
-          $ref: '#/components/schemas/RoleNameValue'
-        permissions:
-          oneOf:
-            - type: array
-              items:
-                $ref: '#/components/schemas/PermissionNameValue'
-            - type: 'null'
-          description: Optional existing permission names. Omitted or `null` creates the role without permissions.
-          example: [employees.read, shifts.read]
-
-    RoleUpdateRequest:
-      type: object
-      description: Partial role update. An empty object is accepted and leaves the role unchanged.
-      properties:
-        name:
-          $ref: '#/components/schemas/RoleNameValue'
-        permissions:
-          type: array
-          items:
-            $ref: '#/components/schemas/PermissionNameValue'
-          description: Complete replacement permission-name set. An empty array removes every permission; `null` is invalid.
-          example: [employees.read, shifts.read]
-
-    RoleInUseProblem:
-      type: object
-      additionalProperties: false
-      required:
-        - message
-        - assigned_to
-      properties:
-        message:
-          type: string
-          enum:
-            - Cannot delete role while assigned to users
-        assigned_to:
-          type: integer
-          minimum: 1
-          description: Number of users currently assigned to the role.
-          example: 3
-
-    AssignRoleRequest:
-      type: object
-      required:
-        - role
-      properties:
-        role:
-          $ref: '#/components/schemas/RoleNameValue'
-        valid_from:
-          type: [string, 'null']
-          format: date-time
-          description: Optional assignment start. If omitted or `null`, the server uses the current time.
-          example: '2026-09-20T08:00:00Z'
-        valid_until:
-          type: [string, 'null']
-          format: date-time
-          description: Optional assignment end. When both dates are present, this value cannot precede `valid_from`.
-          example: '2026-10-20T08:00:00Z'
-        auto_revoke:
-          type: [boolean, 'null']
-          default: true
-          description: Whether the expiration worker may revoke the assignment after `valid_until`.
-        reason:
-          type: [string, 'null']
-          maxLength: 500
-          example: Vacation coverage
-
-    ExtendRoleRequest:
-      type: object
-      required:
-        - valid_until
-      properties:
-        valid_until:
-          type: string
-          format: date-time
-          description: New future expiration. It must be later than the current expiration when one exists.
-          example: '2026-11-20T08:00:00Z'
-        reason:
-          type: [string, 'null']
-          maxLength: 500
-          description: Optional replacement reason. If blank or omitted, the existing reason or the server default is retained.
-          example: Coverage extended
-
-    RoleAssignmentRepresentation:
-      type: object
-      additionalProperties: false
-      required:
-        - user_id
-        - role
-        - valid_from
-        - valid_until
-        - auto_revoke
-        - reason
-      properties:
-        user_id:
-          type: string
-          format: uuid
-        role:
-          $ref: '#/components/schemas/RoleNameValue'
-        valid_from:
-          $ref: '#/components/schemas/NullableApiTimestamp'
-        valid_until:
-          $ref: '#/components/schemas/NullableApiTimestamp'
-        auto_revoke:
-          type: boolean
-        reason:
-          type: string
-          example: Vacation coverage
-        message:
-          type: string
-          description: Present only on the idempotent 200 response for an existing assignment.
-          example: Role already assigned to user
-
-    RoleAssignmentCreatedResponse:
-      allOf:
-        - $ref: '#/components/schemas/RoleAssignmentRepresentation'
-        - not:
-            properties:
-              message:
-                type: string
-            required:
-              - message
-
-    RoleAssignmentExistingResponse:
-      allOf:
-        - $ref: '#/components/schemas/RoleAssignmentRepresentation'
-        - required:
-            - message
-
-    RoleAssignmentExtensionResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - user_id
-        - role
-        - valid_from
-        - valid_until
-        - reason
-      properties:
-        user_id:
-          type: string
-          format: uuid
-        role:
-          $ref: '#/components/schemas/RoleNameValue'
-        valid_from:
-          $ref: '#/components/schemas/NullableApiTimestamp'
-        valid_until:
-          $ref: '#/components/schemas/ApiTimestamp'
-        reason:
-          type: string
-          example: Coverage extended
-
-    UserRoleAssignment:
-      type: object
-      additionalProperties: false
-      required:
-        - role
-        - valid_from
-        - valid_until
-        - is_active
-        - is_expired
-        - auto_revoke
-        - reason
-      properties:
-        role:
-          type: string
-          description: Assigned role name; `unknown` is emitted if a legacy assignment no longer resolves to a role row.
-          example: Manager
-        valid_from:
-          $ref: '#/components/schemas/NullableApiTimestamp'
-        valid_until:
-          $ref: '#/components/schemas/NullableApiTimestamp'
-        is_active:
-          type: boolean
-        is_expired:
-          type: boolean
-        auto_revoke:
-          type: boolean
-        reason:
-          type: [string, 'null']
-          example: Vacation coverage
-
-    UserRoleListResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - roles
-      properties:
-        roles:
-          type: array
-          items:
-            $ref: '#/components/schemas/UserRoleAssignment'
-
-    PermissionViaRole:
-      type: object
-      additionalProperties: false
-      required:
-        - name
-        - role
-      properties:
-        name:
-          $ref: '#/components/schemas/PermissionNameValue'
-        role:
-          $ref: '#/components/schemas/RoleNameValue'
-
-    DirectPermissionAssignment:
-      type: object
-      additionalProperties: false
-      required:
-        - name
-        - valid_from
-        - valid_until
-        - assigned_at
-        - assigned_by
-        - reason
-      properties:
-        name:
-          $ref: '#/components/schemas/PermissionNameValue'
-        valid_from:
-          type: [string, 'null']
-          description: Persisted optional start date as serialized by the current database query.
-          example: '2026-09-20 08:00:00'
-        valid_until:
-          type: [string, 'null']
-          description: Persisted optional end date as serialized by the current database query.
-          example: '2026-10-20 08:00:00'
-        assigned_at:
-          type: [string, 'null']
-          description: Persisted creation date as serialized by the current database query.
-          example: '2026-09-19 10:30:00'
-        assigned_by:
-          type: [string, 'null']
-          format: uuid
-          description: Assigning user UUID, or `null` when that user is unavailable or the assignment predates audit metadata.
-        reason:
-          type: [string, 'null']
-          example: Temporary report access
-
-    UserPermissionsResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - data
-      properties:
-        data:
-          type: object
-          additionalProperties: false
-          required:
-            - via_roles
-            - direct
-            - all
-          properties:
-            via_roles:
-              type: array
-              items:
-                $ref: '#/components/schemas/PermissionViaRole'
-            direct:
-              type: array
-              items:
-                $ref: '#/components/schemas/DirectPermissionAssignment'
-            all:
-              type: array
-              uniqueItems: true
-              items:
-                $ref: '#/components/schemas/PermissionNameValue'
-
-    UserDirectPermissionsResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - data
-      properties:
-        data:
-          type: object
-          additionalProperties: false
-          required:
-            - direct
-          properties:
-            direct:
-              type: array
-              items:
-                $ref: '#/components/schemas/DirectPermissionAssignment'
-
-    AssignDirectPermissionsRequest:
-      type: object
-      required:
-        - permissions
-      properties:
-        permissions:
-          type: array
-          minItems: 1
-          items:
-            $ref: '#/components/schemas/PermissionNameValue'
-          description: Existing permission names. The server-managed inventory is not duplicated as an enum.
-          example: [employees.export]
-        valid_from:
-          type: [string, 'null']
-          format: date-time
-          description: Optional assignment start; when supplied with `valid_until`, it must be earlier.
-          example: '2026-09-20T08:00:00Z'
-        valid_until:
-          type: [string, 'null']
-          format: date-time
-          description: Optional assignment end; when supplied with `valid_from`, it must be later.
-          example: '2026-10-20T08:00:00Z'
-        reason:
-          type: [string, 'null']
-          maxLength: 1000
-          example: Temporary report access
-
-    AssignedDirectPermission:
-      type: object
-      additionalProperties: false
-      required:
-        - name
-        - valid_from
-        - valid_until
-      properties:
-        name:
-          $ref: '#/components/schemas/PermissionNameValue'
-        valid_from:
-          type: [string, 'null']
-          description: The accepted request value, returned without normalization.
-          example: '2026-09-20T08:00:00Z'
-        valid_until:
-          type: [string, 'null']
-          description: The accepted request value, returned without normalization.
-          example: '2026-10-20T08:00:00Z'
-
-    DirectPermissionAssignmentResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - message
-        - data
-      properties:
-        message:
-          type: string
-          example: Permissions assigned successfully
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/AssignedDirectPermission'
-
     DuplicateResourceError:
       type: object
       additionalProperties: false
@@ -8576,43 +8478,29 @@ components:
             - DUPLICATE_RESOURCE
 
   parameters:
-    UserId:
-      name: user
+    IdentityOperationId:
+      name: operationId
       in: path
       required: true
-      description: Tenant-visible user UUID. Missing, malformed, and cross-tenant UUIDs are not exposed and return 404.
+      description: Opaque operation identifier from the link. It does not authenticate the caller.
       schema:
-        type: string
-        format: uuid
+        $ref: '#/components/schemas/IdentityIdentifier'
 
-    RoleId:
-      name: id
+    MembershipId:
+      name: membershipId
       in: path
       required: true
-      description: Tenant-scoped numeric role identifier used by role CRUD operations.
+      description: Membership resolved within the current active tenant and caller's authorized scope.
       schema:
-        type: integer
-        minimum: 1
+        $ref: '#/components/schemas/IdentityIdentifier'
 
-    RoleName:
-      name: role
+    AccessAssignmentId:
+      name: assignmentId
       in: path
       required: true
-      description: Role name used by user-role assignment operations.
+      description: Assignment belonging to the membership in the path.
       schema:
-        type: string
-        minLength: 1
-        maxLength: 255
-
-    PermissionName:
-      name: permission
-      in: path
-      required: true
-      description: Permission name used to revoke one direct assignment. Role-derived access is unaffected.
-      schema:
-        type: string
-        minLength: 1
-        maxLength: 255
+        $ref: '#/components/schemas/IdentityIdentifier'
 
     ContractId:
       name: contract
@@ -9097,24 +8985,50 @@ components:
               value:
                 message: Invalid ability provided.
 
-    RbacNotFound:
-      description: >-
-        Not Found - the role, assignment, direct permission, or tenant-visible user is unavailable. User binding
-        deliberately returns the same status for missing, malformed, and cross-tenant UUIDs.
+    IdentityRequestAccepted:
+      description: The request was accepted. The response is independent of account existence and mail delivery.
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/SimpleMessageResponse'
-          examples:
-            unavailableResource:
-              value:
-                message: Resource not found.
-            missingAssignment:
-              value:
-                message: Role not assigned to user
-            missingDirectPermission:
-              value:
-                message: User does not have this permission directly assigned
+            $ref: '#/components/schemas/IdentityRequestAccepted'
+          example:
+            message: Request accepted.
+
+    IdentityOperationUnavailable:
+      description: >-
+        The operation is unavailable. Unknown, expired, consumed, superseded, invalid or mismatched proof
+        yields the same response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/IdentityOperationUnavailable'
+          example:
+            message: This operation is unavailable.
+            code: IDENTITY_OPERATION_UNAVAILABLE
+
+    MembershipUnavailable:
+      description: >-
+        The target cannot be selected. The response does not distinguish missing, foreign, planned,
+        suspended, or ended memberships.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MembershipUnavailable'
+          example:
+            message: This membership is unavailable.
+            code: MEMBERSHIP_UNAVAILABLE
+
+    InvalidCredentials:
+      description: >-
+        Missing identity and incorrect credentials produce the same response and comparable password
+        verification work.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/InvalidCredentials'
+          example:
+            message: The supplied credentials are invalid.
+            code: INVALID_CREDENTIALS
 
     NotFound:
       description: Not Found - Resource does not exist
@@ -9370,6 +9284,14 @@ components:
                     - api_release.version
                     - api_release.source_url
 
+  headers:
+    IdentityNoStore:
+      description: Do not store this authentication response or membership context in an HTTP cache.
+      required: true
+      schema:
+        type: string
+        const: no-store
+
   securitySchemes:
     BearerAuth:
       type: http
@@ -9387,7 +9309,7 @@ components:
       type: apiKey
       in: header
       name: X-XSRF-TOKEN
-      description: Required on state-changing requests that use `SessionAuth`.
+      description: Required on state-changing requests in the first-party browser session flow.
 
 paths:
   /health:
@@ -9590,7 +9512,8 @@ paths:
       operationId: loginWithSession
       tags:
         - Authentication
-      security: []
+      security:
+        - CsrfToken: []
       requestBody:
         required: true
         content:
@@ -9600,12 +9523,18 @@ paths:
       responses:
         '200':
           description: Browser session established successfully
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SessionLoginResponse'
         '202':
           description: Primary credentials accepted, but MFA challenge verification is required before the session is established
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
           content:
             application/json:
               schema:
@@ -9619,6 +9548,8 @@ paths:
               example:
                 message: This endpoint requires a browser session context. Use /auth/token for API clients.
                 code: BAD_REQUEST
+        '401':
+          $ref: '#/components/responses/InvalidCredentials'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '422':
@@ -9648,16 +9579,24 @@ paths:
       responses:
         '201':
           description: Bearer token created successfully
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TokenLoginResponse'
         '202':
           description: Primary credentials accepted, but MFA challenge verification is required before the token is issued
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/LoginMfaChallengeResponse'
+        '401':
+          $ref: '#/components/responses/InvalidCredentials'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '422':
@@ -9689,6 +9628,9 @@ paths:
       responses:
         '201':
           description: Token passkey sign-in challenge created successfully
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
           content:
             application/json:
               schema:
@@ -9730,6 +9672,9 @@ paths:
       responses:
         '200':
           description: Passkey sign-in verified and bearer token created successfully
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
           content:
             application/json:
               schema:
@@ -9769,6 +9714,9 @@ paths:
       responses:
         '201':
           description: Browser passkey sign-in challenge created successfully
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
           content:
             application/json:
               schema:
@@ -9810,6 +9758,9 @@ paths:
       responses:
         '200':
           description: Passkey sign-in verified and browser session established successfully
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
           content:
             application/json:
               schema:
@@ -9853,6 +9804,9 @@ paths:
       responses:
         '200':
           description: MFA challenge verified and the login flow completed successfully
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
           content:
             application/json:
               schema:
@@ -9918,59 +9872,313 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /auth/membership-context:
+    get:
+      summary: Read my membership context
+      description: |
+        Read the current context and the caller's own active and planned memberships.
+        Available before a context is selected. Never resolve a context from a caller-supplied
+        tenant, route identifier, header, or query parameter.
+      operationId: getMembershipContext
+      tags: [Authentication]
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      responses:
+        '200':
+          description: Membership context for this session or bearer credential. Do not cache.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipContext'
+              examples:
+                globalOnly:
+                  summary: No active context even when a future employment membership exists
+                  value:
+                    preference: ask
+                    memberships:
+                      - membership_id: '550e8400-e29b-41d4-a716-446655440019'
+                        tenant_name: Future Security
+                        status: planned
+                        selected: false
+                singleActive:
+                  summary: Automatic selection for an external adviser without an Employee link
+                  value:
+                    preference: ask
+                    memberships:
+                      - membership_id: '550e8400-e29b-41d4-a716-446655440010'
+                        tenant_name: North Security
+                        status: active
+                        selected: true
+                chooseAfterSignIn:
+                  summary: Several active memberships with ask
+                  value:
+                    preference: ask
+                    memberships:
+                      - membership_id: '550e8400-e29b-41d4-a716-446655440010'
+                        tenant_name: North Security
+                        status: active
+                        selected: false
+                      - membership_id: '550e8400-e29b-41d4-a716-446655440011'
+                        tenant_name: Port Security
+                        status: active
+                        selected: false
+                        employee_id: '550e8400-e29b-41d4-a716-446655440020'
+                resumeLast:
+                  summary: Several active memberships with a still-active last selection
+                  value:
+                    preference: resume_last
+                    memberships:
+                      - membership_id: '550e8400-e29b-41d4-a716-446655440010'
+                        tenant_name: North Security
+                        status: active
+                        selected: true
+                      - membership_id: '550e8400-e29b-41d4-a716-446655440011'
+                        tenant_name: Port Security
+                        status: active
+                        selected: false
+                staleResume:
+                  summary: A suspended or ended previous selection requires a new choice
+                  value:
+                    preference: resume_last
+                    memberships:
+                      - membership_id: '550e8400-e29b-41d4-a716-446655440010'
+                        tenant_name: North Security
+                        status: active
+                        selected: false
+                      - membership_id: '550e8400-e29b-41d4-a716-446655440011'
+                        tenant_name: Port Security
+                        status: active
+                        selected: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+    put:
+      summary: Select or switch the browser membership context
+      description: |
+        Resolve the requested membership within the authenticated caller's currently active memberships.
+        Commit the new session context only after invalidating the previous tenant authorization context
+        and server caches. Clients clear tenant-dependent UI and offline state before displaying the
+        new context. Failure exposes no target data and leaves no mixed context.
+      operationId: selectBrowserMembership
+      tags: [Authentication]
+      security:
+        - SessionAuth: []
+          CsrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SelectMembershipRequest'
+      responses:
+        '200':
+          description: The committed browser context. Do not cache.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipContext'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/MembershipUnavailable'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+
+  /auth/token/membership-context:
+    put:
+      summary: Select or switch the native membership context
+      description: |
+        Apply the same membership eligibility and atomic cache invalidation as browser switching.
+        Replace the old bearer token atomically; the old token cannot authorize further online
+        work. Failure issues no replacement and exposes no target data. The native device or
+        endpoint's existing trust authority is separate and must still be established independently.
+        A successful switch does not approve or revoke a device or imply delivery of offline notice.
+      operationId: selectNativeMembership
+      tags: [Authentication]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SelectMembershipRequest'
+      responses:
+        '200':
+          description: >-
+            Replacement bearer token and committed membership context. Do not cache.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NativeMembershipSwitchResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/MembershipUnavailable'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+
+  /auth/password-reset-requests:
+    post:
+      summary: Request password reset
+      description: |
+        Accept a reset request with equalized lookup work and a neutral outcome regardless
+        of whether the address matches a global User. Apply abuse limits without exposing
+        account existence. Bind the operation to the exact current email version.
+      operationId: requestPasswordReset
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartIdentityEmailOperation'
+      responses:
+        '202':
+          $ref: '#/components/responses/IdentityRequestAccepted'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+
+  /auth/password-reset-requests/{operationId}/consume:
+    post:
+      summary: Consume password reset proof
+      description: |
+        Require the correct unexpired, single-use verifier for this operation and its current
+        email version. Change the password and revoke outstanding reset operations, remember
+        credentials, browser sessions, and bearer tokens atomically. Require fresh sign-in.
+      operationId: consumePasswordReset
+      tags: [Authentication]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/IdentityOperationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '204':
+          description: Password reset committed and stale credentials revoked.
+        '409':
+          $ref: '#/components/responses/IdentityOperationUnavailable'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+
   /auth/email/verification-notification:
     post:
-      summary: Resend Email Verification
+      summary: Request active email verification
       description: |
-        Queue a fresh Laravel email verification notification for the authenticated caller.
-
-        **Authentication:** Requires an authenticated Sanctum principal (`auth:sanctum`) with the `api-access`
-        ability for personal access tokens (tokens from `/auth/token` include this ability). Browser SPAs use the
-        first-party cookie session (`SessionAuth`) plus `X-XSRF-TOKEN` on mutating requests; native and CLI clients
-        send `Authorization: Bearer <token>` (`BearerAuth`).
-
-        **Rate limiting:** This route applies Laravel `throttle:6,1` (six requests per rolling minute per throttle
-        key). When exceeded, the framework returns HTTP 429 with a JSON body containing only `message`
-        (`Too Many Attempts.`), without the structured `code` field used elsewhere.
-
-        **Responses:** HTTP 202 means the notification was queued; HTTP 200 means the address was already verified
-        and no mail was sent.
+        Request verification of the authenticated caller's active email version.
+        Resending supersedes earlier outstanding proof and prevents stale delivery.
+        The accepted response does not reveal whether a notification will be sent.
       operationId: sendEmailVerificationNotification
-      tags:
-        - Authentication
+      tags: [Authentication]
       security:
         - BearerAuth: []
         - SessionAuth: []
           CsrfToken: []
       responses:
-        '200':
-          description: Email address was already verified; no notification was queued.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
-              examples:
-                alreadyVerified:
-                  summary: Already verified
-                  value:
-                    message: Email address is already verified.
         '202':
-          description: Verification email notification was queued for delivery.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
-              examples:
-                queued:
-                  summary: Verification mail queued
-                  value:
-                    message: Verification link sent successfully.
+          $ref: '#/components/responses/IdentityRequestAccepted'
         '401':
-          $ref: '#/components/responses/SimpleUnauthorized'
+          $ref: '#/components/responses/Unauthorized'
         '429':
-          $ref: '#/components/responses/SimpleTooManyRequests'
+          $ref: '#/components/responses/TooManyRequests'
         '500':
-          $ref: '#/components/responses/InternalServerError'
+          $ref: '#/components/responses/SimpleInternalServerError'
+
+  /auth/email/verifications/{operationId}/consume:
+    post:
+      summary: Verify the active email address
+      description: |
+        Require the opaque operation ID and the matching single-use, unexpired mailbox proof.
+        Verification applies only to the operation's bound User and exact active email version.
+        An email-change token cannot verify the active email.
+      operationId: consumeEmailVerification
+      tags: [Authentication]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/IdentityOperationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsumeIdentityOperation'
+      responses:
+        '204':
+          description: The bound active email version is verified.
+        '409':
+          $ref: '#/components/responses/IdentityOperationUnavailable'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+
+  /auth/email-change-requests/{operationId}/consume:
+    post:
+      summary: Verify and activate a pending email change
+      description: |
+        Require the matching unexpired, single-use proof for the current pending change
+        and recheck global uniqueness atomically. The current address remains authoritative
+        on failure. On success, verify the new version, revoke stale reset and verification
+        operations and prior session, remember, and bearer credentials, notify the old address
+        through the security notification flow, and require fresh sign-in.
+      operationId: consumeEmailChange
+      tags: [Authentication]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/IdentityOperationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsumeIdentityOperation'
+      responses:
+        '204':
+          description: Email change committed. Discard the prior credentials and sign in again.
+        '409':
+          $ref: '#/components/responses/IdentityOperationUnavailable'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
 
   /me:
     get:
@@ -9978,7 +10186,8 @@ paths:
       description: |
         Canonical self-service endpoint for the authenticated caller.
 
-        This endpoint is the supported way to retrieve the caller's profile and authorization context. Similar guessed aliases such as `/auth/me`, `/user`, `/user/profile`, and `/profile` are intentionally undefined.
+        Returns the global profile before or after tenant selection. Use `/auth/membership-context` for the session or
+        token's membership.
       operationId: getCurrentUser
       tags:
         - Me
@@ -9991,7 +10200,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthenticatedUser'
+                $ref: '#/components/schemas/GlobalIdentity'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -10705,70 +10914,172 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /me/organizational-scopes:
-    get:
-      summary: Get My Organizational Scopes
-      description: Retrieve the authenticated user's organizational scope assignments.
-      operationId: getMyOrganizationalScopes
-      tags:
-        - Me
+  /me/membership-preference:
+    put:
+      summary: Set my sign-in membership preference
+      description: Change the selection preference for future sign-ins. This operation never changes the active context.
+      operationId: setMembershipPreference
+      tags: [Me]
       security:
         - BearerAuth: []
         - SessionAuth: []
+          CsrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMembershipPreferenceRequest'
       responses:
-        '200':
-          description: Organizational scopes retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - data
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/MyOrganizationalScope'
+        '204':
+          description: Preference stored.
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
-          $ref: '#/components/responses/InternalServerError'
+          $ref: '#/components/responses/SimpleInternalServerError'
 
-  /roles:
+  /me/email-change-requests:
+    post:
+      summary: Request a change to my email address
+      description: |
+        Submit the current password and fresh second-factor proof allowed by the account
+        policy. For passkeys, first obtain a challenge from
+        `/me/email-change-requests/passkey-challenge` in the same session or native credential
+        context and verify the assertion for the authenticated User. A sign-in challenge or
+        proof for a different credential context cannot be used here. Consume successful
+        step-up proof once before creating a pending reservation. Failure divulges nothing
+        about the candidate. The active address changes only after mailbox verification.
+        The accepted response does not disclose whether the candidate is reserved, belongs
+        to another identity, or receives mail.
+      operationId: requestEmailChange
+      tags: [Me]
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailChangeRequest'
+            examples:
+              totpProof:
+                summary: Current password and a fresh TOTP code
+                value:
+                  email: candidate@secpal.app
+                  current_password: synthetic-example-password
+                  second_factor:
+                    method: totp
+                    code: '123456'
+              passkeyProof:
+                summary: Current password and a WebAuthn assertion for an email-change challenge
+                value:
+                  email: candidate@secpal.app
+                  current_password: synthetic-example-password
+                  second_factor:
+                    method: passkey
+                    challenge_id: '550e8400-e29b-41d4-a716-446655440010'
+                    credential:
+                      id: Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE
+                      raw_id: Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE
+                      type: public-key
+                      response:
+                        client_data_json: eyJ0eXBlIjoid2ViYXV0aG4uZ2V0In0
+                        authenticator_data: SZYN5YgOjGh0NBcP1b4K2Xc1d5SxJp7bL9M0qA
+                        signature: MEYCIQDjWQ8FZ8E6pK1f7Y5k8dL6U7R9T0pQ1wX2yZ3a4b5c6gIh
+      responses:
+        '202':
+          $ref: '#/components/responses/IdentityRequestAccepted'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+          description: The supplied step-up proof was not accepted by the current account policy.
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+
+  /me/email-change-requests/passkey-challenge:
+    post:
+      summary: Start passkey proof for an email change
+      description: |
+        Prepare an expiring, single-use WebAuthn challenge bound to the authenticated User,
+        the current browser session or bearer/device context, and the email-change purpose.
+        It does not accept a candidate address, grant step-up by itself, or create a pending
+        email change. Submit the resulting assertion and current password with the email-change
+        request through the same credential context.
+      operationId: prepareEmailChangePasskeyChallenge
+      tags: [Me]
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      responses:
+        '201':
+          description: Passkey challenge for the current User and credential context.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/IdentityNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailChangePasskeyChallenge'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
+
+  /memberships/{membershipId}/access-assignments:
+    parameters:
+      - $ref: '#/components/parameters/MembershipId'
     get:
-      summary: List roles
+      summary: Read a membership's access assignments
       description: >-
-        Returns every role in the authenticated user's current tenant, ordered by name, with permission and user
-        counts. Requires a verified authenticated context with the `api-access` ability and `roles.read`.
-      operationId: listRoles
-      tags:
-        - Access Control
+        Requires an active membership and explicit read authorization for the subject membership in the
+        active tenant.
+      operationId: listMembershipAccessAssignments
+      tags: [Access Control]
       security:
         - BearerAuth: []
         - SessionAuth: []
       responses:
         '200':
-          description: Tenant-scoped role collection.
+          description: Assignments within the actor's authorized scope.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RoleListResponse'
+                $ref: '#/components/schemas/AccessAssignmentList'
         '401':
-          $ref: '#/components/responses/SimpleUnauthorized'
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/SimpleForbidden'
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '429':
-          $ref: '#/components/responses/SimpleTooManyRequests'
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/SimpleInternalServerError'
     post:
-      summary: Create a role
-      description: >-
-        Creates a role in the authenticated user's current tenant and optionally assigns existing permission names.
-        Role-name uniqueness is enforced within the current tenant and Sanctum guard. Requires `roles.create`.
-      operationId: createRole
-      tags:
-        - Access Control
+      summary: Create an explicit access assignment
+      description: |
+        Require grant authority separate from the authority to invite. Every target must be
+        in the active tenant and covered by an explicit delegation for the requested right.
+        Scope and interval cannot exceed the actor's delegation. A role with no effective
+        permission cannot authorize access. Recompute membership state when the grant commits.
+      operationId: createMembershipAccessAssignment
+      tags: [Access Control]
       security:
         - BearerAuth: []
         - SessionAuth: []
@@ -10778,421 +11089,170 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RoleCreateRequest'
+              $ref: '#/components/schemas/AccessGrant'
+            examples:
+              multipleTargets:
+                summary: Bounded read access to two sites for the same period
+                value:
+                  right: { kind: permission, name: site_documents.read }
+                  scopes:
+                    - kind: site
+                      target_id: '550e8400-e29b-41d4-a716-446655440040'
+                    - kind: site
+                      target_id: '550e8400-e29b-41d4-a716-446655440041'
+                  valid_from: '2026-12-01T09:00:00Z'
+                  valid_until: '2026-12-31T17:00:00Z'
       responses:
         '201':
-          description: Role created.
+          description: Assignment created.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RoleMutationResponse'
+                $ref: '#/components/schemas/AccessAssignment'
         '401':
-          $ref: '#/components/responses/SimpleUnauthorized'
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/SimpleForbidden'
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
         '429':
-          $ref: '#/components/responses/SimpleTooManyRequests'
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/SimpleInternalServerError'
 
-  /roles/{id}:
-    get:
-      summary: Get a role
-      description: >-
-        Returns one current-tenant role with its assigned permission names and user count. Missing and
-        tenant-inaccessible role IDs return the same 404 response. Requires `roles.read`.
-      operationId: getRole
-      tags:
-        - Access Control
-      security:
-        - BearerAuth: []
-        - SessionAuth: []
-      parameters:
-        - $ref: '#/components/parameters/RoleId'
-      responses:
-        '200':
-          description: Role details.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RoleDetailResponse'
-        '401':
-          $ref: '#/components/responses/SimpleUnauthorized'
-        '403':
-          $ref: '#/components/responses/SimpleForbidden'
-        '404':
-          $ref: '#/components/responses/RbacNotFound'
-        '429':
-          $ref: '#/components/responses/SimpleTooManyRequests'
-        '500':
-          $ref: '#/components/responses/SimpleInternalServerError'
-    patch:
-      summary: Update a role
-      description: >-
-        Updates the current-tenant role name, replaces its permission-name set, or both. Role-name uniqueness is
-        enforced within the current tenant and Sanctum guard. Missing and tenant-inaccessible role IDs return the
-        same 404 response. Requires `roles.update`.
-      operationId: updateRole
-      tags:
-        - Access Control
-      security:
-        - BearerAuth: []
-        - SessionAuth: []
-          CsrfToken: []
-      parameters:
-        - $ref: '#/components/parameters/RoleId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RoleUpdateRequest'
-      responses:
-        '200':
-          description: Updated role.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RoleMutationResponse'
-        '401':
-          $ref: '#/components/responses/SimpleUnauthorized'
-        '403':
-          $ref: '#/components/responses/SimpleForbidden'
-        '404':
-          $ref: '#/components/responses/RbacNotFound'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-        '429':
-          $ref: '#/components/responses/SimpleTooManyRequests'
-        '500':
-          $ref: '#/components/responses/SimpleInternalServerError'
+  /memberships/{membershipId}/access-assignments/{assignmentId}:
     delete:
-      summary: Delete a role
-      description: >-
-        Deletes an unassigned current-tenant role. A role assigned to one or more users returns 422 with the
-        assignment count. Missing and tenant-inaccessible role IDs return the same 404 response. Requires
-        `roles.delete`.
-      operationId: deleteRole
-      tags:
-        - Access Control
+      summary: Revoke an explicit access assignment
+      description: |
+        Require explicit revocation authority for the assignment in the active tenant.
+        Stop using the revoked right immediately and recompute membership state. If this removes
+        the final current or future basis, invalidate credentials bound to the affected membership.
+      operationId: revokeMembershipAccessAssignment
+      tags: [Access Control]
       security:
         - BearerAuth: []
         - SessionAuth: []
           CsrfToken: []
       parameters:
-        - $ref: '#/components/parameters/RoleId'
+        - $ref: '#/components/parameters/MembershipId'
+        - $ref: '#/components/parameters/AccessAssignmentId'
       responses:
         '204':
-          description: Role deleted.
+          description: Assignment revoked.
         '401':
-          $ref: '#/components/responses/SimpleUnauthorized'
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/SimpleForbidden'
+          $ref: '#/components/responses/Forbidden'
         '404':
-          $ref: '#/components/responses/RbacNotFound'
-        '422':
-          description: The role is still assigned to users.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RoleInUseProblem'
+          $ref: '#/components/responses/NotFound'
         '429':
-          $ref: '#/components/responses/SimpleTooManyRequests'
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/SimpleInternalServerError'
 
-  /users/{user}/roles:
-    get:
-      summary: List a user's role assignments
-      description: >-
-        Returns all temporal role assignments for a tenant-visible user, including inactive and expired rows and
-        their current status. Requires `role.read`. Missing, malformed, and cross-tenant user UUIDs return 404.
-      operationId: listUserRoles
-      tags:
-        - Access Control
-      security:
-        - BearerAuth: []
-        - SessionAuth: []
-      parameters:
-        - $ref: '#/components/parameters/UserId'
-      responses:
-        '200':
-          description: User role assignments.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserRoleListResponse'
-        '401':
-          $ref: '#/components/responses/SimpleUnauthorized'
-        '403':
-          $ref: '#/components/responses/SimpleForbidden'
-        '404':
-          $ref: '#/components/responses/RbacNotFound'
-        '429':
-          $ref: '#/components/responses/SimpleTooManyRequests'
-        '500':
-          $ref: '#/components/responses/SimpleInternalServerError'
+  /invitations:
     post:
-      summary: Assign a role to a user
-      description: >-
-        Assigns one existing role name to a tenant-visible user with optional validity and audit metadata. A new
-        assignment returns 201. Repeating an existing assignment is idempotent and returns its unchanged current
-        representation with 200. Requires `role.assign`; missing, malformed, and cross-tenant user UUIDs return 404.
-      operationId: assignUserRole
-      tags:
-        - Access Control
+      summary: Invite someone to the active tenant
+      description: |
+        Require explicit invitation rights in the active tenant and separate delegated authority
+        for every proposed grant. An invitation creates no membership or permission before
+        acceptance. Deliver application-origin links to the intended mailbox. The response
+        does not disclose whether the mailbox matches an existing identity.
+      operationId: inviteTenantMember
+      tags: [Access Control]
       security:
         - BearerAuth: []
         - SessionAuth: []
           CsrfToken: []
-      parameters:
-        - $ref: '#/components/parameters/UserId'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AssignRoleRequest'
+              $ref: '#/components/schemas/InviteMemberRequest'
       responses:
-        '200':
-          description: The role was already assigned; the existing assignment is returned unchanged.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RoleAssignmentExistingResponse'
-        '201':
-          description: Role assigned.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RoleAssignmentCreatedResponse'
+        '202':
+          $ref: '#/components/responses/IdentityRequestAccepted'
         '401':
-          $ref: '#/components/responses/SimpleUnauthorized'
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/SimpleForbidden'
-        '404':
-          $ref: '#/components/responses/RbacNotFound'
+          $ref: '#/components/responses/Forbidden'
         '422':
           $ref: '#/components/responses/ValidationError'
         '429':
-          $ref: '#/components/responses/SimpleTooManyRequests'
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/SimpleInternalServerError'
 
-  /users/{user}/roles/{role}:
-    delete:
-      summary: Revoke a user's role
-      description: >-
-        Revokes the named role assignment from a tenant-visible user without changing other assignments. Requires
-        `role.revoke`. An unknown role name, absent assignment, or unavailable user returns 404.
-      operationId: revokeUserRole
-      tags:
-        - Access Control
+  /auth/invitations/{operationId}/accept:
+    post:
+      summary: Accept an invitation with an existing identity
+      description: |
+        Require both the unexpired, single-use invitation verifier and authentication as
+        the intended existing User. No active membership in the invited tenant is needed
+        yet. Revalidate the tenant, any Employee link, delegable rights, targets and validity
+        on consumption. Commit acceptance, membership, and authorized grants atomically.
+        A current or future valid basis must remain for the resulting membership.
+        Account mismatch, replay, and stale proof share one neutral outcome.
+      operationId: acceptMembershipInvitation
+      tags: [Authentication]
       security:
         - BearerAuth: []
         - SessionAuth: []
           CsrfToken: []
       parameters:
-        - $ref: '#/components/parameters/UserId'
-        - $ref: '#/components/parameters/RoleName'
+        - $ref: '#/components/parameters/IdentityOperationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsumeIdentityOperation'
       responses:
         '204':
-          description: Role assignment revoked.
+          description: Invitation accepted. Refresh the caller's membership context.
         '401':
-          $ref: '#/components/responses/SimpleUnauthorized'
-        '403':
-          $ref: '#/components/responses/SimpleForbidden'
-        '404':
-          $ref: '#/components/responses/RbacNotFound'
-        '429':
-          $ref: '#/components/responses/SimpleTooManyRequests'
-        '500':
-          $ref: '#/components/responses/SimpleInternalServerError'
-
-  /users/{user}/roles/{role}/extend:
-    patch:
-      summary: Extend a user's role assignment
-      description: >-
-        Replaces the named assignment's expiration with a later future date. Requires `role.assign`. An unknown role
-        name, absent assignment, or unavailable user returns 404; invalid or non-extending dates return 422.
-      operationId: extendUserRoleAssignment
-      tags:
-        - Access Control
-      security:
-        - BearerAuth: []
-        - SessionAuth: []
-          CsrfToken: []
-      parameters:
-        - $ref: '#/components/parameters/UserId'
-        - $ref: '#/components/parameters/RoleName'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ExtendRoleRequest'
-      responses:
-        '200':
-          description: Role assignment expiration extended.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RoleAssignmentExtensionResponse'
-        '401':
-          $ref: '#/components/responses/SimpleUnauthorized'
-        '403':
-          $ref: '#/components/responses/SimpleForbidden'
-        '404':
-          $ref: '#/components/responses/RbacNotFound'
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/IdentityOperationUnavailable'
         '422':
           $ref: '#/components/responses/ValidationError'
         '429':
-          $ref: '#/components/responses/SimpleTooManyRequests'
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/SimpleInternalServerError'
 
-  /users/{user}/permissions:
-    get:
-      summary: List a user's effective permissions
-      description: >-
-        Returns permissions grouped into role-derived assignments, direct assignments with temporal metadata, and a
-        deduplicated effective name list. A user may read their own permissions; reading another tenant-visible user
-        requires `permissions.read`. Missing, malformed, and cross-tenant user UUIDs return 404.
-      operationId: listUserPermissions
-      tags:
-        - Access Control
-      security:
-        - BearerAuth: []
-        - SessionAuth: []
-      parameters:
-        - $ref: '#/components/parameters/UserId'
-      responses:
-        '200':
-          description: Effective, role-derived, and direct permissions.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserPermissionsResponse'
-        '401':
-          $ref: '#/components/responses/SimpleUnauthorized'
-        '403':
-          $ref: '#/components/responses/SimpleForbidden'
-        '404':
-          $ref: '#/components/responses/RbacNotFound'
-        '429':
-          $ref: '#/components/responses/SimpleTooManyRequests'
-        '500':
-          $ref: '#/components/responses/SimpleInternalServerError'
+  /auth/invitations/{operationId}/register:
     post:
-      summary: Assign direct permissions to a user
-      description: >-
-        Assigns or replaces one or more direct permission rows for a tenant-visible user with shared optional temporal
-        and audit metadata. Existing names are updated idempotently. Requires `permissions.assign_direct`; missing,
-        malformed, and cross-tenant user UUIDs return 404.
-      operationId: assignUserDirectPermissions
-      tags:
-        - Access Control
-      security:
-        - BearerAuth: []
-        - SessionAuth: []
-          CsrfToken: []
+      summary: Register a new identity by invitation
+      description: |
+        Require the unexpired, single-use mailbox proof from the intended invitation.
+        Derive the address and tenant from the invitation, then revalidate the tenant,
+        any Employee link, planned grants and retained membership basis. Atomically consume
+        the proof, reserve global address ownership, and create User, membership and authorized
+        grants. Races, expiry, replay and unavailable registration share one neutral outcome.
+      operationId: registerInvitedMember
+      tags: [Authentication]
+      security: []
       parameters:
-        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/IdentityOperationId'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AssignDirectPermissionsRequest'
+              $ref: '#/components/schemas/RegisterInvitedIdentityRequest'
       responses:
-        '201':
-          description: Direct permission rows assigned or updated.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DirectPermissionAssignmentResponse'
-        '401':
-          $ref: '#/components/responses/SimpleUnauthorized'
-        '403':
-          $ref: '#/components/responses/SimpleForbidden'
-        '404':
-          $ref: '#/components/responses/RbacNotFound'
+        '204':
+          description: Registration completed. Sign in through the appropriate browser or native flow.
+        '409':
+          $ref: '#/components/responses/IdentityOperationUnavailable'
         '422':
           $ref: '#/components/responses/ValidationError'
         '429':
-          $ref: '#/components/responses/SimpleTooManyRequests'
-        '500':
-          $ref: '#/components/responses/SimpleInternalServerError'
-
-  /users/{user}/permissions/direct:
-    get:
-      summary: List a user's direct permissions
-      description: >-
-        Returns only direct permission rows and their temporal and audit metadata; permissions inherited from roles are
-        excluded. A user may read their own direct permissions; reading another tenant-visible user requires
-        `permissions.read`. Missing, malformed, and cross-tenant user UUIDs return 404.
-      operationId: listUserDirectPermissions
-      tags:
-        - Access Control
-      security:
-        - BearerAuth: []
-        - SessionAuth: []
-      parameters:
-        - $ref: '#/components/parameters/UserId'
-      responses:
-        '200':
-          description: Direct permission rows.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserDirectPermissionsResponse'
-        '401':
-          $ref: '#/components/responses/SimpleUnauthorized'
-        '403':
-          $ref: '#/components/responses/SimpleForbidden'
-        '404':
-          $ref: '#/components/responses/RbacNotFound'
-        '429':
-          $ref: '#/components/responses/SimpleTooManyRequests'
-        '500':
-          $ref: '#/components/responses/SimpleInternalServerError'
-
-  /users/{user}/permissions/{permission}:
-    delete:
-      summary: Revoke a direct permission from a user
-      description: >-
-        Removes only the named direct permission assignment from a tenant-visible user. A permission inherited from a
-        role remains effective. Requires `permissions.revoke_direct`; an absent direct assignment or unavailable user
-        returns 404.
-      operationId: revokeUserDirectPermission
-      tags:
-        - Access Control
-      security:
-        - BearerAuth: []
-        - SessionAuth: []
-          CsrfToken: []
-      parameters:
-        - $ref: '#/components/parameters/UserId'
-        - $ref: '#/components/parameters/PermissionName'
-      responses:
-        '200':
-          description: Direct permission revoked.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimpleMessageResponse'
-              example:
-                message: Permission revoked successfully
-        '401':
-          $ref: '#/components/responses/SimpleUnauthorized'
-        '403':
-          $ref: '#/components/responses/SimpleForbidden'
-        '404':
-          $ref: '#/components/responses/RbacNotFound'
-        '429':
-          $ref: '#/components/responses/SimpleTooManyRequests'
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/SimpleInternalServerError'
 

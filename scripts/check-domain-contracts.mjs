@@ -81,6 +81,54 @@ function satisfiesUniqueBy(schema, value) {
   return true
 }
 
+const membershipList = schemas.MembershipContext?.properties?.memberships
+const membershipExamples = Object.values(
+  paths['/auth/membership-context']?.get?.responses?.['200']?.content?.[
+    'application/json'
+  ]?.examples ?? {}
+)
+
+if (
+  JSON.stringify(membershipList?.['x-unique-by']) !==
+    JSON.stringify(['membership_id']) ||
+  membershipExamples.length === 0 ||
+  !membershipExamples.every((example) =>
+    satisfiesUniqueBy(membershipList, example?.value?.memberships)
+  )
+) {
+  errors.push(
+    'Membership context must represent each membership_id once in its validated wire examples.'
+  )
+}
+
+const membershipUniqueByValidation = membershipList?.['x-unique-by-validation']
+const deniedMembershipLists =
+  membershipList?.['x-uniqueness-examples']?.rejected
+
+if (
+  membershipList?.uniqueItems !== true ||
+  membershipUniqueByValidation?.validator !== 'secpal-keyed-uniqueness' ||
+  membershipUniqueByValidation?.authority !==
+    'SecPal semantic validation and server enforcement' ||
+  membershipUniqueByValidation?.json_schema_scope !==
+    'uniqueItems compares complete array items only' ||
+  membershipUniqueByValidation?.violation?.status !== 500 ||
+  membershipUniqueByValidation?.violation?.action !== 'reject-entire-context' ||
+  !Array.isArray(deniedMembershipLists) ||
+  !deniedMembershipLists.some(
+    ({ value, status }) =>
+      value?.length === 2 &&
+      value[0]?.membership_id === value[1]?.membership_id &&
+      value[0]?.status !== value[1]?.status &&
+      !satisfiesUniqueBy(membershipList, value) &&
+      status === membershipUniqueByValidation.violation.status
+  )
+) {
+  errors.push(
+    'Membership context must reject duplicate membership_id before publishing any partial context or credential.'
+  )
+}
+
 function matchesSchemaPattern(schema, value) {
   try {
     return (

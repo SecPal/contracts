@@ -239,6 +239,39 @@ function validateTransactionalRequest(requestBody) {
   }
 }
 
+test('rejects duplicate membership IDs even when their state and display fields differ', () => {
+  const candidate = structuredClone(contract)
+  const example =
+    candidate.paths['/auth/membership-context'].get.responses['200'].content[
+      'application/json'
+    ].examples.singleActive
+  const [membership] = example.value.memberships
+  example.value.memberships.push({
+    ...membership,
+    status: 'planned',
+    selected: false,
+    tenant_name: 'Distinct display name',
+  })
+
+  const result = runGuard(candidate)
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(result.stderr, /must represent each membership_id once/)
+})
+
+test('requires fail-closed server enforcement for duplicate membership IDs', () => {
+  const candidate = structuredClone(contract)
+  delete candidate.components.schemas.MembershipContext.properties.memberships[
+    'x-unique-by-validation'
+  ]
+
+  const result = runGuard(candidate)
+  assert.notEqual(result.status, 0, result.stdout)
+  assert.match(
+    result.stderr,
+    /must reject duplicate membership_id before publishing/
+  )
+})
+
 test('accepts the repository domain contract', () => {
   const result = runGuard(contract)
 
