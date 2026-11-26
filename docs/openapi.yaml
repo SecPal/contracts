@@ -6063,6 +6063,14 @@ components:
               establishment_id: '780e8400-e29b-41d4-a716-446655440000'
               valid_from: '2026-08-01T00:00:00Z'
               valid_until: null
+          - target_field: replaces_assignment_id
+            active_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            target_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            value:
+              establishment_id: '780e8400-e29b-41d4-a716-446655440001'
+              replaces_assignment_id: '550e8400-e29b-41d4-a716-446655440030'
+              valid_from: '2027-01-01T00:00:00Z'
+              valid_until: null
         rejected:
           - active_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
             target_tenant_id: '660e8400-e29b-41d4-a716-446655440002'
@@ -6070,6 +6078,15 @@ components:
             value:
               establishment_id: '780e8400-e29b-41d4-a716-446655440001'
               valid_from: '2026-08-01T00:00:00Z'
+              valid_until: null
+          - target_field: replaces_assignment_id
+            active_tenant_id: '660e8400-e29b-41d4-a716-446655440001'
+            target_tenant_id: '660e8400-e29b-41d4-a716-446655440002'
+            status: 404
+            value:
+              establishment_id: '780e8400-e29b-41d4-a716-446655440001'
+              replaces_assignment_id: '550e8400-e29b-41d4-a716-446655440031'
+              valid_from: '2027-01-01T00:00:00Z'
               valid_until: null
 
     EmployeeEstablishmentAssignment:

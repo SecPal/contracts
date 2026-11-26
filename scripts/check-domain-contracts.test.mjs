@@ -3369,3 +3369,30 @@ test('guard rejects malformed UUIDs in domain-assignment examples', () => {
   assert.notEqual(result.status, 0, result.stdout)
   assert.match(result.stderr, /POST site assignments/)
 })
+
+test('requires separate same-Tenant and concealed foreign evidence for the expected transfer assignment', () => {
+  const candidate = structuredClone(contract)
+  const examples =
+    candidate.components.schemas.EmployeeEstablishmentAssignmentCreateRequest[
+      'x-validation-examples'
+    ]
+  examples.rejected = examples.rejected.filter(
+    (example) => example.target_field !== 'replaces_assignment_id'
+  )
+
+  const missing = runGuard(candidate)
+  assert.notEqual(missing.status, 0, missing.stdout)
+  assert.match(missing.stderr, /POST establishment transfer.*workflow evidence/)
+
+  const accepted = examples.accepted.find(
+    (example) => example.target_field === 'replaces_assignment_id'
+  )
+  examples.rejected.push({ ...accepted, status: 404 })
+
+  const sameTenant = runGuard(candidate)
+  assert.notEqual(sameTenant.status, 0, sameTenant.stdout)
+  assert.match(
+    sameTenant.stderr,
+    /POST establishment transfer.*workflow evidence/
+  )
+})

@@ -378,8 +378,8 @@ function requireAssignmentWorkflows(workflows, lookups) {
   const relationshipFields = new Set([
     'contract_id',
     'customer_id',
-
     'establishment_id',
+    'replaces_assignment_id',
   ])
   const coveredOperations = new Set(workflows.map(({ operation }) => operation))
   const requiredLookupPermissions = new Map(
@@ -409,8 +409,17 @@ function requireAssignmentWorkflows(workflows, lookups) {
 
     const examples =
       schemas[workflow.requestSchema]?.['x-validation-examples'] ?? {}
-    const accepted = examples.accepted?.[0]
-    const rejected = examples.rejected?.[0]
+    const evidenceFor = (kind) => {
+      const candidates = examples[kind]
+      if (!Array.isArray(candidates)) return undefined
+      return workflow.targetField
+        ? candidates.find(
+            (example) => example?.target_field === workflow.targetField
+          )
+        : candidates[0]
+    }
+    const accepted = evidenceFor('accepted')
+    const rejected = evidenceFor('rejected')
     const isUpdate = workflow.label.startsWith('PATCH ')
     const hasValidEvidence = (example) => {
       const submittedFields = workflow.relationshipFields.filter((field) =>
@@ -439,6 +448,15 @@ function requireAssignmentWorkflows(workflows, lookups) {
       (example.active_tenant_id.toLowerCase() ===
         example.target_tenant_id.toLowerCase()) ===
         sameTenant
+    const hasIsolatedForeignTarget = () =>
+      workflow.operation?.responses?.['404']?.$ref ===
+        '#/components/responses/NotFound' &&
+      workflow.relationshipFields.every(
+        (field) =>
+          (accepted.value[field].toLowerCase() !==
+            rejected.value[field].toLowerCase()) ===
+          (field === workflow.targetField)
+      )
     if (
       !hasValidEvidence(accepted) ||
       !hasValidEvidence(rejected) ||
@@ -447,7 +465,8 @@ function requireAssignmentWorkflows(workflows, lookups) {
         (!hasTenantEvidence(accepted, true) ||
           !hasTenantEvidence(rejected, false) ||
           accepted.active_tenant_id.toLowerCase() !==
-            rejected.active_tenant_id.toLowerCase()))
+            rejected.active_tenant_id.toLowerCase())) ||
+      (workflow.targetField && !hasIsolatedForeignTarget())
     ) {
       errors.push(
         `${workflow.label} must retain complete positive and negative workflow evidence.`
@@ -1320,6 +1339,17 @@ requireAssignmentWorkflows(
       operation: paths['/employees/{employee}/establishment-assignments']?.post,
       requestSchema: 'EmployeeEstablishmentAssignmentCreateRequest',
       relationshipFields: ['establishment_id'],
+      permission: 'explicit write permission',
+      rejectedStatuses: [404],
+      lookups: [],
+    },
+    {
+      label: 'POST establishment transfer',
+      operation: paths['/employees/{employee}/establishment-assignments']?.post,
+      requestSchema: 'EmployeeEstablishmentAssignmentCreateRequest',
+      relationshipFields: ['establishment_id', 'replaces_assignment_id'],
+      tenantEvidence: true,
+      targetField: 'replaces_assignment_id',
       permission: 'explicit write permission',
       rejectedStatuses: [404],
       lookups: [],
