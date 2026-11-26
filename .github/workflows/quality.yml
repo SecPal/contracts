@@ -29,7 +29,7 @@ jobs:
   reuse:
     name: REUSE Compliance
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/reusable-reuse.yml@1010593808ca85a67f8ae66af79b8b256a586f63 # main
+    uses: SecPal/.github/.github/workflows/reusable-reuse.yml@923dc37b3691f7abb04b8a1c87dfbbcffbd8e0f6 # main
 
   license-compatibility:
     name: License Compatibility
