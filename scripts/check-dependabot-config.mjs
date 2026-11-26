@@ -47,11 +47,6 @@ if (!groups || typeof groups !== 'object') {
 }
 
 const expectedGroups = {
-  'shared-no-op-workflow-pins': [
-    'SecPal/.github/.github/workflows/reusable-check-conflict-markers.yml',
-    'SecPal/.github/.github/workflows/reusable-pr-size.yml',
-  ],
-  'shared-workflow-pins': ['SecPal/.github*'],
   'github-actions-patch': ['*'],
   'github-actions-minor': ['*'],
   'github-actions-major': ['*'],
@@ -81,22 +76,15 @@ for (const kind of ['patch', 'minor', 'major']) {
   if (
     JSON.stringify(group['update-types']) !== JSON.stringify([kind]) ||
     JSON.stringify(group['exclude-patterns']) !==
-      JSON.stringify(['SecPal/.github*'])
+      JSON.stringify(['SecPal/.github/*'])
   ) {
     fail(
       `github-actions-${kind} must be homogeneous and exclude shared commit pins.`
     )
   }
 }
-const order = Object.keys(groups)
-if (
-  order.indexOf('shared-no-op-workflow-pins') >
-  order.indexOf('shared-workflow-pins')
-) {
-  fail('The exact shared no-op group must precede the broader shared group.')
-}
-if (Object.hasOwn(groups['shared-workflow-pins'], 'update-types')) {
-  fail('Shared commit pins must remain on their unclassified manual path.')
+if (Object.keys(groups).length !== Object.keys(expectedGroups).length) {
+  fail('Shared actions and workflows must receive independent proposals.')
 }
 
 console.log('Dependabot config guard OK.')
