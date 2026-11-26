@@ -89,32 +89,25 @@ test('Actions groups retain a single verified semantic class and exclude shared 
   const actions = config.updates.find(
     (entry) => entry['package-ecosystem'] === 'github-actions'
   )
-  assert.equal(Object.keys(actions.groups)[0], 'shared-no-op-workflow-pins')
-  assert.deepEqual(actions.groups['shared-no-op-workflow-pins'], {
-    patterns: [
-      'SecPal/.github/.github/workflows/reusable-check-conflict-markers.yml',
-      'SecPal/.github/.github/workflows/reusable-pr-size.yml',
-    ],
-  })
-  assert.deepEqual(actions.groups['shared-workflow-pins'].patterns, [
-    'SecPal/.github*',
+  assert.deepEqual(Object.keys(actions.groups).sort(), [
+    'github-actions-major',
+    'github-actions-minor',
+    'github-actions-patch',
   ])
   for (const kind of ['patch', 'minor', 'major']) {
     const group = actions.groups[`github-actions-${kind}`]
     assert.deepEqual(group['update-types'], [kind])
-    assert.deepEqual(group['exclude-patterns'], ['SecPal/.github*'])
+    assert.deepEqual(group['exclude-patterns'], ['SecPal/.github/*'])
   }
 })
 
 test('configuration guard rejects mixed classes and shared-pin grouping', () => {
   for (const mutation of [
     (config) => {
-      const groups = config.updates[0].groups
-      const exact = groups['shared-no-op-workflow-pins']
-      delete groups['shared-no-op-workflow-pins']
-      groups['shared-no-op-workflow-pins'] = exact
+      config.updates[0].groups['shared-workflow-pins'] = {
+        patterns: ['SecPal/.github/*'],
+      }
     },
-    (config) => delete config.updates[0].groups['shared-no-op-workflow-pins'],
     (config) =>
       config.updates[0].groups['github-actions-minor']['update-types'].push(
         'patch'
@@ -123,10 +116,6 @@ test('configuration guard rejects mixed classes and shared-pin grouping', () => 
       delete config.updates[0].groups['github-actions-patch'][
         'exclude-patterns'
       ],
-    (config) =>
-      (config.updates[0].groups['shared-workflow-pins']['update-types'] = [
-        'patch',
-      ]),
   ]) {
     const config = yaml.load(readFileSync('.github/dependabot.yml', 'utf8'))
     mutation(config)
