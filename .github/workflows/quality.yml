@@ -60,4 +60,4 @@ jobs:
   actionlint:
     name: Actionlint
     # yamllint disable-line rule:line-length
-    uses: SecPal/.github/.github/workflows/reusable-actionlint.yml@1010593808ca85a67f8ae66af79b8b256a586f63 # main
+    uses: SecPal/.github/.github/workflows/reusable-actionlint.yml@d3044d801cacb5aebf87d42744e918128c115207 # main
