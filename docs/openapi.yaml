@@ -5949,11 +5949,9 @@ components:
         employee_id:
           $ref: '#/components/schemas/TenantResourceId'
         valid_from:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
         valid_until:
-          type: [string, 'null']
-          format: date-time
+          $ref: '#/components/schemas/NullableApiTimestamp'
 
     EmploymentTermsVersion:
       type: object
@@ -5966,18 +5964,23 @@ components:
         effective dates and source evidence. Evidence identifiers are returned
         only when visible to the caller and grant no access to their contents.
       required:
-        [id, employment_period_id, effective_from, recorded_at, evidence_id]
+        [
+          id,
+          employment_period_id,
+          effective_from,
+          recorded_at,
+          evidence_id,
+          contract_type,
+        ]
       properties:
         id:
           $ref: '#/components/schemas/TenantResourceId'
         employment_period_id:
           $ref: '#/components/schemas/TenantResourceId'
         effective_from:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
         recorded_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
         evidence_id:
           type: [string, 'null']
           format: uuid
@@ -6011,8 +6014,7 @@ components:
         address:
           $ref: '#/components/schemas/Address'
         closed_at:
-          type: [string, 'null']
-          format: date-time
+          $ref: '#/components/schemas/NullableApiTimestamp'
 
     HistoricalEstablishment:
       type: object
@@ -6038,11 +6040,15 @@ components:
       description: >
         Schedule an assignment for a same-Tenant, assignable establishment.
         The server requires a positive duration for a bounded interval and
-        checks non-overlap and coverage of effective employment.
+        checks non-overlap and coverage of effective employment. Supply
+        `replaces_assignment_id` for a transfer within an existing assignment.
       required: [establishment_id, valid_from, valid_until]
       properties:
         establishment_id:
           $ref: '#/components/schemas/TenantResourceId'
+        replaces_assignment_id:
+          $ref: '#/components/schemas/TenantResourceId'
+          description: Expected previous assignment of this Employee at the transfer instant.
         valid_from:
           type: string
           format: date-time
@@ -6082,11 +6088,9 @@ components:
         establishment:
           $ref: '#/components/schemas/HistoricalEstablishment'
         valid_from:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
         valid_until:
-          type: [string, 'null']
-          format: date-time
+          $ref: '#/components/schemas/NullableApiTimestamp'
 
     PersonnelEvidence:
       description: >
@@ -6112,8 +6116,7 @@ components:
           type: string
           enum: [agreement, amendment, onboarding]
         recorded_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
 
     PersonnelTerminationEvidence:
       type: object
@@ -6132,8 +6135,7 @@ components:
           const: termination
           type: string
         recorded_at:
-          type: string
-          format: date-time
+          $ref: '#/components/schemas/ApiTimestamp'
         termination_milestone:
           type: string
           enum:
@@ -12323,6 +12325,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /establishments/{establishment}:
     parameters:
@@ -12352,6 +12356,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /employees/{employee}/employment-periods:
     parameters:
@@ -12388,11 +12394,49 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
     post:
       summary: Add an employment period to an Employee
       operationId: createEmploymentPeriod
       tags: [Employees]
-      description: Records the period, its initial terms and a matching establishment assignment atomically. Requires explicit effective permission and scope for the Employee, establishment and evidence in the active Tenant. A foreign or inaccessible reference gives the same response as an absent reference. An overlap or assignment coverage conflict prevents all three writes.
+      description: |
+        Records the period, its initial terms and a matching establishment
+        assignment atomically. Requires explicit effective permission and scope
+        for the Employee, establishment and evidence in the active Tenant. A
+        foreign or inaccessible reference gives the same response as an absent
+        reference.
+
+        A bounded end at or before the start returns 422. An overlap with an
+        existing period or an assignment coverage conflict returns 409 and
+        prevents all three writes. Adjacent periods may meet at the same
+        instant because the previous end is exclusive.
+      x-effective-interval-examples:
+        adjacent:
+          existing:
+            valid_from: '2026-01-01T00:00:00Z'
+            valid_until: '2026-07-01T00:00:00Z'
+          requested:
+            valid_from: '2026-07-01T00:00:00Z'
+            valid_until: null
+          status: 201
+        nonpositive:
+          - requested:
+              valid_from: '2026-07-01T00:00:00Z'
+              valid_until: '2026-07-01T00:00:00Z'
+            status: 422
+          - requested:
+              valid_from: '2026-07-01T00:00:00Z'
+              valid_until: '2026-06-30T00:00:00Z'
+            status: 422
+        overlap:
+          existing:
+            valid_from: '2026-01-01T00:00:00Z'
+            valid_until: null
+          requested:
+            valid_from: '2026-07-01T00:00:00Z'
+            valid_until: null
+          status: 409
       security:
         - BearerAuth: []
         - SessionAuth: []
@@ -12420,6 +12464,8 @@ paths:
           $ref: '#/components/responses/PersonnelTemporalConflict'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /employees/{employee}/employment-periods/{period}/applicable-terms:
     parameters:
@@ -12452,6 +12498,7 @@ paths:
                 effective_from: '2026-08-01T00:00:00Z'
                 recorded_at: '2026-07-18T08:30:00Z'
                 evidence_id: null
+                contract_type: part_time
                 position: Guard
                 weekly_hours: 32
         '401':
@@ -12471,6 +12518,8 @@ paths:
                 message: Employment terms are unavailable at the requested instant.
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /employees/{employee}/establishment-assignments:
     parameters:
@@ -12515,15 +12564,42 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
     post:
-      summary: Schedule an establishment assignment
+      summary: Schedule an establishment assignment or transfer
       operationId: createEmployeeEstablishmentAssignment
       tags: [Employees]
-      description: >
+      description: |
         Requires explicit write permission in the applicable Employee and
-        Establishment scope. An unavailable, foreign or out-of-scope
-        establishment produces the same error. Intervals cannot overlap or
-        leave a gap during employment.
+        Establishment scope, including scope over the assignment being replaced.
+        An unavailable, foreign or out-of-scope target produces the same neutral 404.
+
+        Without `replaces_assignment_id`, the requested interval must fit without
+        overlap or a gap during employment. With `replaces_assignment_id`, the
+        transfer instant `valid_from` must be strictly inside the expected
+        previous assignment and may be immediate or future. The new assignment
+        uses the same exclusive end as the previous interval, including an open
+        end. The server atomically shortens the expected assignment at the
+        transfer instant and creates its successor at that same instant. Reads
+        before the boundary preserve the previous establishment facts.
+
+        A stale expectation, overlap or coverage conflict returns 409 and leaves
+        both assignments unchanged. Concurrent replacement must be evaluated
+        against the effective state that will be committed. A bounded end at
+        or before the start returns 422.
+      x-effective-interval-examples:
+        coverageGap:
+          employment:
+            valid_from: '2026-01-01T00:00:00Z'
+            valid_until: '2027-01-01T00:00:00Z'
+          previous:
+            valid_from: '2026-01-01T00:00:00Z'
+            valid_until: '2026-07-01T00:00:00Z'
+          requested:
+            valid_from: '2026-07-02T00:00:00Z'
+            valid_until: '2027-01-01T00:00:00Z'
+          status: 409
       security:
         - BearerAuth: []
         - SessionAuth: []
@@ -12534,9 +12610,17 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/EmployeeEstablishmentAssignmentCreateRequest'
+            examples:
+              transferFromOpenAssignment:
+                summary: Schedule a transfer while preserving continuous coverage
+                value:
+                  replaces_assignment_id: '550e8400-e29b-41d4-a716-446655440030'
+                  establishment_id: '780e8400-e29b-41d4-a716-446655440001'
+                  valid_from: '2027-01-01T00:00:00Z'
+                  valid_until: null
       responses:
         '201':
-          description: Assignment scheduled
+          description: New assignment scheduled. For a transfer, the previous interval was shortened in the same operation.
           content:
             application/json:
               schema:
@@ -12551,6 +12635,8 @@ paths:
           $ref: '#/components/responses/PersonnelTemporalConflict'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /employees/{employee}/personnel-evidence:
     parameters:
@@ -12584,6 +12670,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   # =============================================================================
   # Contract Management
