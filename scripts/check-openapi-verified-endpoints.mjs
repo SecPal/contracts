@@ -4,7 +4,7 @@
 
 /**
  * Regression guard: fail if docs/openapi.yaml omits verified API operations
- * or regresses their critical contract invariants (email verification resend +
+ * or regresses their critical contract invariants (membership and identity +
  * German address reference data + employee documents + qualification catalog +
  * employee qualifications + organizational units + employee compliance alerts +
  * onboarding upload idempotency +
@@ -21,7 +21,6 @@ import * as yaml from 'js-yaml'
 
 /** @type {readonly [method: string, pathTemplate: string][]} */
 const REQUIRED_OPERATIONS = [
-  ['post', '/auth/email/verification-notification'],
   ['get', '/addresses/de/streets'],
   ['get', '/addresses/de/localities'],
   ['get', '/addresses/de/status'],
@@ -55,38 +54,93 @@ const REQUIRED_OPERATIONS = [
   ['post', '/me/passkeys/challenges/registration'],
   ['post', '/me/passkeys/challenges/registration/{challengeId}/verify'],
   ['delete', '/me/passkeys/{credentialId}'],
-  ['get', '/roles'],
-  ['post', '/roles'],
-  ['get', '/roles/{id}'],
-  ['patch', '/roles/{id}'],
-  ['delete', '/roles/{id}'],
-  ['get', '/users/{user}/roles'],
-  ['post', '/users/{user}/roles'],
-  ['delete', '/users/{user}/roles/{role}'],
-  ['patch', '/users/{user}/roles/{role}/extend'],
-  ['get', '/users/{user}/permissions'],
-  ['get', '/users/{user}/permissions/direct'],
-  ['post', '/users/{user}/permissions'],
-  ['delete', '/users/{user}/permissions/{permission}'],
 ]
 
-const RBAC_OPERATIONS = [
-  ['get', '/roles', 'listRoles'],
-  ['post', '/roles', 'createRole'],
-  ['get', '/roles/{id}', 'getRole'],
-  ['patch', '/roles/{id}', 'updateRole'],
-  ['delete', '/roles/{id}', 'deleteRole'],
-  ['get', '/users/{user}/roles', 'listUserRoles'],
-  ['post', '/users/{user}/roles', 'assignUserRole'],
-  ['delete', '/users/{user}/roles/{role}', 'revokeUserRole'],
-  ['patch', '/users/{user}/roles/{role}/extend', 'extendUserRoleAssignment'],
-  ['get', '/users/{user}/permissions', 'listUserPermissions'],
-  ['get', '/users/{user}/permissions/direct', 'listUserDirectPermissions'],
-  ['post', '/users/{user}/permissions', 'assignUserDirectPermissions'],
+const readSecurity = [{ BearerAuth: [] }, { SessionAuth: [] }]
+const writeSecurity = [{ BearerAuth: [] }, { SessionAuth: [], CsrfToken: [] }]
+const browserWriteSecurity = [{ SessionAuth: [], CsrfToken: [] }]
+const nativeWriteSecurity = [{ BearerAuth: [] }]
+
+const MEMBERSHIP_IDENTITY_OPERATIONS = [
+  ['get', '/auth/membership-context', readSecurity],
+  [
+    'put',
+    '/auth/membership-context',
+    browserWriteSecurity,
+    '409',
+    'MembershipUnavailable',
+  ],
+  [
+    'put',
+    '/auth/token/membership-context',
+    nativeWriteSecurity,
+    '409',
+    'MembershipUnavailable',
+  ],
+  ['put', '/me/membership-preference', writeSecurity],
+  ['get', '/memberships/{membershipId}/access-assignments', readSecurity],
+  ['post', '/memberships/{membershipId}/access-assignments', writeSecurity],
   [
     'delete',
-    '/users/{user}/permissions/{permission}',
-    'revokeUserDirectPermission',
+    '/memberships/{membershipId}/access-assignments/{assignmentId}',
+    writeSecurity,
+  ],
+  ['post', '/invitations', writeSecurity, '202', 'IdentityRequestAccepted'],
+  [
+    'post',
+    '/auth/invitations/{operationId}/accept',
+    writeSecurity,
+    '409',
+    'IdentityOperationUnavailable',
+  ],
+  [
+    'post',
+    '/auth/invitations/{operationId}/register',
+    [],
+    '409',
+    'IdentityOperationUnavailable',
+  ],
+  [
+    'post',
+    '/auth/password-reset-requests',
+    [],
+    '202',
+    'IdentityRequestAccepted',
+  ],
+  [
+    'post',
+    '/auth/password-reset-requests/{operationId}/consume',
+    [],
+    '409',
+    'IdentityOperationUnavailable',
+  ],
+  [
+    'post',
+    '/auth/email/verification-notification',
+    writeSecurity,
+    '202',
+    'IdentityRequestAccepted',
+  ],
+  [
+    'post',
+    '/auth/email/verifications/{operationId}/consume',
+    [],
+    '409',
+    'IdentityOperationUnavailable',
+  ],
+  [
+    'post',
+    '/me/email-change-requests',
+    writeSecurity,
+    '202',
+    'IdentityRequestAccepted',
+  ],
+  [
+    'post',
+    '/auth/email-change-requests/{operationId}/consume',
+    [],
+    '409',
+    'IdentityOperationUnavailable',
   ],
 ]
 
@@ -100,7 +154,6 @@ const AUTHENTICATION_OPERATIONS = [
   ['post', '/auth/mfa-challenges/{challengeId}/verify'],
   ['post', '/auth/logout'],
   ['post', '/auth/logout-all'],
-  ['post', '/auth/email/verification-notification'],
   ['get', '/me'],
   ['get', '/me/mfa'],
   ['delete', '/me/mfa'],
@@ -144,17 +197,16 @@ const paths =
   doc && typeof doc.paths === 'object' && doc.paths !== null ? doc.paths : {}
 const missing = []
 
-for (const [method, pathKey] of REQUIRED_OPERATIONS) {
-  const op = paths[pathKey]
-  if (!op || op[method] == null) {
-    missing.push(`${method.toUpperCase()} ${pathKey}`)
-  }
-}
-
-for (const [method, pathKey] of AUTHENTICATION_OPERATIONS) {
-  const op = paths[pathKey]
-  if (!op || op[method] == null) {
-    missing.push(`${method.toUpperCase()} ${pathKey}`)
+const operationKeys = new Set()
+for (const [method, pathKey] of [
+  ...REQUIRED_OPERATIONS,
+  ...AUTHENTICATION_OPERATIONS,
+  ...MEMBERSHIP_IDENTITY_OPERATIONS,
+]) {
+  const label = `${method.toUpperCase()} ${pathKey}`
+  operationKeys.add(label)
+  if (paths[pathKey]?.[method] == null) {
+    missing.push(label)
   }
 }
 
@@ -206,155 +258,48 @@ const passkeyRegistrationVerificationRequest =
   schemas.PasskeyRegistrationVerificationRequest ?? {}
 const contractErrors = []
 const canonicalLogout = paths['/auth/logout']?.post ?? {}
-const canonicalLogoutSecurityAlternatives = [
-  { BearerAuth: [] },
-  { SessionAuth: [], CsrfToken: [] },
-]
+const canonicalLogoutSecurityAlternatives = writeSecurity
 
-const readSecurityAlternatives = [{ BearerAuth: [] }, { SessionAuth: [] }]
-const writeSecurityAlternatives = [
-  { BearerAuth: [] },
-  { SessionAuth: [], CsrfToken: [] },
-]
-const rbacParameterRefs = {
-  id: '#/components/parameters/RoleId',
-  permission: '#/components/parameters/PermissionName',
-  role: '#/components/parameters/RoleName',
-  user: '#/components/parameters/UserId',
-}
-const httpMethods = new Set([
-  'delete',
-  'get',
-  'head',
-  'options',
-  'patch',
-  'post',
-  'put',
-  'trace',
-])
-const expectedRbacOperationKeys = new Set(
-  RBAC_OPERATIONS.map(([method, pathKey]) => `${method} ${pathKey}`)
-)
-const actualRbacOperationKeys = Object.entries(paths).flatMap(
-  ([pathKey, pathItem]) => {
-    if (
-      !/^\/roles(?:\/|$)/.test(pathKey) &&
-      !/^\/users\/\{user\}\/(?:roles|permissions)(?:\/|$)/.test(pathKey)
-    ) {
-      return []
-    }
-
-    return Object.keys(pathItem ?? {})
-      .filter((method) => httpMethods.has(method))
-      .map((method) => `${method} ${pathKey}`)
-  }
-)
-
-for (const operationKey of actualRbacOperationKeys) {
-  if (!expectedRbacOperationKeys.has(operationKey)) {
-    contractErrors.push(
-      `${operationKey.toUpperCase()} is not one of the 13 shipped RBAC operations.`
-    )
-  }
-}
-
-for (const [method, pathKey, operationId] of RBAC_OPERATIONS) {
-  const operation = paths[pathKey]?.[method]
-  if (!operation) continue
-
-  if (operation.operationId !== operationId) {
-    contractErrors.push(
-      `${method.toUpperCase()} ${pathKey} must use operationId ${operationId}.`
-    )
-  }
-
-  if (
-    operation.responses?.['500']?.$ref !==
-    '#/components/responses/SimpleInternalServerError'
-  ) {
-    contractErrors.push(
-      `${method.toUpperCase()} ${pathKey} must document the normalized message-only 500 response.`
-    )
-  }
-
-  const expectedSecurity =
-    method === 'get' ? readSecurityAlternatives : writeSecurityAlternatives
+for (const [
+  method,
+  pathKey,
+  security,
+  status,
+  response,
+] of MEMBERSHIP_IDENTITY_OPERATIONS) {
+  const operation = paths[pathKey][method]
+  const label = `${method.toUpperCase()} ${pathKey}`
   if (
     !Array.isArray(operation.security) ||
-    operation.security.length !== expectedSecurity.length ||
-    !expectedSecurity.every((expectedAlternative) =>
-      operation.security.some((actualAlternative) =>
-        isDeepStrictEqual(actualAlternative, expectedAlternative)
-      )
+    operation.security.length !== security.length ||
+    !security.every((expected) =>
+      operation.security.some((actual) => isDeepStrictEqual(actual, expected))
     )
   ) {
     contractErrors.push(
-      `${method.toUpperCase()} ${pathKey} must preserve the supported Sanctum Bearer and browser-session authentication alternatives${method === 'get' ? '' : ' with CSRF on session writes'}.`
+      `${label} must preserve its membership and identity authentication modes.`
     )
   }
-
-  for (const parameterName of pathKey.match(/(?<=\{)[^}]+/g) ?? []) {
-    const expectedRef = rbacParameterRefs[parameterName]
-    if (
-      !operation.parameters?.some(
-        (parameter) => parameter?.$ref === expectedRef
-      )
-    ) {
-      contractErrors.push(
-        `${method.toUpperCase()} ${pathKey} must reuse ${expectedRef} for {${parameterName}}.`
-      )
-    }
-  }
-}
-
-if (
-  componentParameters.UserId?.name !== 'user' ||
-  componentParameters.UserId?.in !== 'path' ||
-  componentParameters.UserId?.required !== true ||
-  componentParameters.UserId?.schema?.type !== 'string' ||
-  componentParameters.UserId?.schema?.format !== 'uuid'
-) {
-  contractErrors.push('RBAC user identifiers must remain UUID strings.')
-}
-
-if (
-  componentParameters.RoleId?.name !== 'id' ||
-  componentParameters.RoleId?.in !== 'path' ||
-  componentParameters.RoleId?.required !== true ||
-  componentParameters.RoleId?.schema?.type !== 'integer' ||
-  componentParameters.RoleId?.schema?.minimum !== 1
-) {
-  contractErrors.push('Role CRUD identifiers must remain positive integers.')
-}
-
-for (const [componentName, parameterName] of [
-  ['RoleName', 'role'],
-  ['PermissionName', 'permission'],
-]) {
-  const parameter = componentParameters[componentName]
   if (
-    parameter?.name !== parameterName ||
-    parameter?.in !== 'path' ||
-    parameter?.required !== true ||
-    parameter?.schema?.type !== 'string' ||
-    parameter?.schema?.minLength !== 1 ||
-    parameter?.schema?.maxLength !== 255
+    response &&
+    operation.responses?.[status]?.$ref !== `#/components/responses/${response}`
   ) {
     contractErrors.push(
-      `${componentName} must remain a non-empty, bounded name path parameter.`
+      `${label} must reuse the neutral ${status} ${response} response.`
     )
   }
 }
 
-for (const forbiddenPath of Object.keys(paths).filter(
-  (pathKey) =>
-    /^\/(?:permissions|tenant-memberships|access-assignments)(?:\/|$)/.test(
-      pathKey
-    ) || /\/(?:tenant-memberships|access-assignments)(?:\/|$)/.test(pathKey)
-)) {
-  contractErrors.push(
-    `${forbiddenPath} is not part of the currently shipped RBAC surface.`
-  )
+for (const pathKey of Object.keys(paths)) {
+  if (
+    pathKey === '/me/organizational-scopes' ||
+    /^\/roles(?:\/|$)/.test(pathKey) ||
+    /^\/users\/\{[^/]+\}\/(?:roles|permissions)(?:\/|$)/.test(pathKey)
+  ) {
+    contractErrors.push(
+      `${pathKey} is a retired user-based authorization path.`
+    )
+  }
 }
 
 if (paths['/auth/session/logout'] !== undefined) {
@@ -1681,5 +1626,5 @@ if (contractErrors.length) {
 }
 
 console.log(
-  `Verified-endpoint presence guard OK (${REQUIRED_OPERATIONS.length} operations).`
+  `Verified-endpoint presence guard OK (${operationKeys.size} operations).`
 )

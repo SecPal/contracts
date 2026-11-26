@@ -12,7 +12,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Published the OpenAPI contracts for browser and native membership selection,
+  explicit access assignments, invitations and registration, password reset,
+  and verification and activation of an email change.
+
 ### Changed
+
+- **Breaking:** Login completions carry a membership context alongside the
+  global identity. `GET /me` returns the global profile. Replace user-based
+  roles, permissions, and organizational scopes with explicit assignments on
+  memberships. Native clients must replace their bearer credential on a
+  successful membership switch. Email verification requests return the same
+  `202` for accepted requests without exposing delivery state.
 
 - Customer and site addresses use `street` for the street name and
   `house_number` for the building number. Send the building number in
