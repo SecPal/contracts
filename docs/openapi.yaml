@@ -3494,18 +3494,6 @@ components:
         bwr_id:
           type: [string, 'null']
           pattern: '^[0-9]{7}$'
-        bwr_status:
-          type: [string, 'null']
-          enum: [not_registered, pending, active, suspended, revoked]
-        bwr_registered_at:
-          type: [string, 'null']
-          format: date-time
-        bwr_submission_date:
-          type: [string, 'null']
-          format: date
-        bwr_notes:
-          type: [string, 'null']
-          maxLength: 1000
         gender:
           type: [string, 'null']
           enum: [male, female, diverse]
@@ -3640,20 +3628,10 @@ components:
         date_of_birth:
           type: [string, 'null']
           format: date
-        bwr_id:
-          type: [string, 'null']
-          maxLength: 255
-        bwr_status:
-          type: [string, 'null']
-          enum: [not_registered, pending, active, suspended, revoked]
-        bwr_registered_at:
-          type: [string, 'null']
-          format: date-time
         bwr_submission_date:
           type: [string, 'null']
           format: date
-        bwr_notes:
-          type: [string, 'null']
+          description: Date the employee was reported manually to the Bewacherregister. The status is updated separately.
         gender:
           type: [string, 'null']
           enum: [male, female, diverse]
@@ -3760,6 +3738,33 @@ components:
         criminal_record_check_date:
           type: [string, 'null']
           format: date
+    EmployeeBwrStatusUpdateRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [pending, active, suspended, revoked]
+        bwr_id:
+          type: [string, 'null']
+          pattern: '^[0-9]{7}$'
+          description: Unique seven-digit Bewacher-ID as a string, preserving leading zeroes. Required for active status when the employee has no existing ID.
+        notes:
+          type: [string, 'null']
+          maxLength: 1000
+          description: Authority result or other BWR notes. Omission preserves the notes and null clears them.
+      if:
+        properties:
+          status:
+            const: pending
+      then:
+        additionalProperties: true
+        properties:
+          bwr_id:
+            type: 'null'
+
     EmployeeResponse:
       type: object
       required:
@@ -11489,7 +11494,9 @@ paths:
 
     patch:
       summary: Update Employee
-      description: Requires explicit employee update permission in the active Tenant and applicable Employee scope.
+      description: |
+        Requires explicit employee update permission in the active Tenant and applicable Employee scope.
+        Record the manual BWR report date with `bwr_submission_date`. Use the dedicated BWR status operation for status changes and authority results.
       operationId: updateEmployee
       tags:
         - Employees
@@ -11509,6 +11516,11 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/EmployeeUpdateRequest'
+            examples:
+              reportDate:
+                summary: Record the date of a manual Bewacherregister report
+                value:
+                  bwr_submission_date: '2026-11-27'
       responses:
         '200':
           description: Employee updated
@@ -11565,6 +11577,97 @@ paths:
                 message: The requested removal is unavailable.
         '500':
           $ref: '#/components/responses/InternalServerError'
+
+  /employees/{employee}/bwr/status:
+    put:
+      summary: Update Employee Bewacherregister Status
+      description: |
+        Requires Employee update authority in the active Tenant and applicable Employee scope.
+        After reporting the employee manually, record the report date with
+        `PATCH /employees/{employee}` and set the status to `pending`.
+        The API checks the employee's reporting data, active identity evidence, work authorization
+        where required, and residential history before accepting the transition to `pending`.
+
+        From `not_registered` the status can move to `pending`. From `pending` it can move to
+        `active`, `suspended`, or `revoked`. From `active` it can move to `suspended` or `revoked`.
+        From `suspended` it can move to `active` or `revoked`, and from `revoked` it can return to
+        `active`. The current writable status may also be resubmitted. The API records the timestamp
+        of the first `active` decision in `bwr_registered_at`.
+      operationId: updateEmployeeBwrStatus
+      tags:
+        - Employees
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+          CsrfToken: []
+      parameters:
+        - name: employee
+          in: path
+          required: true
+          description: Employee UUID identifier
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeBwrStatusUpdateRequest'
+            examples:
+              reported:
+                summary: Mark the manually reported employee as pending
+                value:
+                  status: pending
+              approved:
+                summary: Record authority approval and the assigned Bewacher-ID
+                value:
+                  status: active
+                  bwr_id: '0001234'
+                  notes: Approved by the authority.
+      responses:
+        '200':
+          description: Updated Employee with the recorded BWR report and status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeResponse'
+        '401':
+          $ref: '#/components/responses/SimpleUnauthorized'
+        '403':
+          $ref: '#/components/responses/SimpleForbidden'
+        '404':
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleMessageResponse'
+        '419':
+          description: The browser session's CSRF token is missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleMessageResponse'
+        '422':
+          description: Invalid input, missing reporting prerequisites or a disallowed status transition
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ValidationProblem'
+                  - $ref: '#/components/schemas/SimpleMessageResponse'
+              examples:
+                missingReportDate:
+                  value:
+                    message: Record the actual BWR submission date before marking the report pending.
+                    errors:
+                      bwr_submission_date:
+                        - Record the actual BWR submission date before marking the report pending.
+                disallowedTransition:
+                  value:
+                    message: BWR status transition from not_registered to active is not allowed.
+        '500':
+          $ref: '#/components/responses/SimpleInternalServerError'
 
   # =============================================================================
   # Qualifications & Employee Documents (verified routes — presence guarded)

@@ -6,7 +6,7 @@
  * Regression guard: fail if docs/openapi.yaml omits verified API operations
  * or regresses their critical contract invariants (membership and identity +
  * German address reference data + employee documents + qualification catalog +
- * employee qualifications + employee compliance alerts +
+ * employee qualifications + employee compliance alerts + manual BWR status +
  * onboarding upload idempotency +
  * passkey enrollment and deletion password step-up + canonical schema-4
  * bootstrap and notification runtime metadata).
@@ -25,6 +25,7 @@ const REQUIRED_OPERATIONS = [
   ['get', '/addresses/de/localities'],
   ['get', '/addresses/de/status'],
   ['get', '/employees/compliance-alerts'],
+  ['put', '/employees/{employee}/bwr/status'],
   ['get', '/employees/{employee}/documents'],
   ['post', '/employees/{employee}/documents'],
   ['get', '/employees/{employee}/documents/{document}'],
@@ -329,6 +330,15 @@ if (paths['/auth/session/logout'] !== undefined) {
   contractErrors.push(
     'POST /auth/session/logout is retired and must not be published.'
   )
+}
+
+const retiredBwrPath =
+  /^\/employees\/\{[^{}]+\}\/bwr\/(?:export|exports\/\{[^{}]+\}\/download)$/
+if (Object.keys(paths).some((path) => retiredBwrPath.test(path))) {
+  contractErrors.push('BWR file export is retired and must not be published.')
+}
+if (raw.includes('employees.export')) {
+  contractErrors.push('employees.export is retired and must not be published.')
 }
 
 if (
