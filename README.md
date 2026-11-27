@@ -5,87 +5,38 @@ SPDX-License-Identifier: CC0-1.0
 
 # SecPal Contracts
 
-> SecPal – A guard's best friend
+SecPal develops open-source software for professional security operations. This
+repository owns the public HTTP API contract shared by the SecPal server and
+its clients. [SecPal project overview](https://github.com/SecPal)
 
-[![Quality Gates](https://github.com/SecPal/contracts/actions/workflows/quality.yml/badge.svg)](https://github.com/SecPal/contracts/actions/workflows/quality.yml)
-[![License: AGPL v3+](https://img.shields.io/badge/License-AGPL%20v3+-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-
-SecPal is operations software for German private security services. This
-repository owns the public HTTP API contract shared by the SecPal server and its
-clients.
-
-## Contract responsibility
-
-[`docs/openapi.yaml`](docs/openapi.yaml) is the normative public HTTP API
-contract for the SecPal API. The OpenAPI 3.1 document defines public paths and
-methods, request bodies, response schemas, authentication security declarations,
-and reusable public API components.
-
-The OpenAPI document itself is the public endpoint inventory; this README does
-not duplicate it.
-
-Security-relevant interface semantics include authorization-facing HTTP
-behavior where represented, tenant-sensitive resource interfaces, validation,
-and error shapes. Runtime authentication, authorization, tenant isolation,
-validation, and other enforcement belong to the API implementation. A
-discovered mismatch between the contract and implementation is contract drift
-that must be reconciled explicitly.
-
-This repository does not own client-specific native bridge contracts,
-deployment interfaces, separate machine-readable security-event contracts, or
-internal implementation interfaces. Those remain with their responsible
-repositories.
+The OpenAPI 3.1 specification defines the public endpoints, schemas, and
+security declarations. The API repository owns runtime behavior and
+enforcement. Reconcile discrepancies in the owning contract and implementation
+work. [OpenAPI specification](docs/openapi.yaml) · [API implementation](https://github.com/SecPal/api)
 
 ## Validate locally
+
+With Node.js 26 and npm:
 
 ```bash
 npm ci
 npm run validate
 ```
 
-These canonical package scripts validate the OpenAPI contract and the
-repository's policy and formatting requirements.
-
-## Related repositories
-
-- [`SecPal/api`](https://github.com/SecPal/api) owns the server implementation
-  and observable runtime behavior.
-- [`SecPal/frontend`](https://github.com/SecPal/frontend) owns the shared
-  browser and PWA client.
-- [`SecPal/android`](https://github.com/SecPal/android) owns the Android client
-  and its native bridge contracts.
-- [`SecPal/deployment`](https://github.com/SecPal/deployment) owns self-hosting,
-  deployment, and operational integration contracts.
-
-Frontend and native clients consume the public HTTP contract without moving
-their client-specific integration protocols into this repository.
-
-## Contributing
-
-See the repository's [`CONTRIBUTING.md`](CONTRIBUTING.md) and the
-[organization-wide contribution guidance](https://github.com/SecPal/.github/blob/main/CONTRIBUTING.md).
+The validation runs Redocly, contract and policy checks, and formatting.
+[Contributor guide](CONTRIBUTING.md)
 
 ## Security
 
-Report vulnerabilities through the process in [`SECURITY.md`](SECURITY.md).
+The OpenAPI Lint workflow requires a successful CLEAN read-only Trivy scan of
+the exact checkout before installing dependencies and validating the contract.
+The shared scanner owns scan scope, policy, and evidence retention.
+[Workflow](.github/workflows/local-openapi-lint.yml) · [Repository scanning](https://github.com/SecPal/.github/blob/main/docs/trivy-repository-scanning.md)
 
-The required OpenAPI Lint check first runs the immutable organization Trivy
-repository scanner on the exact checked-out commit with read-only permissions.
-It includes npm development dependencies, exposed secrets and supported
-misconfigurations. Only successful CLEAN evidence allows dependency installation
-and contract validation to proceed; missing, failed, stale or non-CLEAN evidence
-fails the check. The shared action owns scanner/database identity, freshness,
-policy and redaction, retaining bounded secret-safe evidence for 14 days.
-
-Trivy does not replace Redocly, OpenAPI semantics, verified-endpoint or domain
-contract checks, or prove semantic coverage for every configuration format.
-Workflow changes remain candidate-controlled and subject to the existing GitHub
-protections and maintainer review; this check is not independent, tamper-proof
-workflow enforcement.
+To report a vulnerability, follow the [Security policy](SECURITY.md).
 
 ## License
 
-Repository-owned code, where applicable, is licensed under the GNU Affero
-General Public License 3.0 or later. See [`LICENSE`](LICENSE); file-level SPDX
-and REUSE metadata in [`REUSE.toml`](REUSE.toml) provide the applicable
-licensing authority.
+Repository-owned code, where applicable, uses AGPL-3.0-or-later. File-level SPDX
+and REUSE metadata identify the applicable licenses.
+[License](LICENSE) · [REUSE metadata](REUSE.toml)
