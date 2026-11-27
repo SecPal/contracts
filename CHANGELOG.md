@@ -40,6 +40,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   active Tenant, and personnel document access requires both effective scope
   and classification permission.
 
+### Removed
+
+- **Breaking:** The Bewacherregister CSV/XML generation and download operations
+  and the export-only permission are retired without aliases. Record a manual
+  report date through the Employee update operation and use the BWR status
+  operation for registration and authority decisions.
+
 ### Fixed
 
 - Keep immutable Dependabot caller updates independent of copied test SHAs and

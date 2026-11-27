@@ -178,6 +178,126 @@ test('rejects republication of the retired session logout alias', () => {
   assert.match(result.stderr, /session\/logout is retired/i)
 })
 
+test('requires the manual BWR status operation in the verified contract', () => {
+  const candidate = structuredClone(parsedContract)
+  delete candidate.paths['/employees/{employee}/bwr/status']
+
+  const result = runGuard(yaml.dump(candidate))
+
+  assert.equal(result.status, 1, result.stdout)
+  assert.ok(
+    result.stderr.includes('PUT /employees/{employee}/bwr/status'),
+    result.stderr
+  )
+})
+
+test('rejects returning a BWR export operation or permission to the contract', () => {
+  const retired = [
+    [
+      '/employees/{employee}/bwr/export',
+      { post: { operationId: 'exportBwr' } },
+    ],
+    [
+      '/employees/{employeeId}/bwr/exports/{file}/download',
+      { get: { operationId: 'downloadBwrExport' } },
+    ],
+  ]
+  for (const [path, item] of retired) {
+    const candidate = structuredClone(parsedContract)
+    candidate.paths[path] = item
+
+    const result = runGuard(yaml.dump(candidate))
+
+    assert.equal(result.status, 1, result.stdout)
+    assert.match(result.stderr, /BWR file export is retired/)
+  }
+
+  const candidate = structuredClone(parsedContract)
+  candidate.paths['/employees/{employee}/bwr/status'].put.description =
+    'Requires employees.export.'
+  const result = runGuard(yaml.dump(candidate))
+
+  assert.equal(result.status, 1, result.stdout)
+  assert.match(result.stderr, /employees\.export is retired/)
+})
+
+test('documents valid manual BWR report and status examples without permitting retired or misplaced fields', () => {
+  const candidate = structuredClone(parsedContract)
+  const status = candidate.paths['/employees/{employee}/bwr/status']?.put
+  assert.ok(status, 'missing manual BWR status operation')
+  assert.deepEqual(status.security, [
+    { BearerAuth: [] },
+    { SessionAuth: [], CsrfToken: [] },
+  ])
+  const statusRequest = status.requestBody.content['application/json']
+  assert.deepEqual(statusRequest.examples.reported.value, { status: 'pending' })
+  assert.equal(statusRequest.examples.approved.value.bwr_id, '0001234')
+  Object.assign(statusRequest.examples, {
+    unknownStatus: { value: { status: 'not_registered' } },
+    numericId: { value: { status: 'active', bwr_id: 1234 } },
+    prematureId: { value: { status: 'pending', bwr_id: '0001234' } },
+    retiredFormat: { value: { status: 'pending', format: 'csv' } },
+  })
+  const report =
+    candidate.paths['/employees/{employee}'].patch.requestBody.content[
+      'application/json'
+    ]
+  report.examples.misplacedStatus = { value: { bwr_status: 'pending' } }
+  const create =
+    candidate.paths['/employees'].post.requestBody.content['application/json']
+  create.examples = {
+    misplacedReportDate: {
+      value: {
+        first_name: 'Alex',
+        last_name: 'Example',
+        date_of_birth: '1990-02-15',
+        email: 'alex@example.secpal.dev',
+        status: 'pre_contract',
+        bwr_submission_date: '2026-11-27',
+      },
+    },
+  }
+
+  const directory = mkdtempSync(join(tmpdir(), 'employee-bwr-'))
+  try {
+    const file = join(directory, 'openapi.yaml')
+    const config = join(directory, 'redocly.yaml')
+    writeFileSync(file, yaml.dump(candidate))
+    writeFileSync(config, 'rules:\n  no-invalid-media-type-examples: error\n')
+    const cli = fileURLToPath(
+      new URL('../node_modules/.bin/redocly', import.meta.url)
+    )
+    const result = spawnSync(
+      process.execPath,
+      [cli, 'lint', '--config', config, file],
+      { encoding: 'utf8' }
+    )
+    const diagnostics = result.stdout + result.stderr
+    assert.equal(result.status, 1, diagnostics)
+    for (const name of [
+      'unknownStatus',
+      'numericId',
+      'prematureId',
+      'retiredFormat',
+      'misplacedStatus',
+      'misplacedReportDate',
+    ]) {
+      assert.ok(
+        diagnostics.includes('examples/' + name + '/value'),
+        diagnostics
+      )
+    }
+    for (const name of ['reported', 'approved', 'reportDate']) {
+      assert.ok(
+        !diagnostics.includes('examples/' + name + '/value'),
+        diagnostics
+      )
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
 test('accepts canonical logout security alternatives independent of order', () => {
   const candidate = structuredClone(parsedContract)
   candidate.paths['/auth/logout'].post.security.reverse()
