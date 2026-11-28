@@ -12,7 +12,7 @@ applyTo: 'docs/openapi.yaml'
 - Reuse components with `$ref`; avoid inline schema duplication in path operations.
 - Keep response coverage complete for success and applicable error states.
 - Maintain consistent security schemes, examples, naming, and reusable parameters.
-- Treat breaking changes as versioned API changes and document them in `CHANGELOG.md`.
+- Treat breaking changes as versioned API changes and explain them and any required migration steps in the owning pull request.
 - Run the relevant Redocly validation and formatting after edits (`npm run lint` from the repo root; it uses
   `redocly.yaml`).
 - `GET /health` documents `200` and `503` only; `operation-4xx-response` is disabled in `redocly.yaml` because
