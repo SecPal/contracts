@@ -84,9 +84,10 @@ reviews and checks before merging.
 - Prefer reusable `$ref` components over duplicated inline schemas. Keep
   security schemes, error responses, parameters, examples, naming, and response
   coverage coherent.
-- Make external API breakage deliberate and evidenced. Update affected examples,
-  validators, and `CHANGELOG.md` in the same delivery when response shapes,
-  error codes, required fields, or security schemes change.
+- Make external API breakage deliberate and evidenced. Update affected examples
+  and validators in the same delivery when response shapes, error codes,
+  required fields, or security schemes change. Explain breaking changes and any
+  required migration steps in the pull request.
 - Prefer minimal compatible schema changes unless the owning contract explicitly
   calls for a pre-`1.x` removal of an insecure or obsolete compatibility path.
 
@@ -125,8 +126,6 @@ stop on the first failed item:
   REUSE, changed-file hook, and `git diff --check` checks;
 - verify that changed response shapes, errors, required fields, security
   schemes, examples, and validators remain coherent;
-- update `CHANGELOG.md` for actual product fixes, features, or breaking changes,
-  but not automatically for governance-only prose;
 - Sign commits with SSH using the existing signing identity.
   Preserve existing SSH keys and signing configuration. GitHub-generated
   signatures are provider evidence, not SecPal OpenPGP signing authority.

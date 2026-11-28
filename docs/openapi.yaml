@@ -4984,8 +4984,8 @@ components:
 
         Servers must return every known channel flag for the active bootstrap `schema_version`, including explicit
         `false` values when a known channel is unavailable on the deployment. Adding a new channel changes this
-        object shape and therefore requires a bootstrap `schema_version` bump plus a breaking-change entry in
-        `CHANGELOG.md`.
+        object shape and therefore requires a bootstrap `schema_version` bump. Explain the breaking change
+        and any required migration steps in the owning pull request.
       additionalProperties: false
       required:
         - android_fcm
